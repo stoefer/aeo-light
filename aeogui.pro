@@ -165,8 +165,10 @@ else: LIBS += -ltiff
 unix: CONFIG += link_pkgconfig
 
 # libav libraries
-LIBS += -lavcodec -lavfilter -lavformat -lavutil
-LIBS += -lswscale -lswresample
+!contains(DEFINES, AEO_DISABLE_LIBAV) {
+    LIBS += -lavcodec -lavfilter -lavformat -lavutil
+    LIBS += -lswscale -lswresample
+}
 
 # OpenEXR libraries
 # LIBS += -lImath -lHalf -lIex -lIexMath -lIlmThread -lIlmImf
