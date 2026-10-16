@@ -37,6 +37,7 @@ jobs:
             mingw-w64-x86_64-qt5-base
             mingw-w64-x86_64-qt5-tools
             mingw-w64-x86_64-qt5-multimedia
+            mingw-w64-x86_64-ffmpeg
             mingw-w64-x86_64-libtiff
             mingw-w64-x86_64-openexr
             mingw-w64-x86_64-zlib
@@ -111,6 +112,9 @@ jobs:
           cp "${exe_candidates[0]}" package/AEO-Light/AEO-Light.exe
           cp LICENSE.txt package/AEO-Light/
           cp logos2.png package/AEO-Light/
+          if [ -f /mingw64/bin/ffmpeg.exe ]; then
+            cp /mingw64/bin/ffmpeg.exe package/AEO-Light/
+          fi
 
           # Use windeployqt from Qt5 package to bundle runtime DLLs/plugins
           WINDEPLOYQT_BIN="$(command -v windeployqt || command -v windeployqt-qt5 || true)"
@@ -145,7 +149,9 @@ jobs:
             queue+=("$dep_file")
           }
 
-          enqueue_dep_file "$APP_DIR/AEO-Light.exe"
+          for exe in "$APP_DIR"/*.exe; do
+            enqueue_dep_file "$exe"
+          done
           for dll in "$APP_DIR"/**/*.dll; do
             enqueue_dep_file "$dll"
           done

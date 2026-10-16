@@ -41,10 +41,12 @@
 #include <QDesktopServices>
 #include <QInputDialog>
 #include <QSoundEffect>
+#include <QImage>
 #include <QFile>
 #include <QMouseEvent>
 #include <QDateTime>
 #include <QTemporaryFile>
+#include <QTemporaryDir>
 #include <QTextEdit>
 #include <QScrollArea>
 #include <QProgressDialog>
@@ -53,6 +55,7 @@
 #include <cstdio>
 #include <exception>
 #include <memory>
+#include <stdexcept>
 
 #include <fcntl.h>
 #include <stdlib.h>
@@ -107,6 +110,68 @@ extern "C"
 #ifndef USELIBAV
 #define AV_LOG_INFO 0
 #define av_log(...) do {} while(0)
+#endif
+
+#ifndef USELIBAV
+static QString FindExternalFfmpeg()
+{
+#ifdef Q_OS_WIN
+	const QString bundled = QDir(qApp->applicationDirPath()).filePath("ffmpeg.exe");
+	if(QFileInfo::exists(bundled))
+		return bundled;
+#endif
+	return QStandardPaths::findExecutable("ffmpeg");
+}
+
+static void SaveTextureAsPngFrame(const FrameTexture *frame,
+		const QString &frameDir, int frameIndex)
+{
+	if(!frame || !frame->buf || frame->width <= 0 || frame->height <= 0)
+		throw std::runtime_error("Video frame buffer is not initialized");
+
+	QImage raw(reinterpret_cast<const uchar*>(frame->buf),
+			frame->width, frame->height, QImage::Format_ARGB32);
+	QImage out = raw.mirrored(false, true);
+	QString path = QDir(frameDir).filePath(
+			QString("frame_%1.png").arg(frameIndex, 6, 10, QChar('0')));
+	if(!out.save(path, "PNG"))
+		throw std::runtime_error("Could not write temporary video frame image");
+}
+
+static void EncodeVideoWithExternalFfmpeg(const QString &frameDir,
+		const QString &audioWav, const QString &videoOut, double fps)
+{
+	QString ffmpegBin = FindExternalFfmpeg();
+	if(ffmpegBin.isEmpty())
+		throw std::runtime_error("ffmpeg executable not found for video export");
+
+	QString fpsArg = QString::number(fps, 'f', 3);
+	QString pattern = QDir(frameDir).filePath("frame_%06d.png");
+	QStringList args;
+	args << "-y"
+	     << "-framerate" << fpsArg
+	     << "-i" << pattern
+	     << "-i" << audioWav
+	     << "-c:v" << "mpeg4"
+	     << "-q:v" << "3"
+	     << "-c:a" << "aac"
+	     << "-shortest"
+	     << videoOut;
+
+	QProcess ffmpeg;
+	ffmpeg.setProcessChannelMode(QProcess::MergedChannels);
+	ffmpeg.start(ffmpegBin, args);
+	if(!ffmpeg.waitForStarted())
+		throw std::runtime_error("Could not start ffmpeg process");
+	if(!ffmpeg.waitForFinished(-1))
+		throw std::runtime_error("ffmpeg process did not finish");
+	if(ffmpeg.exitStatus() != QProcess::NormalExit || ffmpeg.exitCode() != 0)
+	{
+		QString output = QString::fromLocal8Bit(ffmpeg.readAll());
+		throw std::runtime_error(
+				QString("ffmpeg failed while creating video: %1").arg(output).toStdString());
+	}
+}
 #endif
 
 extern "C" void SegvHandler(int param);
@@ -3239,15 +3304,31 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 
 	int frameratesamples ;
 	int fps_timbase =24;
+#ifndef USELIBAV
+	double exportVideoFps = 24.0;
+#endif
 
 	if (ui->filmrate_PD->currentIndex()==0)
+	{
 		frameratesamples = (int) (samplerate/23.976);
+		#ifndef USELIBAV
+		exportVideoFps = 23.976;
+		#endif
+	}
 	else if (ui->filmrate_PD->currentIndex()==1)
+	{
 		frameratesamples = (int) (samplerate/24.0);
+		#ifndef USELIBAV
+		exportVideoFps = 24.0;
+		#endif
+	}
 	else
 	{
 		frameratesamples =  (int) (samplerate/25.0);
 		fps_timbase=25;
+		#ifndef USELIBAV
+		exportVideoFps = 25.0;
+		#endif
 	}
 
 	AudioFromTexture audio(numChannels, samplerate, frameratesamples);
@@ -3263,17 +3344,27 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 	outputFrameTexture->nComponents = 4;
 
 	#ifndef USE_MUX_HACK
+		#ifdef USELIBAV
 		std::unique_ptr<VideoEncoder> vid;
 		if(videoFn)
 			vid.reset(new VideoEncoder("a.mov"));
+		#else
+		QTemporaryDir externalVideoFrames;
+		int externalVideoFrameCount = 0;
+		#endif
 	#endif
 
 	if(videoFn)
 	{
 		#ifndef USE_MUX_HACK
+			#ifdef USELIBAV
 			// set the incoming size and pixel format
 			vid->ExampleVideoFrame(this->outputFrameTexture);
 			vid->ExampleAudioFrame(&audio);
+			#else
+			if(!externalVideoFrames.isValid())
+				throw std::runtime_error("Could not create temporary folder for video export");
+			#endif
 		#endif
 
 		frame_window->PrepareVideoOutput(this->outputFrameTexture);
@@ -3328,8 +3419,10 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 		#ifndef USE_MUX_HACK
 		if(videoFn)
 		{
+			#ifdef USELIBAV
 			traceCurrentOperation = "Opening video mux output file";
 			vid->Open();
+			#endif
 		}
 		#endif
 
@@ -3380,7 +3473,14 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 				if(videoFn)
 				{
 					frame_window->read_frame_texture(this->outputFrameTexture);
+					#ifdef USELIBAV
 					vid->WriteVideoFrame(this->outputFrameTexture);
+					#else
+					SaveTextureAsPngFrame(
+							this->outputFrameTexture,
+							externalVideoFrames.path(),
+							externalVideoFrameCount++);
+					#endif
 				}
 				#endif
 
@@ -3400,7 +3500,11 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 
 				#ifndef USE_MUX_HACK
 				if(videoFn)
+				{
+					#ifdef USELIBAV
 					vid->WriteAudioFrame(&audio);
+					#endif
+				}
 				#endif
 
 				traceCurrentOperation = "Update Progress Bar";
@@ -3451,8 +3555,19 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 		#ifndef USE_MUX_HACK
 		if(videoFn)
 		{
+			#ifdef USELIBAV
 			traceCurrentOperation = "closing video mux output file";
 			vid->Close();
+			#else
+			if(externalVideoFrameCount <= 0)
+				throw std::runtime_error("No video frames were generated for export");
+			traceCurrentOperation = "Encoding video file";
+			EncodeVideoWithExternalFfmpeg(
+					externalVideoFrames.path(),
+					QString::fromLocal8Bit(fn),
+					QString::fromLocal8Bit(videoFn),
+					exportVideoFps);
+			#endif
 		}
 		#endif
 	}
