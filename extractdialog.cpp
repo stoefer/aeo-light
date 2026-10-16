@@ -268,6 +268,7 @@ void ExtractDialog::on_muxVideoCheckbox_clicked(bool checked)
 	ui->fileVideoBrowseButton->setEnabled(checked);
 	ui->videoPresetLabel->setEnabled(checked);
 	ui->videoPresetComboBox->setEnabled(checked);
+	ui->videoPresetHelpLabel->setEnabled(checked);
 }
 
 void ExtractDialog::on_fileVideoBrowseButton_clicked()

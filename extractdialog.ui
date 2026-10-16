@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>599</width>
-    <height>485</height>
+    <height>521</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -19,7 +19,7 @@
      <x>20</x>
      <y>20</y>
      <width>561</width>
-     <height>408</height>
+     <height>444</height>
     </rect>
    </property>
    <layout class="QGridLayout" name="gridLayout">
@@ -242,7 +242,7 @@
        <bool>false</bool>
       </property>
       <property name="text">
-       <string>Simple Export Mode</string>
+       <string>Eenvoudige exportmodus</string>
       </property>
       <property name="alignment">
        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -256,19 +256,32 @@
       </property>
       <item>
        <property name="text">
-        <string>Fast (small file, lower quality)</string>
+        <string>Snel (klein bestand, lagere kwaliteit)</string>
        </property>
       </item>
       <item>
        <property name="text">
-        <string>Standard (balanced)</string>
+        <string>Standaard (balans)</string>
        </property>
       </item>
       <item>
        <property name="text">
-        <string>Quality (larger file, better quality)</string>
+        <string>Kwaliteit (groter bestand, beste kwaliteit)</string>
        </property>
       </item>
+     </widget>
+    </item>
+    <item row="13" column="1">
+     <widget class="QLabel" name="videoPresetHelpLabel">
+      <property name="enabled">
+       <bool>false</bool>
+      </property>
+      <property name="text">
+       <string>Tip voor beginners: kies &quot;Standaard&quot;. Gebruik &quot;Snel&quot; voor snelle previews en &quot;Kwaliteit&quot; voor eindbestanden.</string>
+      </property>
+      <property name="wordWrap">
+       <bool>true</bool>
+      </property>
      </widget>
     </item>
    </layout>
@@ -277,7 +290,7 @@
    <property name="geometry">
     <rect>
      <x>375</x>
-     <y>439</y>
+     <y>475</y>
      <width>201</width>
      <height>32</height>
     </rect>

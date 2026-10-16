@@ -160,8 +160,10 @@ static void SaveTextureAsPngFrame(const FrameTexture *frame,
 
 static void EncodeVideoWithExternalFfmpeg(const QString &frameDir,
 		const QString &audioWav, const QString &videoOut, double fps,
-		int exportMode)
+		int exportMode, QProgressDialog *progress, bool *wasCanceled)
 {
+	if(wasCanceled) *wasCanceled = false;
+
 	QString ffmpegBin = FindExternalFfmpeg();
 	if(ffmpegBin.isEmpty())
 		throw std::runtime_error("ffmpeg executable not found for video export");
@@ -202,8 +204,24 @@ static void EncodeVideoWithExternalFfmpeg(const QString &frameDir,
 	ffmpeg.start(ffmpegBin, args);
 	if(!ffmpeg.waitForStarted())
 		throw std::runtime_error("Could not start ffmpeg process");
-	if(!ffmpeg.waitForFinished(-1))
-		throw std::runtime_error("ffmpeg process did not finish");
+
+	while(ffmpeg.state() != QProcess::NotRunning)
+	{
+		ffmpeg.waitForFinished(100);
+		qApp->processEvents();
+		if(progress && progress->wasCanceled())
+		{
+			ffmpeg.terminate();
+			if(!ffmpeg.waitForFinished(2000))
+			{
+				ffmpeg.kill();
+				ffmpeg.waitForFinished(2000);
+			}
+			if(wasCanceled) *wasCanceled = true;
+			return;
+		}
+	}
+
 	if(ffmpeg.exitStatus() != QProcess::NormalExit || ffmpeg.exitCode() != 0)
 	{
 		QString output = QString::fromLocal8Bit(ffmpeg.readAll());
@@ -3624,15 +3642,25 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 			traceCurrentOperation = "closing video mux output file";
 			vid->Close();
 			#else
+			bool ffmpegCanceled = false;
 			if(externalVideoFrameCount <= 0)
 				throw std::runtime_error("No video frames were generated for export");
 			traceCurrentOperation = "Encoding video file";
+			progress.setLabelText("Video coderen... (klik op Cancel om te onderbreken)");
 			EncodeVideoWithExternalFfmpeg(
 					externalVideoFrames.path(),
 					QString::fromLocal8Bit(fn),
 					QString::fromLocal8Bit(videoFn),
 					exportVideoFps,
-					videoExportMode);
+					videoExportMode,
+					&progress,
+					&ffmpegCanceled);
+			if(ffmpegCanceled)
+			{
+				this->requestCancel = true;
+				QFile::remove(QString::fromLocal8Bit(videoFn));
+				throw 2;
+			}
 			#endif
 		}
 		#endif
