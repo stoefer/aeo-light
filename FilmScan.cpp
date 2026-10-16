@@ -770,6 +770,7 @@ bool FilmScan::SourceIdentifyImageSet(const std::string filename)
 		else
 			break;
 	}
+	closedir(dirp);
 	if(errno!=0)
 	{
 		QString msg;
@@ -782,11 +783,19 @@ bool FilmScan::SourceIdentifyImageSet(const std::string filename)
 		throw AeoException(msg);
 	}
 
+	if(frames.empty())
+	{
+		throw AeoException("No matching image frames found in source directory");
+	}
 
 	// find the frame given in the input argument filename
 	std::vector<long>::iterator framei;
 	std::sort(frames.begin(), frames.end());
 	framei = std::lower_bound(frames.begin(), frames.end(), inputFrame);
+	if(framei == frames.end() || *framei != inputFrame)
+	{
+		throw AeoException("Input frame number not found in source sequence");
+	}
 
 	// seek in both directions to find the largest contiguous set of
 	// frames containing the given frame.
@@ -796,7 +805,8 @@ bool FilmScan::SourceIdentifyImageSet(const std::string filename)
 	this->firstFrame = frames[firstIdx];
 
 	long lastIdx(framei - frames.begin());
-	while(lastIdx < frames.size() && frames[lastIdx+1] == frames[lastIdx] + 1)
+	while(lastIdx + 1 < long(frames.size()) &&
+			frames[lastIdx+1] == frames[lastIdx] + 1)
 		lastIdx++;
 	this->numFrames = frames[lastIdx] - this->firstFrame + 1;
 
