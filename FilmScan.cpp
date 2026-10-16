@@ -49,6 +49,8 @@
 //#include <boost/numeric/ublas/matrix.hpp>
 
 #include <QString>
+#include <QFileInfo>
+#include <QImageReader>
 #include <QMessageBox>
 
 #ifdef Q_OS_WIN32
@@ -91,6 +93,7 @@
 #include "readframedpx.h"
 #include "readframeexr.h"
 #include "readframetiff.h"
+#include "readframejpg.h"
 #include "wav.h"
 #include "aeoexception.h"
 
@@ -283,6 +286,7 @@ const char *SourceFormatName[] {
 	"DPX",
 	"OpenEXR",
 	"TIFF",
+	"JPEG",
 	"Other image",
 	"LibAV Video",
 	"WAV",
@@ -320,6 +324,9 @@ bool FilmScan::Source(const std::string filename, SourceFormat fmt)
 		case SOURCE_TIFF:
 			if(SourceTIFF(filename)) return true;
 			break;
+		case SOURCE_JPEG:
+			if(SourceJPG(filename)) return true;
+			break;
 		case SOURCE_LIBAV:
 			if(SourceLibAV(filename)) return true;
 			break;
@@ -335,6 +342,12 @@ bool FilmScan::Source(const std::string filename, SourceFormat fmt)
 		try
 		{
 			if(SourceDPX(filename)) return true;
+		}
+		catch(...) {;}
+
+		try
+		{
+			if(SourceJPG(filename)) return true;
 		}
 		catch(...) {;}
 
@@ -508,6 +521,45 @@ bool FilmScan::SourceTIFF(const std::string filename)
 }
 
 //-----------------------------------------------------------------------------
+bool FilmScan::SourceJPG(const std::string filename)
+{
+	QString qfilename = QString::fromStdString(filename);
+	QString suffix = QFileInfo(qfilename).suffix().toLower();
+	if(suffix != "jpg" && suffix != "jpeg")
+		throw AeoException("FilmScan: unsupported JPEG extension");
+
+	QImageReader reader(qfilename);
+	reader.setAutoTransform(true);
+	QSize size = reader.size();
+
+	if(!size.isValid())
+	{
+		QImage img = reader.read();
+		if(img.isNull())
+		{
+			QString msg("FilmScan: Cannot open ");
+			msg += qfilename;
+			if(!reader.errorString().isEmpty())
+			{
+				msg += "\n";
+				msg += reader.errorString();
+			}
+			throw AeoException(msg);
+		}
+		size = img.size();
+	}
+
+	this->width = size.width();
+	this->height = size.height();
+	this->srcFormat = SOURCE_JPEG;
+
+	this->TimeCode = "00:00:00:00";
+	SourceIdentifyImageSet(filename);
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------
 bool FilmScan::SourceIdentifyImageSet(const std::string filename)
 {
 	// Then find all the dpx files that go with this one by adjusting
@@ -552,7 +604,7 @@ bool FilmScan::SourceIdentifyImageSet(const std::string filename)
 
 	if(numdigits==0)
 	{
-		throw AeoException("DPX filename contains no digits for frame number");
+		throw AeoException("Image filename contains no digits for frame number");
 	}
 
 	long inputFrame;
@@ -1040,6 +1092,10 @@ double* FilmScan::GetFrame(long frameNum, double *buf) const
 		sprintf(this->fnbuf+strlen(this->path)+1, this->name, frameNum);
 		buf = ReadFrameTIFF(fnbuf, buf);
 		break;
+	case SOURCE_JPEG:
+		sprintf(this->fnbuf+strlen(this->path)+1, this->name, frameNum);
+		buf = ReadFrameJPG(fnbuf, buf);
+		break;
 	case SOURCE_LIBAV:
 		if(this->vid) buf = this->vid->GetFrame(frameNum, buf);
 		else throw AeoException("Internal video structure not ready");
@@ -1099,6 +1155,12 @@ FrameTexture* FilmScan::GetFrameImage(long frameNum, FrameTexture *frame) const
 	case SOURCE_TIFF:
 		sprintf(this->fnbuf+strlen(this->path)+1, this->name, frameNum);
 		frame->buf = ReadFrameTIFF_ImageData(fnbuf, frame->buf,
+				frame->width, frame->height, frame->isNonNativeEndianess,
+				frame->format, frame->nComponents);
+		break;
+	case SOURCE_JPEG:
+		sprintf(this->fnbuf+strlen(this->path)+1, this->name, frameNum);
+		frame->buf = ReadFrameJPG_ImageData(fnbuf, frame->buf,
 				frame->width, frame->height, frame->isNonNativeEndianess,
 				frame->format, frame->nComponents);
 		break;

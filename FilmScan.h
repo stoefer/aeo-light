@@ -122,10 +122,11 @@ typedef int SourceFormat;
 #define SOURCE_DPX 0
 #define SOURCE_EXR 1
 #define SOURCE_TIFF 2
-#define SOURCE_OTHER_IMG 3
-#define SOURCE_LIBAV 4
-#define SOURCE_WAV 5
-#define SOURCE_UNKNOWN 6
+#define SOURCE_JPEG 3
+#define SOURCE_OTHER_IMG 4
+#define SOURCE_LIBAV 5
+#define SOURCE_WAV 6
+#define SOURCE_UNKNOWN 7
 
 class FilmScan {
 private:
@@ -166,6 +167,7 @@ public:
 	bool SourceDPX(const std::string filename);
 	bool SourceEXR(const std::string filename);
 	bool SourceTIFF(const std::string filename);
+	bool SourceJPG(const std::string filename);
 	bool SourceLibAV(const std::string filename);
 	bool SourceWav(const std::string filename);
 	bool SourceIdentifyImageSet(const std::string filename);

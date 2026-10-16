@@ -105,6 +105,7 @@ SOURCES += \
     frame_view_gl.cpp \
     writexml.cpp \
     readframetiff.cpp \
+    readframejpg.cpp \
     savesampledialog.cpp \
     preferencesdialog.cpp \
     extractdialog.cpp \
@@ -125,6 +126,7 @@ HEADERS  += mainwindow.h \
     aeoexception.h \
     writexml.h \
     readframetiff.h \
+    readframejpg.h \
     savesampledialog.h \
     preferencesdialog.h \
     extractdialog.h \
