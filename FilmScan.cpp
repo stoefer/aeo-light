@@ -332,6 +332,29 @@ bool FilmScan::Source(const std::string filename, SourceFormat fmt)
 		case SOURCE_PNG:
 			if(SourcePNG(filename)) return true;
 			break;
+		case SOURCE_OTHER_IMG:
+			try
+			{
+				if(SourceDPX(filename)) return true;
+			}
+			catch(...) {;}
+			try
+			{
+				if(SourceTIFF(filename)) return true;
+			}
+			catch(...) {;}
+			try
+			{
+				if(SourceJPG(filename)) return true;
+			}
+			catch(...) {;}
+			try
+			{
+				if(SourcePNG(filename)) return true;
+			}
+			catch(...) {;}
+			throw AeoException("Unable to recognize image source file");
+			break;
 		case SOURCE_LIBAV:
 			if(SourceLibAV(filename)) return true;
 			break;

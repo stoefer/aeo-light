@@ -875,6 +875,7 @@ void MainWindow::on_sourceButton_clicked()
 		const char *filter;
 	} fileFilterArr[] = {
         { SOURCE_LIBAV,     "Video files (*.mp4 *.mov *.avi)" },
+        { SOURCE_OTHER_IMG, "Image frames (*.dpx *.tif *.tiff *.jpg *.jpeg *.JPG *.JPEG *.png *.PNG)" },
         { SOURCE_DPX,       "DPX frames (*.dpx)" },
         { SOURCE_TIFF,      "TIFF frames (*.tif *.tiff)" },
         { SOURCE_JPEG,      "JPEG frames (*.jpg *.jpeg *.JPG *.JPEG)" },
