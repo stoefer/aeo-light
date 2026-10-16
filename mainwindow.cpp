@@ -112,6 +112,26 @@ extern "C"
 #define av_log(...) do {} while(0)
 #endif
 
+static QString FormatEtaSeconds(double seconds)
+{
+	if(seconds < 0) seconds = 0;
+	int total = static_cast<int>(seconds + 0.5);
+	int hrs = total / 3600;
+	int mins = (total % 3600) / 60;
+	int secs = total % 60;
+
+	if(hrs > 0)
+	{
+		return QString("%1:%2:%3")
+				.arg(hrs, 2, 10, QChar('0'))
+				.arg(mins, 2, 10, QChar('0'))
+				.arg(secs, 2, 10, QChar('0'));
+	}
+	return QString("%1:%2")
+			.arg(mins, 2, 10, QChar('0'))
+			.arg(secs, 2, 10, QChar('0'));
+}
+
 #ifndef USELIBAV
 static QString FindExternalFfmpeg()
 {
@@ -3292,9 +3312,31 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 	progress.setMinimumDuration(0);
 
 	this->requestCancel = false;
+	QElapsedTimer progressTimer;
+	progressTimer.start();
 
-	progress.setLabelText("Audio Rendering...");
-	progress.setValue(0);
+	auto updateProgressUi = [&](long completedFrames, const QString &phaseText)
+	{
+		long shownFrames = std::max<long>(0, std::min<long>(completedFrames, numFrames));
+		progress.setValue(static_cast<int>(shownFrames));
+
+		QString status = QString("%1 (%2/%3 frames)")
+				.arg(phaseText)
+				.arg(shownFrames)
+				.arg(numFrames);
+
+		if(shownFrames > 0)
+		{
+			double elapsedSec = progressTimer.elapsed() / 1000.0;
+			double fps = shownFrames / std::max(0.001, elapsedSec);
+			double remainingSec = (numFrames - shownFrames) / std::max(0.001, fps);
+			status += QString(" - ETA %1").arg(FormatEtaSeconds(remainingSec));
+		}
+
+		progress.setLabelText(status);
+	};
+
+	updateProgressUi(0, "Audio Rendering...");
 
 	//qApp->processEvents();
 
@@ -3509,7 +3551,7 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 
 				traceCurrentOperation = "Update Progress Bar";
 
-				progress.setValue(a);
+				updateProgressUi(a, videoFn ? "Audio + Video Rendering..." : "Audio Rendering...");
 				traceCurrentOperation = "Process GUI events";
 
 				if(progress.wasCanceled())
@@ -3532,6 +3574,7 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 
 		// INFO chunk
 		traceCurrentOperation = "Writing Info block";
+		updateProgressUi(numFrames, "Finalizing output...");
 		wout.BeginInfoChunk();
 		wout.AddInfo("ICRD",
 				qPrintable(QDate::currentDate().toString("yyyy-MM-dd")));
