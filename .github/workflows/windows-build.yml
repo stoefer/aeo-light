@@ -1,0 +1,118 @@
+name: Windows Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths:
+      - "**.cpp"
+      - "**.h"
+      - "**.ui"
+      - "aeogui.pro"
+      - ".github/workflows/windows-build.yml"
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            base-devel
+            git
+            make
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-qt5-base
+            mingw-w64-x86_64-qt5-multimedia
+            mingw-w64-x86_64-libtiff
+            mingw-w64-x86_64-openexr
+            mingw-w64-x86_64-zlib
+            zip
+
+      - name: Build OpenDPX and DSPFilters static libs
+        run: |
+          set -euo pipefail
+          mkdir -p _deps
+          git clone --depth 1 https://github.com/patrickpalmer/dpx.git _deps/dpx
+          git clone --depth 1 https://github.com/vinniefalco/DSPFilters.git _deps/DSPFilters
+
+          mkdir -p include/DspFilters lib
+          cp -r _deps/DSPFilters/shared/DSPFilters/include/DspFilters/* include/DspFilters/
+
+          g++ -std=c++11 -O2 -c \
+            _deps/dpx/libdpx/Codec.cpp \
+            _deps/dpx/libdpx/DPX.cpp \
+            _deps/dpx/libdpx/DPXHeader.cpp \
+            _deps/dpx/libdpx/ElementReadStream.cpp \
+            _deps/dpx/libdpx/InStream.cpp \
+            _deps/dpx/libdpx/OutStream.cpp \
+            _deps/dpx/libdpx/Reader.cpp \
+            _deps/dpx/libdpx/RunLengthEncoding.cpp \
+            _deps/dpx/libdpx/Writer.cpp
+          ar rcs lib/libdpx.a *.o
+          rm -f *.o
+
+          g++ -std=c++11 -O2 -I_deps/DSPFilters/shared/DSPFilters/include -c \
+            _deps/DSPFilters/shared/DSPFilters/source/Bessel.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/Biquad.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/Butterworth.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/Cascade.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/ChebyshevI.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/ChebyshevII.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/Custom.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/Design.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/Documentation.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/Elliptic.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/Filter.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/Legendre.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/Param.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/PoleFilter.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/RBJ.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/RootFinder.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/State.cpp
+          ar rcs lib/libdspfilters.a *.o
+          rm -f *.o
+
+      - name: Build AEO-Light (Win64)
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          cd build
+          qmake ../aeogui.pro "DEFINES+=AEO_DISABLE_LIBAV" "DEFINES+=AEO_DISABLE_MUX_HACK"
+          make -j"$(nproc)"
+
+      - name: Package portable app
+        run: |
+          set -euo pipefail
+          mkdir -p package/AEO-Light
+          cp build/AEO-Light.exe package/AEO-Light/
+          cp LICENSE.txt package/AEO-Light/
+          cp logos2.png package/AEO-Light/
+
+          # Use windeployqt from Qt5 package to bundle runtime DLLs/plugins
+          if command -v windeployqt >/dev/null 2>&1; then
+            windeployqt --release --no-translations package/AEO-Light/AEO-Light.exe
+          else
+            /mingw64/bin/windeployqt --release --no-translations package/AEO-Light/AEO-Light.exe
+          fi
+
+          cd package
+          zip -r ../AEO-Light-Windows-x64.zip AEO-Light
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AEO-Light-Windows-x64
+          path: AEO-Light-Windows-x64.zip
