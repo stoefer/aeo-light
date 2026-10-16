@@ -90,7 +90,11 @@ jobs:
           set -euo pipefail
           mkdir -p build
           cd build
-          qmake ../aeogui.pro "DEFINES+=AEO_DISABLE_LIBAV" "DEFINES+=AEO_DISABLE_MUX_HACK"
+          QMAKE_BIN="$(command -v qmake-qt5 || command -v qmake || true)"
+          if [ -z "$QMAKE_BIN" ]; then
+            QMAKE_BIN="/mingw64/bin/qmake-qt5"
+          fi
+          "$QMAKE_BIN" ../aeogui.pro "DEFINES+=AEO_DISABLE_LIBAV" "DEFINES+=AEO_DISABLE_MUX_HACK"
           make -j"$(nproc)"
 
       - name: Package portable app
