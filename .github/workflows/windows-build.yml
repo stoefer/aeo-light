@@ -35,6 +35,7 @@ jobs:
             make
             mingw-w64-x86_64-toolchain
             mingw-w64-x86_64-qt5-base
+            mingw-w64-x86_64-qt5-tools
             mingw-w64-x86_64-qt5-multimedia
             mingw-w64-x86_64-libtiff
             mingw-w64-x86_64-openexr
@@ -112,11 +113,20 @@ jobs:
           cp logos2.png package/AEO-Light/
 
           # Use windeployqt from Qt5 package to bundle runtime DLLs/plugins
-          if command -v windeployqt >/dev/null 2>&1; then
-            windeployqt --release --no-translations package/AEO-Light/AEO-Light.exe
-          else
-            /mingw64/bin/windeployqt --release --no-translations package/AEO-Light/AEO-Light.exe
+          WINDEPLOYQT_BIN="$(command -v windeployqt || command -v windeployqt-qt5 || true)"
+          if [ -z "$WINDEPLOYQT_BIN" ]; then
+            for candidate in /mingw64/bin/windeployqt /mingw64/bin/windeployqt-qt5; do
+              if [ -x "$candidate" ]; then
+                WINDEPLOYQT_BIN="$candidate"
+                break
+              fi
+            done
           fi
+          if [ -z "$WINDEPLOYQT_BIN" ]; then
+            echo "windeployqt executable not found"
+            exit 1
+          fi
+          "$WINDEPLOYQT_BIN" --release --no-translations package/AEO-Light/AEO-Light.exe
 
           cd package
           zip -r ../AEO-Light-Windows-x64.zip AEO-Light
