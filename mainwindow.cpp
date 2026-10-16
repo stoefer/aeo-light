@@ -878,6 +878,7 @@ void MainWindow::on_sourceButton_clicked()
         { SOURCE_DPX,       "DPX frames (*.dpx)" },
         { SOURCE_TIFF,      "TIFF frames (*.tif *.tiff)" },
         { SOURCE_JPEG,      "JPEG frames (*.jpg *.jpeg *.JPG *.JPEG)" },
+        { SOURCE_PNG,       "PNG frames (*.png *.PNG)" },
         { SOURCE_WAV,       "Synthetic (*.wav)" },
         { SOURCE_UNKNOWN,   "" }
 	};

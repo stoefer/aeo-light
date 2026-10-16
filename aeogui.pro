@@ -106,6 +106,7 @@ SOURCES += \
     writexml.cpp \
     readframetiff.cpp \
     readframejpg.cpp \
+    readframepng.cpp \
     savesampledialog.cpp \
     preferencesdialog.cpp \
     extractdialog.cpp \
@@ -127,6 +128,7 @@ HEADERS  += mainwindow.h \
     writexml.h \
     readframetiff.h \
     readframejpg.h \
+    readframepng.h \
     savesampledialog.h \
     preferencesdialog.h \
     extractdialog.h \

@@ -94,6 +94,7 @@
 #include "readframeexr.h"
 #include "readframetiff.h"
 #include "readframejpg.h"
+#include "readframepng.h"
 #include "wav.h"
 #include "aeoexception.h"
 
@@ -290,6 +291,7 @@ const char *SourceFormatName[] {
 	"Other image",
 	"LibAV Video",
 	"WAV",
+	"PNG",
 	"Unknown" };
 
 const char *FilmScan::GetFormatStr() const
@@ -327,6 +329,9 @@ bool FilmScan::Source(const std::string filename, SourceFormat fmt)
 		case SOURCE_JPEG:
 			if(SourceJPG(filename)) return true;
 			break;
+		case SOURCE_PNG:
+			if(SourcePNG(filename)) return true;
+			break;
 		case SOURCE_LIBAV:
 			if(SourceLibAV(filename)) return true;
 			break;
@@ -348,6 +353,12 @@ bool FilmScan::Source(const std::string filename, SourceFormat fmt)
 		try
 		{
 			if(SourceJPG(filename)) return true;
+		}
+		catch(...) {;}
+
+		try
+		{
+			if(SourcePNG(filename)) return true;
 		}
 		catch(...) {;}
 
@@ -552,6 +563,45 @@ bool FilmScan::SourceJPG(const std::string filename)
 	this->width = size.width();
 	this->height = size.height();
 	this->srcFormat = SOURCE_JPEG;
+
+	this->TimeCode = "00:00:00:00";
+	SourceIdentifyImageSet(filename);
+
+	return true;
+}
+
+//-----------------------------------------------------------------------------
+bool FilmScan::SourcePNG(const std::string filename)
+{
+	QString qfilename = QString::fromStdString(filename);
+	QString suffix = QFileInfo(qfilename).suffix().toLower();
+	if(suffix != "png")
+		throw AeoException("FilmScan: unsupported PNG extension");
+
+	QImageReader reader(qfilename);
+	reader.setAutoTransform(true);
+	QSize size = reader.size();
+
+	if(!size.isValid())
+	{
+		QImage img = reader.read();
+		if(img.isNull())
+		{
+			QString msg("FilmScan: Cannot open ");
+			msg += qfilename;
+			if(!reader.errorString().isEmpty())
+			{
+				msg += "\n";
+				msg += reader.errorString();
+			}
+			throw AeoException(msg);
+		}
+		size = img.size();
+	}
+
+	this->width = size.width();
+	this->height = size.height();
+	this->srcFormat = SOURCE_PNG;
 
 	this->TimeCode = "00:00:00:00";
 	SourceIdentifyImageSet(filename);
@@ -1096,6 +1146,10 @@ double* FilmScan::GetFrame(long frameNum, double *buf) const
 		sprintf(this->fnbuf+strlen(this->path)+1, this->name, frameNum);
 		buf = ReadFrameJPG(fnbuf, buf);
 		break;
+	case SOURCE_PNG:
+		sprintf(this->fnbuf+strlen(this->path)+1, this->name, frameNum);
+		buf = ReadFramePNG(fnbuf, buf);
+		break;
 	case SOURCE_LIBAV:
 		if(this->vid) buf = this->vid->GetFrame(frameNum, buf);
 		else throw AeoException("Internal video structure not ready");
@@ -1161,6 +1215,12 @@ FrameTexture* FilmScan::GetFrameImage(long frameNum, FrameTexture *frame) const
 	case SOURCE_JPEG:
 		sprintf(this->fnbuf+strlen(this->path)+1, this->name, frameNum);
 		frame->buf = ReadFrameJPG_ImageData(fnbuf, frame->buf,
+				frame->width, frame->height, frame->isNonNativeEndianess,
+				frame->format, frame->nComponents);
+		break;
+	case SOURCE_PNG:
+		sprintf(this->fnbuf+strlen(this->path)+1, this->name, frameNum);
+		frame->buf = ReadFramePNG_ImageData(fnbuf, frame->buf,
 				frame->width, frame->height, frame->isNonNativeEndianess,
 				frame->format, frame->nComponents);
 		break;
