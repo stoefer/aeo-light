@@ -132,6 +132,30 @@ static QString FormatEtaSeconds(double seconds)
 			.arg(secs, 2, 10, QChar('0'));
 }
 
+static bool ConfirmExtractionCancel(QProgressDialog &progress,
+		int currentValue, const QString &currentLabel)
+{
+	if(!progress.wasCanceled()) return false;
+
+	int answer = QMessageBox::question(
+			&progress,
+			QObject::tr("Extractie onderbreken"),
+			QObject::tr("Wil je de lopende extractie echt onderbreken?"),
+			QMessageBox::Yes | QMessageBox::No,
+			QMessageBox::No);
+	if(answer == QMessageBox::Yes) return true;
+
+	int minVal = progress.minimum();
+	int maxVal = progress.maximum();
+	progress.reset();
+	progress.setRange(minVal, maxVal);
+	progress.setValue(currentValue);
+	progress.setLabelText(currentLabel);
+	progress.show();
+	qApp->processEvents();
+	return false;
+}
+
 #ifndef USELIBAV
 static QString FindExternalFfmpeg()
 {
@@ -211,6 +235,11 @@ static void EncodeVideoWithExternalFfmpeg(const QString &frameDir,
 		qApp->processEvents();
 		if(progress && progress->wasCanceled())
 		{
+			if(!ConfirmExtractionCancel(
+						*progress, progress->value(), progress->labelText()))
+			{
+				continue;
+			}
 			ffmpeg.terminate();
 			if(!ffmpeg.waitForFinished(2000))
 			{
@@ -3280,6 +3309,11 @@ int MainWindow::MuxMain(const char *fn_arg, long startFrame, long numFrames,
 		progress.setValue(this->encCurFrame);
 		if(progress.wasCanceled())
 		{
+			if(!ConfirmExtractionCancel(
+						progress, progress.value(), progress.labelText()))
+			{
+				continue;
+			}
 			this->requestCancel = true;
 			throw 2;
 		}
@@ -3354,10 +3388,13 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 	this->requestCancel = false;
 	QElapsedTimer progressTimer;
 	progressTimer.start();
+	long progressFramesShown = 0;
+	QString progressStatusText = "Audio Rendering...";
 
 	auto updateProgressUi = [&](long completedFrames, const QString &phaseText)
 	{
 		long shownFrames = std::max<long>(0, std::min<long>(completedFrames, numFrames));
+		progressFramesShown = shownFrames;
 		progress.setValue(static_cast<int>(shownFrames));
 
 		QString status = QString("%1 (%2/%3 frames)")
@@ -3373,6 +3410,7 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 			status += QString(" - ETA %1").arg(FormatEtaSeconds(remainingSec));
 		}
 
+		progressStatusText = status;
 		progress.setLabelText(status);
 	};
 
@@ -3596,6 +3634,11 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 
 				if(progress.wasCanceled())
 				{
+					if(!ConfirmExtractionCancel(progress,
+								static_cast<int>(progressFramesShown), progressStatusText))
+					{
+						continue;
+					}
 					this->requestCancel = true;
 					throw 2;
 				}
