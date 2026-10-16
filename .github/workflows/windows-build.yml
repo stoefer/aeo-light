@@ -128,6 +128,43 @@ jobs:
           fi
           "$WINDEPLOYQT_BIN" --release --no-translations --no-angle --no-opengl-sw package/AEO-Light/AEO-Light.exe
 
+          # Bundle non-Qt runtime DLLs (MinGW/libtiff/etc.) required by the exe and copied Qt DLLs.
+          APP_DIR="package/AEO-Light"
+          shopt -s nullglob globstar
+          declare -A queued
+          queue=()
+
+          enqueue_dep_file() {
+            local dep_file="$1"
+            local dep_name
+            dep_name="$(basename "$dep_file")"
+            if [ -n "${queued[$dep_name]:-}" ]; then
+              return
+            fi
+            queued[$dep_name]=1
+            queue+=("$dep_file")
+          }
+
+          enqueue_dep_file "$APP_DIR/AEO-Light.exe"
+          for dll in "$APP_DIR"/**/*.dll; do
+            enqueue_dep_file "$dll"
+          done
+
+          while [ "${#queue[@]}" -gt 0 ]; do
+            current_file="${queue[0]}"
+            queue=("${queue[@]:1}")
+            while IFS= read -r dep; do
+              dep="${dep//$'\r'/}"
+              [ -z "$dep" ] && continue
+              if [ -f "$APP_DIR/$dep" ]; then
+                enqueue_dep_file "$APP_DIR/$dep"
+              elif [ -f "/mingw64/bin/$dep" ]; then
+                cp "/mingw64/bin/$dep" "$APP_DIR/$dep"
+                enqueue_dep_file "$APP_DIR/$dep"
+              fi
+            done < <(objdump -p "$current_file" | awk '/DLL Name:/{print $3}')
+          done
+
           cd package
           zip -r ../AEO-Light-Windows-x64.zip AEO-Light
 
