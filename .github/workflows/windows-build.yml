@@ -126,7 +126,7 @@ jobs:
             echo "windeployqt executable not found"
             exit 1
           fi
-          "$WINDEPLOYQT_BIN" --release --no-translations package/AEO-Light/AEO-Light.exe
+          "$WINDEPLOYQT_BIN" --release --no-translations --no-angle --no-opengl-sw package/AEO-Light/AEO-Light.exe
 
           cd package
           zip -r ../AEO-Light-Windows-x64.zip AEO-Light
