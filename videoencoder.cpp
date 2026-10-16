@@ -52,6 +52,7 @@ extern "C"
 #define UMAX(b) ((1ull<<(b))-1)
 #define SMAX(b) (UMAX((b)-1))
 
+#ifdef USELIBAV
 static void log_packet(const AVFormatContext *fmt_ctx, const AVPacket *pkt)
 {
 	// windows MSVC can't handle the timestamp header, and we're done with this
@@ -67,6 +68,7 @@ static void log_packet(const AVFormatContext *fmt_ctx, const AVPacket *pkt)
 			pkt->stream_index);
 #endif
 }
+#endif
 
 FrameTexture::FrameTexture()
 {
@@ -95,7 +97,7 @@ AudioFromTexture::~AudioFromTexture()
 	if(buf) delete [] buf;
 }
 
-
+#ifdef USELIBAV
 VideoEncoder::VideoEncoder(const char *filename)
 {
 	int i;
@@ -453,7 +455,41 @@ void VideoEncoder::ExampleAudioFrame(const AudioFromTexture *example)
 
 #endif
 }
+#else
+VideoEncoder::VideoEncoder(const char *filename)
+{
+	(void)filename;
+	outFmt = NULL;
+	audioCodec = NULL;
+	videoCodec = NULL;
+	audioStream = NULL;
+	videoStream = NULL;
+	audioFrameIn = NULL;
+	audioFrameOut = NULL;
+	audioResampleCtx = NULL;
+	audioNumSamplesIn = 0;
+	audioNumSamplesOut = 0;
+	videoFrameIn = NULL;
+	videoFrameOut = NULL;
+	videoRescaleCtx = NULL;
+	videoNumFrames = 0;
+}
 
+void VideoEncoder::Open()
+{
+	THROW("LibAV support is disabled in this build");
+}
+
+void VideoEncoder::Close() {}
+void VideoEncoder::ExampleVideoFrame(FrameTexture *frame) { (void)frame; }
+void VideoEncoder::ExampleAudioFrame(const AudioFromTexture *example)
+	{ (void)example; }
+void VideoEncoder::WriteVideoFrame(const FrameTexture *frame) { (void)frame; }
+void VideoEncoder::WriteAudioFrame(const AudioFromTexture *audio)
+	{ (void)audio; }
+#endif
+
+#ifdef USELIBAV
 void VideoEncoder::Open()
 {
 	if(!outFmt) return;
@@ -809,6 +845,8 @@ void VideoEncoder::WriteAudioFrame(const AudioFromTexture *audio)
 	}
 #endif
 }
+
+#endif // USELIBAV
 
 /* OPEN FILE:
  * avformat_alloc_output_context2

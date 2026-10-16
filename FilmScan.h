@@ -35,7 +35,9 @@
 #ifndef FILMSCAN_H
 #define FILMSCAN_H
 
+#ifndef AEO_DISABLE_LIBAV
 #define USELIBAV
+#endif
 
 #ifdef USELIBAV
 extern "C"

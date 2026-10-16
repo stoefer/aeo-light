@@ -23,7 +23,9 @@
 #ifndef VIDEOENCODER_H
 #define VIDEOENCODER_H
 
+#ifndef AEO_DISABLE_LIBAV
 #define USELIBAV
+#endif
 
 #ifdef USELIBAV
 extern "C"
@@ -36,6 +38,14 @@ extern "C"
 #include <libavutil/imgutils.h>
 #include <libavutil/timecode.h>
 }
+#else
+// Keep type names available when LibAV support is disabled.
+typedef void AVFormatContext;
+typedef void AVCodec;
+typedef void AVStream;
+typedef void AVFrame;
+typedef void SwrContext;
+typedef void SwsContext;
 #endif
 
 #include <QOpenGLTexture>

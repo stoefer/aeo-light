@@ -171,7 +171,6 @@ LIBS += -lswscale -lswresample
 # OpenEXR libraries
 # LIBS += -lImath -lHalf -lIex -lIexMath -lIlmThread -lIlmImf
 
-# other libraries
 LIBS += -ldspfilters
 
 ## Turn off unecessary warnings

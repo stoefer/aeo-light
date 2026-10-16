@@ -25,7 +25,6 @@
 
 #include <QApplication>
 #include <QByteArray>
-#include <QtCompilerDetection>
 #include <QProcess>
 #include <QDebug>
 #include <QDialogButtonBox>
@@ -103,6 +102,11 @@ extern "C"
 
 
 #endif // ifdef USE_MUX_HACK
+
+#ifndef USELIBAV
+#define AV_LOG_INFO 0
+#define av_log(...) do {} while(0)
+#endif
 
 extern "C" void SegvHandler(int param);
 static jmp_buf segvJumpEnv;
@@ -4122,19 +4126,23 @@ void MainWindow::QueueImportVFB()
 
     QDomDocument xmlBOM;
     // Set data into the QDomDocument for processing
-    QDomDocument::ParseResult parse = xmlBOM.setContent(&xmlFile);
+    QString parseErrorMessage;
+    int parseErrorLine(0);
+    int parseErrorColumn(0);
+    bool parseOk = xmlBOM.setContent(&xmlFile, &parseErrorMessage,
+                                     &parseErrorLine, &parseErrorColumn);
     xmlFile.close();
 
     // nb: the 6.5 docs say casting to bool returns true if there is an
     // error and false otherwise, but the opposite is the case.
-    if(!bool(parse))
+    if(!parseOk)
     {
         QMessageBox msgError;
         msgError.setText(
             QString("Error reading XML file, line %1, column %2<br/>%3")
-                .arg(parse.errorLine)
-                .arg(parse.errorColumn)
-                .arg(parse.errorMessage.toHtmlEscaped()));
+                .arg(parseErrorLine)
+                .arg(parseErrorColumn)
+                .arg(parseErrorMessage.toHtmlEscaped()));
         msgError.setIcon(QMessageBox::Critical);
         msgError.setWindowTitle("Error reading XML file");
         msgError.exec();
@@ -4241,7 +4249,7 @@ void MainWindow::QueueImportVFB()
                         "Do you wish to name the output files "
                         "individually or use a base name plus a count?").
                     arg(clipList.size()).arg(nSlots));
-            clipList.resize(nSlots);
+            while(clipList.size() > nSlots) clipList.removeLast();
         }
 
         msg.setWindowTitle("Multiple clips found");
@@ -4303,7 +4311,7 @@ void MainWindow::QueueImportVFB()
             QMessageBox::Ok);
         if(btn != QMessageBox::Ok) return;
 
-        clipList.resize(1);
+        while(clipList.size() > 1) clipList.removeLast();
     }
 
     QList<ExtractTask> taskList;

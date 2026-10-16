@@ -1184,8 +1184,12 @@ double* FilmScan::GetFrame(long frameNum, double *buf) const
 		buf = ReadFramePNG(fnbuf, buf);
 		break;
 	case SOURCE_LIBAV:
+#ifdef USELIBAV
 		if(this->vid) buf = this->vid->GetFrame(frameNum, buf);
 		else throw AeoException("Internal video structure not ready");
+#else
+		throw AeoException("LibAV support is disabled in this build");
+#endif
 		break;
 	case SOURCE_WAV:
 		if(this->synth) buf = this->synth->GetFrame(frameNum, buf);
@@ -1258,6 +1262,7 @@ FrameTexture* FilmScan::GetFrameImage(long frameNum, FrameTexture *frame) const
 				frame->format, frame->nComponents);
 		break;
 	case SOURCE_LIBAV:
+#ifdef USELIBAV
 		if(this->vid)
 		{
 			frame->buf = this->vid->GetFrameImage(frameNum, frame->buf,
@@ -1266,6 +1271,9 @@ FrameTexture* FilmScan::GetFrameImage(long frameNum, FrameTexture *frame) const
 			frame->format = GL_UNSIGNED_SHORT;
 		}
 		else throw AeoException("Internal video structure not ready");
+#else
+		throw AeoException("LibAV support is disabled in this build");
+#endif
 		break;
 	case SOURCE_WAV:
 		if(this->synth)

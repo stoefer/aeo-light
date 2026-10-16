@@ -35,7 +35,9 @@
 #include "metadata.h"
 #include "videoencoder.h"
 
+#if defined(USELIBAV) && !defined(AEO_DISABLE_MUX_HACK)
 #define USE_MUX_HACK
+#endif
 // #define SAVE_CALIBRATION_MASK_IN_PROJECT
 
 namespace Ui {
