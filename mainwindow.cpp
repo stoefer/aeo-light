@@ -1168,10 +1168,11 @@ bool MainWindow::LoadProjectSource(QString fn)
 	}
 	QTextStream in(&file);   // we will serialize the data into the file
 	bool foundSource = false;
+	bool foundFormat = false;
 	SourceFormat f = SOURCE_UNKNOWN;
 	QString srcfn;
 
-	while(!in.atEnd() && !foundSource) {
+	while(!in.atEnd() && !(foundSource && foundFormat)) {
 		QString line = in.readLine();
 		QStringList fields = line.split(QRegularExpression("\\s*=\\s*"));
 		if(fields.size() < 2) continue;
@@ -1186,6 +1187,7 @@ bool MainWindow::LoadProjectSource(QString fn)
 		if(key.contains("Source Format"))
 		{
 			f = FilmScan::StrToSourceFormat(value.toStdString().c_str());
+			foundFormat = true;
 		}
 	}
 	file.close();
