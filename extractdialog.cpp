@@ -39,6 +39,7 @@ ExtractDialog::ExtractDialog(QWidget *parent, MetaData &metadata,
 	defaultDir = dir;
 	requestRestart = false;
 	videoIsRisky = false;
+	ui->videoPresetComboBox->setCurrentIndex(SIMPLE_EXPORT_STANDARD);
 
 	SetOriginator(meta->originator);
 	SetArchiveLocation(meta->archivalLocation);
@@ -75,6 +76,13 @@ QString ExtractDialog::GetVideoFilename(void)
 		return ui->filenameVideoText->text();
 	else
 		return QString();
+}
+
+int ExtractDialog::GetVideoExportMode(void)
+{
+	if(ui->muxVideoCheckbox->isChecked())
+		return ui->videoPresetComboBox->currentIndex();
+	return SIMPLE_EXPORT_STANDARD;
 }
 
 QString ExtractDialog::GetOriginator(void)
@@ -258,6 +266,8 @@ void ExtractDialog::on_muxVideoCheckbox_clicked(bool checked)
 	}
 	ui->filenameVideoText->setEnabled(checked);
 	ui->fileVideoBrowseButton->setEnabled(checked);
+	ui->videoPresetLabel->setEnabled(checked);
+	ui->videoPresetComboBox->setEnabled(checked);
 }
 
 void ExtractDialog::on_fileVideoBrowseButton_clicked()

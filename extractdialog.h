@@ -30,6 +30,13 @@ namespace Ui {
 class ExtractDialog;
 }
 
+enum SimpleExportMode
+{
+	SIMPLE_EXPORT_FAST = 0,
+	SIMPLE_EXPORT_STANDARD = 1,
+	SIMPLE_EXPORT_QUALITY = 2
+};
+
 class ExtractDialog : public QDialog
 {
 	Q_OBJECT
@@ -53,6 +60,7 @@ public:
 
 	QString GetFilename(void);
 	QString GetVideoFilename(void);
+	int GetVideoExportMode(void);
 	QString GetOriginator(void);
 	QString GetOriginatorReference(void);
 	QString GetDescription(void);

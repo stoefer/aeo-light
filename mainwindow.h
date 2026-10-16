@@ -302,6 +302,7 @@ private:
 	FrameTexture *currentFrameTexture;
 	FrameTexture *outputFrameTexture;
 	bool isVideoMuxingRisky;
+	int videoExportMode;
 
 public:
 	void SetStartingProject(QString fn) { startingProjectFilename = fn; };

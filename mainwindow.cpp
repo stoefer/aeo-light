@@ -159,11 +159,28 @@ static void SaveTextureAsPngFrame(const FrameTexture *frame,
 }
 
 static void EncodeVideoWithExternalFfmpeg(const QString &frameDir,
-		const QString &audioWav, const QString &videoOut, double fps)
+		const QString &audioWav, const QString &videoOut, double fps,
+		int exportMode)
 {
 	QString ffmpegBin = FindExternalFfmpeg();
 	if(ffmpegBin.isEmpty())
 		throw std::runtime_error("ffmpeg executable not found for video export");
+
+	QString videoQualityArg = "4";
+	QString audioBitrateArg = "160k";
+	switch(exportMode)
+	{
+	case SIMPLE_EXPORT_FAST:
+		videoQualityArg = "8";
+		audioBitrateArg = "128k";
+		break;
+	case SIMPLE_EXPORT_QUALITY:
+		videoQualityArg = "2";
+		audioBitrateArg = "192k";
+		break;
+	default:
+		break;
+	}
 
 	QString fpsArg = QString::number(fps, 'f', 3);
 	QString pattern = QDir(frameDir).filePath("frame_%06d.png");
@@ -173,8 +190,10 @@ static void EncodeVideoWithExternalFfmpeg(const QString &frameDir,
 	     << "-i" << pattern
 	     << "-i" << audioWav
 	     << "-c:v" << "mpeg4"
-	     << "-q:v" << "3"
+	     << "-q:v" << videoQualityArg
+	     << "-pix_fmt" << "yuv420p"
 	     << "-c:a" << "aac"
+	     << "-b:a" << audioBitrateArg
 	     << "-shortest"
 	     << videoOut;
 
@@ -392,6 +411,7 @@ MainWindow::MainWindow(QWidget *parent) :
 	Log() << QDateTime::currentDateTime().toString() << "\n";
 
 	isVideoMuxingRisky = false;
+	videoExportMode = SIMPLE_EXPORT_STANDARD;
 
 	#ifdef USE_MUX_HACK
 	encStartFrame = 0;
@@ -1672,6 +1692,7 @@ bool MainWindow::extractGL(QString filename=QString(), bool doTimer=false)
 	bool batch = true;
 	MetaData meta;
 	QString videoFilename;
+	videoExportMode = SIMPLE_EXPORT_STANDARD;
 
 	long firstFrame =
 			ui->frameInSpinBox->value() - this->scan.inFile.FirstFrame();
@@ -1743,6 +1764,7 @@ bool MainWindow::extractGL(QString filename=QString(), bool doTimer=false)
 		this->prevExportDir = QFileInfo(filename).absolutePath();
 
 		videoFilename = dialog.GetVideoFilename();
+		videoExportMode = dialog.GetVideoExportMode();
 
 		this->currentMeta = &meta;
 		batch = false;
@@ -3609,7 +3631,8 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 					externalVideoFrames.path(),
 					QString::fromLocal8Bit(fn),
 					QString::fromLocal8Bit(videoFn),
-					exportVideoFps);
+					exportVideoFps,
+					videoExportMode);
 			#endif
 		}
 		#endif
