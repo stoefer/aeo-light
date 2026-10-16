@@ -52,6 +52,7 @@
 
 #include <cstdio>
 #include <exception>
+#include <memory>
 
 #include <fcntl.h>
 #include <stdlib.h>
@@ -3262,15 +3263,17 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 	outputFrameTexture->nComponents = 4;
 
 	#ifndef USE_MUX_HACK
-		VideoEncoder vid("a.mov");
+		std::unique_ptr<VideoEncoder> vid;
+		if(videoFn)
+			vid.reset(new VideoEncoder("a.mov"));
 	#endif
 
 	if(videoFn)
 	{
 		#ifndef USE_MUX_HACK
 			// set the incoming size and pixel format
-			vid.ExampleVideoFrame(this->outputFrameTexture);
-			vid.ExampleAudioFrame(&audio);
+			vid->ExampleVideoFrame(this->outputFrameTexture);
+			vid->ExampleAudioFrame(&audio);
 		#endif
 
 		frame_window->PrepareVideoOutput(this->outputFrameTexture);
@@ -3326,7 +3329,7 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 		if(videoFn)
 		{
 			traceCurrentOperation = "Opening video mux output file";
-			vid.Open();
+			vid->Open();
 		}
 		#endif
 
@@ -3374,8 +3377,11 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 				}
 
 				#ifndef USE_MUX_HACK
-				frame_window->read_frame_texture(this->outputFrameTexture);
-				vid.WriteVideoFrame(this->outputFrameTexture);
+				if(videoFn)
+				{
+					frame_window->read_frame_texture(this->outputFrameTexture);
+					vid->WriteVideoFrame(this->outputFrameTexture);
+				}
 				#endif
 
 				audio.buf[0] = frame_window->FileRealBuffer[0] +
@@ -3393,7 +3399,8 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 						(a-2),frameratesamples, audio.buf[0], audio.buf[1]);
 
 				#ifndef USE_MUX_HACK
-				vid.WriteAudioFrame(&audio);
+				if(videoFn)
+					vid->WriteAudioFrame(&audio);
 				#endif
 
 				traceCurrentOperation = "Update Progress Bar";
@@ -3442,8 +3449,11 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 		traceCurrentOperation = "";
 
 		#ifndef USE_MUX_HACK
-		traceCurrentOperation = "closing video mux output file";
-		vid.Close();
+		if(videoFn)
+		{
+			traceCurrentOperation = "closing video mux output file";
+			vid->Close();
+		}
 		#endif
 	}
 	catch(int e)

@@ -37,7 +37,6 @@ jobs:
             mingw-w64-x86_64-qt5-base
             mingw-w64-x86_64-qt5-tools
             mingw-w64-x86_64-qt5-multimedia
-            mingw-w64-x86_64-ffmpeg
             mingw-w64-x86_64-libtiff
             mingw-w64-x86_64-openexr
             mingw-w64-x86_64-zlib
@@ -96,7 +95,7 @@ jobs:
           if [ -z "$QMAKE_BIN" ]; then
             QMAKE_BIN="/mingw64/bin/qmake-qt5"
           fi
-          "$QMAKE_BIN" ../aeogui.pro "DEFINES+=AEO_DISABLE_MUX_HACK"
+          "$QMAKE_BIN" ../aeogui.pro "DEFINES+=AEO_DISABLE_LIBAV" "DEFINES+=AEO_DISABLE_MUX_HACK"
           make -j"$(nproc)"
 
       - name: Package portable app
