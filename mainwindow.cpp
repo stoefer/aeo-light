@@ -1064,7 +1064,12 @@ bool MainWindow::NewSource(QString filename, SourceFormat ft)
 bool MainWindow::saveproject(QString fn)
 {
 	QFile file(fn);
-	file.open(QIODevice::WriteOnly);
+	if(!file.open(QIODevice::WriteOnly))
+	{
+		(void)QMessageBox::warning(this, tr("AEO-Light"),
+				tr("Could not write project file:\n%1").arg(fn));
+		return false;
+	}
 	QTextStream out(&file);   // we will serialize the data into the file
 
 	saveproject(out);
@@ -1155,7 +1160,12 @@ void MainWindow::OpenStartingProject()
 bool MainWindow::LoadProjectSource(QString fn)
 {
 	QFile file(fn);
-	file.open(QIODevice::ReadOnly);
+	if(!file.open(QIODevice::ReadOnly))
+	{
+		(void)QMessageBox::warning(this, tr("AEO-Light"),
+				tr("Could not read project file:\n%1").arg(fn));
+		return false;
+	}
 	QTextStream in(&file);   // we will serialize the data into the file
 	bool foundSource = false;
 	SourceFormat f = SOURCE_UNKNOWN;
@@ -1163,16 +1173,19 @@ bool MainWindow::LoadProjectSource(QString fn)
 
 	while(!in.atEnd() && !foundSource) {
 		QString line = in.readLine();
-        QStringList fields = line.split(QRegularExpression("\\s*=\\s*"));
+		QStringList fields = line.split(QRegularExpression("\\s*=\\s*"));
+		if(fields.size() < 2) continue;
+		QString key = fields[0];
+		QString value = fields.mid(1).join("=");
 
-		if((fields[0]).contains("Source Scan"))
+		if(key.contains("Source Scan"))
 		{
 			foundSource = true;
-			srcfn = fields[1];
+			srcfn = value;
 		}
-		if((fields[0]).contains("Source Format"))
+		if(key.contains("Source Format"))
 		{
-			f = FilmScan::StrToSourceFormat(fields[1].toStdString().c_str());
+			f = FilmScan::StrToSourceFormat(value.toStdString().c_str());
 		}
 	}
 	file.close();
@@ -1184,7 +1197,7 @@ bool MainWindow::LoadProjectSource(QString fn)
 				"(It was created by the former [save settings] action)."));
 		return false;
 	}
-	this->NewSource(srcfn);
+	this->NewSource(srcfn, f);
 
 	return true;
 }
@@ -1192,7 +1205,12 @@ bool MainWindow::LoadProjectSource(QString fn)
 bool MainWindow::LoadProjectSettings(QString fn)
 {
 	QFile file(fn);
-	file.open(QIODevice::ReadOnly);
+	if(!file.open(QIODevice::ReadOnly))
+	{
+		(void)QMessageBox::warning(this, tr("AEO-Light"),
+				tr("Could not read project file:\n%1").arg(fn));
+		return false;
+	}
 	QTextStream in(&file);   // we will serialize the data into the file
 
 	bool deleteMe = false;
@@ -1201,67 +1219,70 @@ bool MainWindow::LoadProjectSettings(QString fn)
 
 	while(!in.atEnd()) {
 		QString line = in.readLine();
-        QStringList fields = line.split(QRegularExpression("\\s*=\\s*"));
+		QStringList fields = line.split(QRegularExpression("\\s*=\\s*"));
+		if(fields.size() < 2) continue;
+		QString key = fields[0];
+		QString value = fields.mid(1).join("=");
 
-		if ((fields[0]).contains("Frame Rate"))
+		if (key.contains("Frame Rate"))
 		{
-			int idx = ui->filmrate_PD->findText(fields[1],Qt::MatchExactly);
+			int idx = ui->filmrate_PD->findText(value,Qt::MatchExactly);
 			if(idx != -1) ui->filmrate_PD->setCurrentIndex(idx);
 		}
-		if ((fields[0]).contains("Use Soundtrack"))
-			ui->OverlapSoundtrackCheckBox->setChecked(fields[1].toInt());
-		if ((fields[0]).contains("Left Bound"))
-			ui->leftSpinBox->setValue(fields[1].toInt());
-		if ((fields[0]).contains("Right Bound"))
-			ui->rightSpinBox->setValue(fields[1].toInt());
-		if ((fields[0]).contains("Soundtrack Type"))
+		if (key.contains("Use Soundtrack"))
+			ui->OverlapSoundtrackCheckBox->setChecked(value.toInt());
+		if (key.contains("Left Bound"))
+			ui->leftSpinBox->setValue(value.toInt());
+		if (key.contains("Right Bound"))
+			ui->rightSpinBox->setValue(value.toInt());
+		if (key.contains("Soundtrack Type"))
 		{
-			int idx = ui->monostereo_PD->findText(fields[1],Qt::MatchExactly);
+			int idx = ui->monostereo_PD->findText(value,Qt::MatchExactly);
 			if(idx != -1) ui->monostereo_PD->setCurrentIndex(idx);
 		}
-		if ((fields[0]).contains("Use Pix Track"))
-			ui->OverlapPixCheckBox->setChecked(fields[1].toInt());
-		if ((fields[0]).contains("Left Pix Bound"))
-			ui->leftPixSpinBox->setValue(fields[1].toInt());
-		if ((fields[0]).contains("Right Pix Bound"))
-			ui->rightPixSpinBox->setValue(fields[1].toInt());
-		if ((fields[0]).contains("Frame Pitch Start"))
+		if (key.contains("Use Pix Track"))
+			ui->OverlapPixCheckBox->setChecked(value.toInt());
+		if (key.contains("Left Pix Bound"))
+			ui->leftPixSpinBox->setValue(value.toInt());
+		if (key.contains("Right Pix Bound"))
+			ui->rightPixSpinBox->setValue(value.toInt());
+		if (key.contains("Frame Pitch Start"))
 		{
-			ui->framepitchstartSlider->setValue(fields[1].toInt());
+			ui->framepitchstartSlider->setValue(value.toInt());
 			ui->framepitchstartLabel->setText(
-					QString::number(fields[1].toInt()/1000.f,'f',2));
+					QString::number(value.toInt()/1000.f,'f',2));
 		}
-		if ((fields[0]).contains("Frame Pitch End"))
-			ui->FramePitchendSlider->setValue(fields[1].toInt());
-		if ((fields[0]).contains("Overlap Search Size"))
-			ui->overlapSlider->setValue(fields[1].toInt());
-		if ((fields[0]).contains("Lift"))
-			ui->liftSlider->setValue(fields[1].toInt());
-		if ((fields[0]).contains("Gamma"))
-			ui->gammaSlider->setValue(fields[1].toInt());
-		if ((fields[0]).contains("Gain"))
-			ui->gainSlider->setValue(fields[1].toInt());
-		if ((fields[0]).contains("S-Curve Value"))
-			ui->thresholdSlider->setValue(fields[1].toInt());
-		if ((fields[0]).contains("S-Curve On"))
-			ui->threshBox->setChecked(fields[1].toInt());
-		if ((fields[0]).contains("Blur"))
-			ui->blurSlider->setValue(fields[1].toInt());
-		if ((fields[0]).contains("Negative"))
-			ui->negBox->setChecked(fields[1].toInt());
-		if ((fields[0]).contains("Desaturate"))
-			ui->desatBox->setChecked(fields[1].toInt());
+		if (key.contains("Frame Pitch End"))
+			ui->FramePitchendSlider->setValue(value.toInt());
+		if (key.contains("Overlap Search Size"))
+			ui->overlapSlider->setValue(value.toInt());
+		if (key.contains("Lift"))
+			ui->liftSlider->setValue(value.toInt());
+		if (key.contains("Gamma"))
+			ui->gammaSlider->setValue(value.toInt());
+		if (key.contains("Gain"))
+			ui->gainSlider->setValue(value.toInt());
+		if (key.contains("S-Curve Value"))
+			ui->thresholdSlider->setValue(value.toInt());
+		if (key.contains("S-Curve On"))
+			ui->threshBox->setChecked(value.toInt());
+		if (key.contains("Blur"))
+			ui->blurSlider->setValue(value.toInt());
+		if (key.contains("Negative"))
+			ui->negBox->setChecked(value.toInt());
+		if (key.contains("Desaturate"))
+			ui->desatBox->setChecked(value.toInt());
 
-		if ((fields[0]).contains("Calibrate"))
+		if (key.contains("Calibrate"))
 		{
-			ui->CalEnableCB->setChecked(fields[1].toInt());
+			ui->CalEnableCB->setChecked(value.toInt());
 			needMask = true;
 		}
 
 		#ifdef SAVE_CALIBRATION_MASK_IN_PROJECT
-		if((fields[0]).contains("Calibration Mask"))
+		if(key.contains("Calibration Mask"))
 		{
-			QByteArray bytes = qUncompress(fields[1].toUtf8());
+			QByteArray bytes = qUncompress(value.toUtf8());
 			const char *cmask = bytes.constData();
 			const float *mask = reinterpret_cast<const float *>(cmask);
 			frame_window->SetCalibrationMask(mask);
@@ -1270,44 +1291,44 @@ bool MainWindow::LoadProjectSettings(QString fn)
 		#endif
 
 		// Extraction Settings
-		if ((fields[0]).contains("Export Frame In"))
-			ui->frameInSpinBox->setValue(fields[1].toInt());
-		if ((fields[0]).contains("Export Frame Out"))
-			ui->frameOutSpinBox->setValue(fields[1].toInt());
-		if ((fields[0]).contains("Export Sampling Rate"))
+		if (key.contains("Export Frame In"))
+			ui->frameInSpinBox->setValue(value.toInt());
+		if (key.contains("Export Frame Out"))
+			ui->frameOutSpinBox->setValue(value.toInt());
+		if (key.contains("Export Sampling Rate"))
 		{
-			int idx = ui->filerate_PD->findText(fields[1],Qt::MatchExactly);
+			int idx = ui->filerate_PD->findText(value,Qt::MatchExactly);
 			if(idx != -1) ui->filerate_PD->setCurrentIndex(idx);
 		}
-		if ((fields[0]).contains("Export Bit Depth"))
+		if (key.contains("Export Bit Depth"))
 		{
 			int idx = ui->bitDepthComboBox->
-					findText(fields[1],Qt::MatchExactly);
+					findText(value,Qt::MatchExactly);
 			if(idx != -1) ui->bitDepthComboBox->setCurrentIndex(idx);
 		}
 		// This is probably more of a source setting than an export setting:
-		if ((fields[0]).contains("Timecode Advance"))
-			ui->advance_CB->setCurrentIndex(fields[1].toInt());
+		if (key.contains("Timecode Advance"))
+			ui->advance_CB->setCurrentIndex(value.toInt());
 
-		if ((fields[0]).contains("Export XML Sidecar"))
+		if (key.contains("Export XML Sidecar"))
 		{
 			int idx = ui->xmlSidecarComboBox->
-					findText(fields[1],Qt::MatchExactly);
+					findText(value,Qt::MatchExactly);
 			if(idx != -1) ui->xmlSidecarComboBox->setCurrentIndex(idx);
 		}
 
 		// View Settings
-		if ((fields[0]).contains("View Zoom"))
-			ui->waveformZoomCheckBox->setChecked(fields[1].toInt());
-		if ((fields[0]).contains("View Overlap"))
-			ui->showOverlapCheckBox->setChecked(fields[1].toInt());
-		if ((fields[0]).contains("View Soundtrack Only"))
-			ui->showSoundtrackOnlyCheckBox->setChecked(fields[1].toInt());
-		if ((fields[0]).contains("View Frame"))
-			ui->frame_numberSpinBox->setValue(fields[1].toInt());
+		if (key.contains("View Zoom"))
+			ui->waveformZoomCheckBox->setChecked(value.toInt());
+		if (key.contains("View Overlap"))
+			ui->showOverlapCheckBox->setChecked(value.toInt());
+		if (key.contains("View Soundtrack Only"))
+			ui->showSoundtrackOnlyCheckBox->setChecked(value.toInt());
+		if (key.contains("View Frame"))
+			ui->frame_numberSpinBox->setValue(value.toInt());
 
-		if((fields[0]).contains("DeleteMe"))
-			deleteMe = (fields[1].contains("true"));
+		if(key.contains("DeleteMe"))
+			deleteMe = (value.contains("true"));
 	}
 
 	file.close();
@@ -3959,30 +3980,35 @@ void MainWindow::UpdateQueueWidgets(void)
 
 void MainWindow::on_queueDelete1Button_clicked()
 {
+	if(this->extractQueue.size() < 1) return;
 	this->extractQueue.erase(extractQueue.begin());
 	UpdateQueueWidgets();
 }
 
 void MainWindow::on_queueDelete2Button_clicked()
 {
+	if(this->extractQueue.size() < 2) return;
 	this->extractQueue.erase(extractQueue.begin()+1);
 	UpdateQueueWidgets();
 }
 
 void MainWindow::on_queueDelete3Button_clicked()
 {
+	if(this->extractQueue.size() < 3) return;
 	this->extractQueue.erase(extractQueue.begin()+2);
 	UpdateQueueWidgets();
 }
 
 void MainWindow::on_queueDelete4Button_clicked()
 {
+	if(this->extractQueue.size() < 4) return;
 	this->extractQueue.erase(extractQueue.begin()+3);
 	UpdateQueueWidgets();
 }
 
 void MainWindow::on_queueDelete5Button_clicked()
 {
+	if(this->extractQueue.size() < 5) return;
 	this->extractQueue.erase(extractQueue.begin()+4);
 	UpdateQueueWidgets();
 }
