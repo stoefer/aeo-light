@@ -303,6 +303,7 @@ private:
 	FrameTexture *outputFrameTexture;
 	bool isVideoMuxingRisky;
 	int videoExportMode;
+	bool videoAudioOffsetCorrectionEnabled;
 	bool pitchControlSyncLock;
 
 	void NormalizePitchControls(bool startChanged);

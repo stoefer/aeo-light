@@ -40,6 +40,7 @@ ExtractDialog::ExtractDialog(QWidget *parent, MetaData &metadata,
 	requestRestart = false;
 	videoIsRisky = false;
 	ui->videoPresetComboBox->setCurrentIndex(SIMPLE_EXPORT_STANDARD);
+	ui->avOffsetCorrectionCheckBox->setChecked(true);
 
 	SetOriginator(meta->originator);
 	SetArchiveLocation(meta->archivalLocation);
@@ -83,6 +84,12 @@ int ExtractDialog::GetVideoExportMode(void)
 	if(ui->muxVideoCheckbox->isChecked())
 		return ui->videoPresetComboBox->currentIndex();
 	return SIMPLE_EXPORT_STANDARD;
+}
+
+bool ExtractDialog::UseVideoAudioOffsetCorrection(void)
+{
+	return ui->muxVideoCheckbox->isChecked() &&
+			ui->avOffsetCorrectionCheckBox->isChecked();
 }
 
 QString ExtractDialog::GetOriginator(void)
@@ -269,6 +276,7 @@ void ExtractDialog::on_muxVideoCheckbox_clicked(bool checked)
 	ui->videoPresetLabel->setEnabled(checked);
 	ui->videoPresetComboBox->setEnabled(checked);
 	ui->videoPresetHelpLabel->setEnabled(checked);
+	ui->avOffsetCorrectionCheckBox->setEnabled(checked);
 }
 
 void ExtractDialog::on_fileVideoBrowseButton_clicked()

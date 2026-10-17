@@ -61,6 +61,7 @@ public:
 	QString GetFilename(void);
 	QString GetVideoFilename(void);
 	int GetVideoExportMode(void);
+	bool UseVideoAudioOffsetCorrection(void);
 	QString GetOriginator(void);
 	QString GetOriginatorReference(void);
 	QString GetDescription(void);

@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>599</width>
-    <height>521</height>
+    <height>554</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -19,7 +19,7 @@
      <x>20</x>
      <y>20</y>
      <width>561</width>
-     <height>444</height>
+     <height>477</height>
     </rect>
    </property>
    <layout class="QGridLayout" name="gridLayout">
@@ -284,13 +284,26 @@
       </property>
      </widget>
     </item>
+    <item row="14" column="1">
+     <widget class="QCheckBox" name="avOffsetCorrectionCheckBox">
+      <property name="enabled">
+       <bool>false</bool>
+      </property>
+      <property name="text">
+       <string>Corrigeer A/V-offset voor 16mm (26 frames)</string>
+      </property>
+      <property name="checked">
+       <bool>true</bool>
+      </property>
+     </widget>
+    </item>
    </layout>
   </widget>
   <widget class="QWidget" name="horizontalLayoutWidget">
    <property name="geometry">
     <rect>
      <x>375</x>
-     <y>475</y>
+     <y>507</y>
      <width>201</width>
      <height>32</height>
     </rect>
@@ -336,6 +349,7 @@
   <tabstop>filenameVideoText</tabstop>
   <tabstop>fileVideoBrowseButton</tabstop>
   <tabstop>videoPresetComboBox</tabstop>
+  <tabstop>avOffsetCorrectionCheckBox</tabstop>
   <tabstop>originatorReferenceText</tabstop>
   <tabstop>descriptionText</tabstop>
   <tabstop>subjectText</tabstop>

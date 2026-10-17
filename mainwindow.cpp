@@ -554,6 +554,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
 	isVideoMuxingRisky = false;
 	videoExportMode = SIMPLE_EXPORT_STANDARD;
+	videoAudioOffsetCorrectionEnabled = false;
 	pitchControlSyncLock = false;
 
 	#ifdef USE_MUX_HACK
@@ -1876,6 +1877,7 @@ bool MainWindow::extractGL(QString filename=QString(), bool doTimer=false)
 	MetaData meta;
 	QString videoFilename;
 	videoExportMode = SIMPLE_EXPORT_STANDARD;
+	videoAudioOffsetCorrectionEnabled = false;
 
 	long firstFrame =
 			ui->frameInSpinBox->value() - this->scan.inFile.FirstFrame();
@@ -1948,6 +1950,8 @@ bool MainWindow::extractGL(QString filename=QString(), bool doTimer=false)
 
 		videoFilename = dialog.GetVideoFilename();
 		videoExportMode = dialog.GetVideoExportMode();
+		videoAudioOffsetCorrectionEnabled =
+				dialog.UseVideoAudioOffsetCorrection();
 
 		this->currentMeta = &meta;
 		batch = false;
@@ -3615,6 +3619,7 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 		#else
 		QTemporaryDir externalVideoFrames;
 		int externalVideoFrameCount = 0;
+		int externalVideoSkipFrames = 0;
 		const float uiLeftPixNorm = ui->leftPixSpinBox->value() /
 				float(std::max(1u, this->scan.inFile.Width()));
 		const float uiRightPixNorm = ui->rightPixSpinBox->value() /
@@ -3623,6 +3628,11 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 		const float uiBottomPitchNorm = ui->FramePitchendSlider->value() / 1000.0f;
 		#endif
 	#endif
+
+	const int videoAudioSyncAdvanceFrames =
+			videoAudioOffsetCorrectionEnabled ? 26 : 0;
+	av_log(NULL, AV_LOG_INFO, "Video/audio sync correction = %d frames\n",
+			videoAudioSyncAdvanceFrames);
 
 	if(videoFn)
 	{
@@ -3634,6 +3644,7 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 			#else
 			if(!externalVideoFrames.isValid())
 				throw std::runtime_error("Could not create temporary folder for video export");
+			externalVideoSkipFrames = videoAudioSyncAdvanceFrames;
 			#endif
 		#endif
 
@@ -3719,7 +3730,7 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 		{
 			traceCurrentOperation = "Mux";
 			MuxMain(videoFn, firstFrame, numFrames,
-					/* frame skip =  */ui->advance_CB->currentIndex(),
+					/* frame skip =  */videoAudioSyncAdvanceFrames,
 					progress);
 		}
 		else
@@ -3746,15 +3757,22 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 					#ifdef USELIBAV
 					vid->WriteVideoFrame(this->outputFrameTexture);
 					#else
-					QRect frameCropRect = ComputeAlignedVideoCropRect(
-								this->outputFrameTexture, this->frame_window,
-								uiLeftPixNorm, uiRightPixNorm,
-								uiTopPitchNorm, uiBottomPitchNorm);
-					SaveTextureAsPngFrame(
-							this->outputFrameTexture,
-							externalVideoFrames.path(),
-							externalVideoFrameCount++,
-							frameCropRect);
+					if(externalVideoSkipFrames > 0)
+					{
+						externalVideoSkipFrames--;
+					}
+					else
+					{
+						QRect frameCropRect = ComputeAlignedVideoCropRect(
+									this->outputFrameTexture, this->frame_window,
+									uiLeftPixNorm, uiRightPixNorm,
+									uiTopPitchNorm, uiBottomPitchNorm);
+						SaveTextureAsPngFrame(
+								this->outputFrameTexture,
+								externalVideoFrames.path(),
+								externalVideoFrameCount++,
+								frameCropRect);
+					}
 					#endif
 				}
 				#endif
