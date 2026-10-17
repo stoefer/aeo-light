@@ -279,7 +279,8 @@ static QRect ComputeAlignedVideoCropRect(const FrameTexture *frame,
 
 static void EncodeVideoWithExternalFfmpeg(const QString &frameDir,
 		const QString &audioWav, const QString &videoOut, double fps,
-		int exportMode, QProgressDialog *progress, bool *wasCanceled)
+		int exportMode, QProgressDialog *progress, bool *wasCanceled,
+		bool allowCancel)
 {
 	if(wasCanceled) *wasCanceled = false;
 
@@ -328,7 +329,7 @@ static void EncodeVideoWithExternalFfmpeg(const QString &frameDir,
 	{
 		ffmpeg.waitForFinished(100);
 		qApp->processEvents();
-		if(progress && progress->wasCanceled())
+		if(allowCancel && progress && progress->wasCanceled())
 		{
 			if(!ConfirmExtractionCancel(
 						*progress, progress->value(), progress->labelText()))
@@ -2010,8 +2011,19 @@ bool MainWindow::extractGL(QString filename=QString(), bool doTimer=false)
 	}
 	else
 	{
-		processMsg = tr("Sound Extraction Canceled");
-		timingMsg = tr("Sound extraction canceled before finishing.");
+		bool hasPartialAudio = QFileInfo::exists(filename);
+		bool hasPartialVideo = !videoFilename.isEmpty() &&
+				QFileInfo::exists(videoFilename);
+		if(this->requestCancel && (hasPartialAudio || hasPartialVideo))
+		{
+			processMsg = tr("Extraction Stopped (Partial Output Saved)");
+			timingMsg = tr("Extraction was stopped early. A short preview file was saved for quality review.");
+		}
+		else
+		{
+			processMsg = tr("Sound Extraction Canceled");
+			timingMsg = tr("Sound extraction canceled before finishing.");
+		}
 	}
 
 	Log() << timingMsg << "\n";
@@ -3506,6 +3518,8 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 		long firstFrame, long numFrames)
 {
 	bool ret;
+	long outputNumFrames = numFrames;
+	bool stoppedEarlyByUser = false;
 
 	// changing this requires many changes to underlying structures
 	const int numChannels = 2;
@@ -3724,6 +3738,7 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 
 		traceCurrentOperation = "Load Texture";
 		if(!Load_Frame_Texture(firstFrame + 1)) throw 1;
+		outputNumFrames = 1;
 
 		#ifdef USE_MUX_HACK
 		if(videoFn)
@@ -3749,6 +3764,7 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 				{
 					if(!Load_Frame_Texture(firstFrame + a)) break;
 				}
+				outputNumFrames = a;
 
 				#ifndef USE_MUX_HACK
 				if(videoFn)
@@ -3813,7 +3829,8 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 						continue;
 					}
 					this->requestCancel = true;
-					throw 2;
+					stoppedEarlyByUser = true;
+					break;
 				}
 
 				//if(this->requestCancel) throw 2;
@@ -3822,11 +3839,11 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 
 		frame_window->is_rendering =false;
 		traceCurrentOperation = "Process Recording";
-		frame_window->ProcessRecording(numFrames * frameratesamples);
+		frame_window->ProcessRecording(outputNumFrames * frameratesamples);
 
 		traceCurrentOperation = "Writing wav file";
 		wout.writebuffer(frame_window->FileRealBuffer,
-				numFrames * frameratesamples);
+				outputNumFrames * frameratesamples);
 
 		// INFO chunk
 		traceCurrentOperation = "Writing Info block";
@@ -3870,7 +3887,8 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 					exportVideoFps,
 					videoExportMode,
 					&progress,
-					&ffmpegCanceled);
+					&ffmpegCanceled,
+					!stoppedEarlyByUser);
 			if(ffmpegCanceled)
 			{
 				this->requestCancel = true;
