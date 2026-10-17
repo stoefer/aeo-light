@@ -48,6 +48,7 @@
 #include <QTemporaryFile>
 #include <QTemporaryDir>
 #include <QTextEdit>
+#include <QTransform>
 #include <QScrollArea>
 #include <QProgressDialog>
 #include <QStandardPaths>
@@ -170,18 +171,25 @@ static QString FindExternalFfmpeg()
 }
 
 static void SaveTextureAsPngFrame(const FrameTexture *frame,
-		const QString &frameDir, int frameIndex, const QRect &cropRect)
+		const QString &frameDir, int frameIndex, const QRect &cropRect,
+		bool flipHorizontal, bool flipVertical, int rotationDegrees)
 {
 	if(!frame || !frame->buf || frame->width <= 0 || frame->height <= 0)
 		throw std::runtime_error("Video frame buffer is not initialized");
 
 	QImage raw(reinterpret_cast<const uchar*>(frame->buf),
 			frame->width, frame->height, QImage::Format_ARGB32);
-	// Align exported frame orientation with the on-screen film view.
-	// GL readback is horizontally mirrored relative to display for this path.
-	QImage out = raw.mirrored(true, false);
+	QImage out = raw;
 	if(cropRect.width() > 0 && cropRect.height() > 0)
 		out = out.copy(cropRect);
+	if(flipHorizontal || flipVertical)
+		out = out.mirrored(flipHorizontal, flipVertical);
+	if(rotationDegrees != 0)
+	{
+		QTransform t;
+		t.rotate(rotationDegrees);
+		out = out.transformed(t, Qt::SmoothTransformation);
+	}
 	QString path = QDir(frameDir).filePath(
 			QString("frame_%1.png").arg(frameIndex, 6, 10, QChar('0')));
 	if(!out.save(path, "PNG"))
@@ -558,6 +566,9 @@ MainWindow::MainWindow(QWidget *parent) :
 	isVideoMuxingRisky = false;
 	videoExportMode = SIMPLE_EXPORT_STANDARD;
 	videoAudioOffsetCorrectionEnabled = false;
+	videoFlipHorizontal = false;
+	videoFlipVertical = false;
+	videoRotationDegrees = 0;
 	pitchControlSyncLock = false;
 
 	#ifdef USE_MUX_HACK
@@ -1881,6 +1892,9 @@ bool MainWindow::extractGL(QString filename=QString(), bool doTimer=false)
 	QString videoFilename;
 	videoExportMode = SIMPLE_EXPORT_STANDARD;
 	videoAudioOffsetCorrectionEnabled = false;
+	videoFlipHorizontal = false;
+	videoFlipVertical = false;
+	videoRotationDegrees = 0;
 
 	long firstFrame =
 			ui->frameInSpinBox->value() - this->scan.inFile.FirstFrame();
@@ -1955,6 +1969,9 @@ bool MainWindow::extractGL(QString filename=QString(), bool doTimer=false)
 		videoExportMode = dialog.GetVideoExportMode();
 		videoAudioOffsetCorrectionEnabled =
 				dialog.UseVideoAudioOffsetCorrection();
+		videoFlipHorizontal = dialog.GetVideoFlipHorizontal();
+		videoFlipVertical = dialog.GetVideoFlipVertical();
+		videoRotationDegrees = dialog.GetVideoRotationDegrees();
 
 		this->currentMeta = &meta;
 		batch = false;
@@ -3789,7 +3806,10 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 								this->outputFrameTexture,
 								externalVideoFrames.path(),
 								externalVideoFrameCount++,
-								frameCropRect);
+								frameCropRect,
+								videoFlipHorizontal,
+								videoFlipVertical,
+								videoRotationDegrees);
 					}
 					#endif
 				}

@@ -304,6 +304,9 @@ private:
 	bool isVideoMuxingRisky;
 	int videoExportMode;
 	bool videoAudioOffsetCorrectionEnabled;
+	bool videoFlipHorizontal;
+	bool videoFlipVertical;
+	int videoRotationDegrees;
 	bool pitchControlSyncLock;
 
 	void NormalizePitchControls(bool startChanged);

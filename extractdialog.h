@@ -62,6 +62,9 @@ public:
 	QString GetVideoFilename(void);
 	int GetVideoExportMode(void);
 	bool UseVideoAudioOffsetCorrection(void);
+	bool GetVideoFlipHorizontal(void);
+	bool GetVideoFlipVertical(void);
+	int GetVideoRotationDegrees(void);
 	QString GetOriginator(void);
 	QString GetOriginatorReference(void);
 	QString GetDescription(void);

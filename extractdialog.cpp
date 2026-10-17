@@ -41,6 +41,9 @@ ExtractDialog::ExtractDialog(QWidget *parent, MetaData &metadata,
 	videoIsRisky = false;
 	ui->videoPresetComboBox->setCurrentIndex(SIMPLE_EXPORT_STANDARD);
 	ui->avOffsetCorrectionCheckBox->setChecked(true);
+	ui->flipHorizontalCheckBox->setChecked(false);
+	ui->flipVerticalCheckBox->setChecked(false);
+	ui->rotationComboBox->setCurrentIndex(0);
 
 	SetOriginator(meta->originator);
 	SetArchiveLocation(meta->archivalLocation);
@@ -90,6 +93,30 @@ bool ExtractDialog::UseVideoAudioOffsetCorrection(void)
 {
 	return ui->muxVideoCheckbox->isChecked() &&
 			ui->avOffsetCorrectionCheckBox->isChecked();
+}
+
+bool ExtractDialog::GetVideoFlipHorizontal(void)
+{
+	return ui->muxVideoCheckbox->isChecked() &&
+			ui->flipHorizontalCheckBox->isChecked();
+}
+
+bool ExtractDialog::GetVideoFlipVertical(void)
+{
+	return ui->muxVideoCheckbox->isChecked() &&
+			ui->flipVerticalCheckBox->isChecked();
+}
+
+int ExtractDialog::GetVideoRotationDegrees(void)
+{
+	if(!ui->muxVideoCheckbox->isChecked()) return 0;
+	switch(ui->rotationComboBox->currentIndex())
+	{
+	case 1: return 90;
+	case 2: return 180;
+	case 3: return 270;
+	default: return 0;
+	}
 }
 
 QString ExtractDialog::GetOriginator(void)
@@ -278,6 +305,10 @@ void ExtractDialog::on_muxVideoCheckbox_clicked(bool checked)
 	ui->videoPresetHelpLabel->setEnabled(checked);
 	ui->avOffsetCorrectionCheckBox->setEnabled(checked);
 	ui->avOffsetHelpLabel->setEnabled(checked);
+	ui->videoOrientationLabel->setEnabled(checked);
+	ui->flipHorizontalCheckBox->setEnabled(checked);
+	ui->flipVerticalCheckBox->setEnabled(checked);
+	ui->rotationComboBox->setEnabled(checked);
 }
 
 void ExtractDialog::on_fileVideoBrowseButton_clicked()

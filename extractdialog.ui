@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>599</width>
-    <height>584</height>
+    <height>620</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -19,7 +19,7 @@
      <x>20</x>
      <y>20</y>
      <width>561</width>
-     <height>507</height>
+     <height>543</height>
     </rect>
    </property>
    <layout class="QGridLayout" name="gridLayout">
@@ -310,13 +310,77 @@
       </property>
      </widget>
     </item>
+    <item row="16" column="0">
+     <widget class="QLabel" name="videoOrientationLabel">
+      <property name="enabled">
+       <bool>false</bool>
+      </property>
+      <property name="text">
+       <string>Video-oriëntatie</string>
+      </property>
+      <property name="alignment">
+       <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+      </property>
+     </widget>
+    </item>
+    <item row="16" column="1">
+     <layout class="QHBoxLayout" name="videoOrientationLayout">
+      <item>
+       <widget class="QCheckBox" name="flipHorizontalCheckBox">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="text">
+         <string>Spiegel H</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="flipVerticalCheckBox">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="text">
+         <string>Spiegel V</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QComboBox" name="rotationComboBox">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <item>
+         <property name="text">
+          <string>Rotatie 0°</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Rotatie 90°</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Rotatie 180°</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Rotatie 270°</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+     </layout>
+    </item>
    </layout>
   </widget>
   <widget class="QWidget" name="horizontalLayoutWidget">
    <property name="geometry">
     <rect>
      <x>375</x>
-     <y>537</y>
+     <y>573</y>
      <width>201</width>
      <height>32</height>
     </rect>
@@ -363,6 +427,9 @@
   <tabstop>fileVideoBrowseButton</tabstop>
   <tabstop>videoPresetComboBox</tabstop>
   <tabstop>avOffsetCorrectionCheckBox</tabstop>
+  <tabstop>flipHorizontalCheckBox</tabstop>
+  <tabstop>flipVerticalCheckBox</tabstop>
+  <tabstop>rotationComboBox</tabstop>
   <tabstop>originatorReferenceText</tabstop>
   <tabstop>descriptionText</tabstop>
   <tabstop>subjectText</tabstop>
