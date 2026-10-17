@@ -186,29 +186,47 @@ static void SaveTextureAsPngFrame(const FrameTexture *frame,
 }
 
 static QRect ComputeAlignedVideoCropRect(const FrameTexture *frame,
-		const Frame_Window *frameWindow)
+		const Frame_Window *frameWindow,
+		float uiLeftNorm, float uiRightNorm,
+		float uiTopNorm, float uiBottomNorm)
 {
-	if(!frame || !frameWindow || frame->width <= 1 || frame->height <= 1)
+	if(!frame || frame->width <= 1 || frame->height <= 1)
 		return QRect();
 
-	float leftNorm = std::min(frameWindow->pixbounds[0], frameWindow->pixbounds[1]);
-	float rightNorm = std::max(frameWindow->pixbounds[0], frameWindow->pixbounds[1]);
-	float topNorm = std::min(frameWindow->overlap[2], frameWindow->overlap[3]);
-	float bottomNorm = std::max(frameWindow->overlap[2], frameWindow->overlap[3]);
-	float alignedBottomNorm = 1.0f + frameWindow->overlap[3] - frameWindow->overlap[0];
+	float leftNorm = std::min(uiLeftNorm, uiRightNorm);
+	float rightNorm = std::max(uiLeftNorm, uiRightNorm);
+	float topNorm = std::min(uiTopNorm, uiBottomNorm);
+	float bottomNorm = std::max(uiTopNorm, uiBottomNorm);
+	float alignedBottomNorm = bottomNorm;
 
 	auto clamp01 = [](float v) { return std::max(0.0f, std::min(1.0f, v)); };
 	leftNorm = clamp01(leftNorm);
 	rightNorm = clamp01(rightNorm);
 	topNorm = clamp01(topNorm);
 	bottomNorm = clamp01(bottomNorm);
-	alignedBottomNorm = clamp01(alignedBottomNorm);
 
-	// Prefer the dynamic violet/white guide range when overlap has settled.
-	if(frameWindow->overlap[0] > 0.001f &&
-			std::abs(alignedBottomNorm - topNorm) > 0.03f)
+	if(frameWindow)
 	{
-		bottomNorm = alignedBottomNorm;
+		float fwLeft = std::min(frameWindow->pixbounds[0], frameWindow->pixbounds[1]);
+		float fwRight = std::max(frameWindow->pixbounds[0], frameWindow->pixbounds[1]);
+		if(std::abs(fwRight - fwLeft) > 0.01f)
+		{
+			leftNorm = clamp01(fwLeft);
+			rightNorm = clamp01(fwRight);
+		}
+
+		float fwTop = frameWindow->overlap[3];
+		alignedBottomNorm = 1.0f + frameWindow->overlap[3] - frameWindow->overlap[0];
+		alignedBottomNorm = clamp01(alignedBottomNorm);
+		fwTop = clamp01(fwTop);
+
+		// Prefer dynamic overlap guides once they are meaningful.
+		if(frameWindow->overlap[0] > 0.001f &&
+				std::abs(alignedBottomNorm - fwTop) > 0.01f)
+		{
+			topNorm = fwTop;
+			bottomNorm = alignedBottomNorm;
+		}
 	}
 
 	if(bottomNorm < topNorm)
@@ -3534,6 +3552,12 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 		#else
 		QTemporaryDir externalVideoFrames;
 		int externalVideoFrameCount = 0;
+		const float uiLeftPixNorm = ui->leftPixSpinBox->value() /
+				float(std::max(1u, this->scan.inFile.Width()));
+		const float uiRightPixNorm = ui->rightPixSpinBox->value() /
+				float(std::max(1u, this->scan.inFile.Width()));
+		const float uiTopPitchNorm = ui->framepitchstartSlider->value() / 1000.0f;
+		const float uiBottomPitchNorm = ui->FramePitchendSlider->value() / 1000.0f;
 		#endif
 	#endif
 
@@ -3660,7 +3684,9 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 					vid->WriteVideoFrame(this->outputFrameTexture);
 					#else
 					QRect frameCropRect = ComputeAlignedVideoCropRect(
-								this->outputFrameTexture, this->frame_window);
+								this->outputFrameTexture, this->frame_window,
+								uiLeftPixNorm, uiRightPixNorm,
+								uiTopPitchNorm, uiBottomPitchNorm);
 					SaveTextureAsPngFrame(
 							this->outputFrameTexture,
 							externalVideoFrames.path(),
