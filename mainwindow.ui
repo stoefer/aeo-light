@@ -444,7 +444,17 @@
           </widget>
          </widget>
         </item>
-        <item row="6" column="1">
+        <item row="6" column="1" colspan="4">
+         <widget class="QLabel" name="overlapHelpLabel">
+          <property name="text">
+           <string>Tip: gebruik Frame Pitch Start/End om de boven- en ondergrens van het bruikbare beeldgebied te kiezen. Gebruik Search Size alleen als zoekmarge voor overlap: verhoog die enkel als uitlijning mist, en houd ze anders klein voor stabielere resultaten.</string>
+          </property>
+          <property name="wordWrap">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item row="7" column="1">
          <spacer name="verticalSpacer_2">
           <property name="orientation">
            <enum>Qt::Vertical</enum>
