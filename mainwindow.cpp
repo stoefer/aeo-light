@@ -178,7 +178,8 @@ static void SaveTextureAsPngFrame(const FrameTexture *frame,
 	QImage raw(reinterpret_cast<const uchar*>(frame->buf),
 			frame->width, frame->height, QImage::Format_ARGB32);
 	// Align exported frame orientation with the on-screen film view.
-	QImage out = raw.mirrored(true, true);
+	// GL readback is horizontally mirrored relative to display for this path.
+	QImage out = raw.mirrored(true, false);
 	if(cropRect.width() > 0 && cropRect.height() > 0)
 		out = out.copy(cropRect);
 	QString path = QDir(frameDir).filePath(
