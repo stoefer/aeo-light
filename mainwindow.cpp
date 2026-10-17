@@ -51,6 +51,7 @@
 #include <QScrollArea>
 #include <QProgressDialog>
 #include <QStandardPaths>
+#include <QSignalBlocker>
 
 #include <cstdio>
 #include <exception>
@@ -532,6 +533,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
 	isVideoMuxingRisky = false;
 	videoExportMode = SIMPLE_EXPORT_STANDARD;
+	pitchControlSyncLock = false;
 
 	#ifdef USE_MUX_HACK
 	encStartFrame = 0;
@@ -1741,7 +1743,11 @@ void MainWindow::on_markoutButton_clicked()
 
 void MainWindow::on_framepitchstartSlider_valueChanged(int value)
 {
-	ui->framepitchstartLabel->setText(QString::number(value/1000.f,'f',2));
+	NormalizePitchControls(true);
+	ui->framepitchstartLabel->setText(
+			QString::number(ui->framepitchstartSlider->value()/1000.f,'f',2));
+	ui->framePitchLabel->setText(
+			QString::number(ui->FramePitchendSlider->value()/1000.f,'f',2));
 	GPU_Params_Update(1);
 }
 
@@ -1749,6 +1755,43 @@ void MainWindow::on_overlapSlider_valueChanged(int value)
 {
 	ui->overlap_label->setText(QString::number(value/100.f,'f',2));
 	GPU_Params_Update(1);
+}
+
+void MainWindow::NormalizePitchControls(bool startChanged)
+{
+	if(pitchControlSyncLock) return;
+	pitchControlSyncLock = true;
+
+	const int minTick = ui->framepitchstartSlider->minimum();
+	const int maxTick = ui->framepitchstartSlider->maximum();
+	const int minPitchWindowTicks = 20; // keep at least 2% pitch window
+	const int maxCombinedTicks = maxTick - minPitchWindowTicks;
+
+	int start = ui->framepitchstartSlider->value();
+	int end = ui->FramePitchendSlider->value();
+
+	start = std::max(minTick, std::min(maxTick, start));
+	end = std::max(minTick, std::min(maxTick, end));
+
+	if(start + end > maxCombinedTicks)
+	{
+		if(startChanged)
+			end = maxCombinedTicks - start;
+		else
+			start = maxCombinedTicks - end;
+	}
+
+	start = std::max(minTick, std::min(maxTick, start));
+	end = std::max(minTick, std::min(maxTick, end));
+
+	{
+		QSignalBlocker lockStart(ui->framepitchstartSlider);
+		QSignalBlocker lockEnd(ui->FramePitchendSlider);
+		ui->framepitchstartSlider->setValue(start);
+		ui->FramePitchendSlider->setValue(end);
+	}
+
+	pitchControlSyncLock = false;
 }
 
 void MainWindow::on_frame_numberSpinBox_valueChanged(int arg1)
@@ -1777,9 +1820,8 @@ void MainWindow::on_HeightCalculateBtn_clicked()
 		this->ui->FramePitchendSlider->setValue(
 				int( (1.0-(1.0+(frame_window->overlap[3] -
 						frame_window->overlap[0]))) * 1000.0));
+		NormalizePitchControls(false);
 
-		this->ui->overlapSlider->setValue(3);
-		this->ui->overlap_label->setText(QString::number(3./100.f,'f',2));
 		frame_window->currmatch = frame_window->bestmatch;
 		frame_window->currstart = frame_window->overlap[3];
 		frame_window->is_calc=true;
@@ -3935,7 +3977,11 @@ void MainWindow::on_threshBox_clicked()
 
 void MainWindow::on_FramePitchendSlider_valueChanged(int value)
 {
-	ui->framePitchLabel->setText(QString::number(value/1000.f,'f',2));
+	NormalizePitchControls(false);
+	ui->framepitchstartLabel->setText(
+			QString::number(ui->framepitchstartSlider->value()/1000.f,'f',2));
+	ui->framePitchLabel->setText(
+			QString::number(ui->FramePitchendSlider->value()/1000.f,'f',2));
 	GPU_Params_Update(1);
 }
 

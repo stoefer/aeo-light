@@ -303,6 +303,9 @@ private:
 	FrameTexture *outputFrameTexture;
 	bool isVideoMuxingRisky;
 	int videoExportMode;
+	bool pitchControlSyncLock;
+
+	void NormalizePitchControls(bool startChanged);
 
 public:
 	void SetStartingProject(QString fn) { startingProjectFilename = fn; };
