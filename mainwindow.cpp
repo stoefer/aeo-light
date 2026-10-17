@@ -168,7 +168,7 @@ static QString FindExternalFfmpeg()
 }
 
 static void SaveTextureAsPngFrame(const FrameTexture *frame,
-		const QString &frameDir, int frameIndex)
+		const QString &frameDir, int frameIndex, const QRect &cropRect)
 {
 	if(!frame || !frame->buf || frame->width <= 0 || frame->height <= 0)
 		throw std::runtime_error("Video frame buffer is not initialized");
@@ -176,10 +176,55 @@ static void SaveTextureAsPngFrame(const FrameTexture *frame,
 	QImage raw(reinterpret_cast<const uchar*>(frame->buf),
 			frame->width, frame->height, QImage::Format_ARGB32);
 	QImage out = raw.mirrored(false, true);
+	if(cropRect.width() > 0 && cropRect.height() > 0)
+		out = out.copy(cropRect);
 	QString path = QDir(frameDir).filePath(
 			QString("frame_%1.png").arg(frameIndex, 6, 10, QChar('0')));
 	if(!out.save(path, "PNG"))
 		throw std::runtime_error("Could not write temporary video frame image");
+}
+
+static QRect ComputeAlignedVideoCropRect(const FrameTexture *frame,
+		const Frame_Window *frameWindow)
+{
+	if(!frame || !frameWindow || frame->width <= 1 || frame->height <= 1)
+		return QRect();
+
+	float leftNorm = std::min(frameWindow->pixbounds[0], frameWindow->pixbounds[1]);
+	float rightNorm = std::max(frameWindow->pixbounds[0], frameWindow->pixbounds[1]);
+	float topNorm = frameWindow->overlap[3];
+	float bottomNorm = 1.0f + frameWindow->overlap[3] - frameWindow->overlap[0];
+
+	auto clamp01 = [](float v) { return std::max(0.0f, std::min(1.0f, v)); };
+	leftNorm = clamp01(leftNorm);
+	rightNorm = clamp01(rightNorm);
+	topNorm = clamp01(topNorm);
+	bottomNorm = clamp01(bottomNorm);
+
+	if(bottomNorm < topNorm)
+		std::swap(bottomNorm, topNorm);
+
+	int x1 = static_cast<int>(leftNorm * frame->width + 0.5f);
+	int x2 = static_cast<int>(rightNorm * frame->width + 0.5f);
+	int y1 = static_cast<int>(topNorm * frame->height + 0.5f);
+	int y2 = static_cast<int>(bottomNorm * frame->height + 0.5f);
+
+	x1 = std::max(0, std::min(frame->width - 1, x1));
+	x2 = std::max(0, std::min(frame->width, x2));
+	y1 = std::max(0, std::min(frame->height - 1, y1));
+	y2 = std::max(0, std::min(frame->height, y2));
+
+	int w = x2 - x1;
+	int h = y2 - y1;
+	if(w < 2 || h < 2)
+		return QRect(0, 0, frame->width, frame->height);
+
+	if(w % 2) --w;
+	if(h % 2) --h;
+	if(w < 2 || h < 2)
+		return QRect(0, 0, frame->width, frame->height);
+
+	return QRect(x1, y1, w, h);
 }
 
 static void EncodeVideoWithExternalFfmpeg(const QString &frameDir,
@@ -3479,6 +3524,7 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 		#else
 		QTemporaryDir externalVideoFrames;
 		int externalVideoFrameCount = 0;
+		QRect externalVideoCropRect;
 		#endif
 	#endif
 
@@ -3497,6 +3543,12 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 
 		frame_window->PrepareVideoOutput(this->outputFrameTexture);
 		frame_window->is_videooutput = true;
+		#ifndef USE_MUX_HACK
+			#ifndef USELIBAV
+			externalVideoCropRect = ComputeAlignedVideoCropRect(
+						this->outputFrameTexture, this->frame_window);
+			#endif
+		#endif
 	}
 
 	wav wout(samplerate);
@@ -3607,7 +3659,8 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 					SaveTextureAsPngFrame(
 							this->outputFrameTexture,
 							externalVideoFrames.path(),
-							externalVideoFrameCount++);
+							externalVideoFrameCount++,
+							externalVideoCropRect);
 					#endif
 				}
 				#endif
