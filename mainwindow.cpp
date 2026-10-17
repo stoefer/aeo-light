@@ -196,15 +196,18 @@ static QRect ComputeAlignedVideoCropRect(const FrameTexture *frame,
 
 	float leftNorm = std::min(uiLeftNorm, uiRightNorm);
 	float rightNorm = std::max(uiLeftNorm, uiRightNorm);
-	float topNorm = std::min(uiTopNorm, uiBottomNorm);
-	float bottomNorm = std::max(uiTopNorm, uiBottomNorm);
-	float alignedBottomNorm = bottomNorm;
+	float staticTopNorm = uiTopNorm;
+	float staticBottomNorm = 1.0f - uiBottomNorm;
+	float topNorm = staticTopNorm;
+	float bottomNorm = staticBottomNorm;
 
 	auto clamp01 = [](float v) { return std::max(0.0f, std::min(1.0f, v)); };
 	leftNorm = clamp01(leftNorm);
 	rightNorm = clamp01(rightNorm);
-	topNorm = clamp01(topNorm);
-	bottomNorm = clamp01(bottomNorm);
+	staticTopNorm = clamp01(staticTopNorm);
+	staticBottomNorm = clamp01(staticBottomNorm);
+	topNorm = staticTopNorm;
+	bottomNorm = staticBottomNorm;
 
 	if(frameWindow)
 	{
@@ -217,21 +220,31 @@ static QRect ComputeAlignedVideoCropRect(const FrameTexture *frame,
 		}
 
 		float fwTop = frameWindow->overlap[3];
-		alignedBottomNorm = 1.0f + frameWindow->overlap[3] - frameWindow->overlap[0];
+		float alignedBottomNorm = 1.0f + frameWindow->overlap[3] - frameWindow->overlap[0];
 		alignedBottomNorm = clamp01(alignedBottomNorm);
 		fwTop = clamp01(fwTop);
+		float dynamicTop = std::min(fwTop, alignedBottomNorm);
+		float dynamicBottom = std::max(fwTop, alignedBottomNorm);
+		float dynamicHeight = dynamicBottom - dynamicTop;
 
-		// Prefer dynamic overlap guides once they are meaningful.
+		// Prefer dynamic overlap guides once they are meaningful and not tiny.
 		if(frameWindow->overlap[0] > 0.001f &&
-				std::abs(alignedBottomNorm - fwTop) > 0.01f)
+				dynamicHeight >= 0.03f)
 		{
-			topNorm = fwTop;
-			bottomNorm = alignedBottomNorm;
+			topNorm = dynamicTop;
+			bottomNorm = dynamicBottom;
 		}
 	}
 
 	if(bottomNorm < topNorm)
 		std::swap(bottomNorm, topNorm);
+
+	// Fallback to stable slider-based crop if dynamic values collapse.
+	if((bottomNorm - topNorm) < 0.02f)
+	{
+		topNorm = std::min(staticTopNorm, staticBottomNorm);
+		bottomNorm = std::max(staticTopNorm, staticBottomNorm);
+	}
 
 	int x1 = static_cast<int>(leftNorm * frame->width + 0.5f);
 	int x2 = static_cast<int>(rightNorm * frame->width + 0.5f);
@@ -245,13 +258,21 @@ static QRect ComputeAlignedVideoCropRect(const FrameTexture *frame,
 
 	int w = x2 - x1;
 	int h = y2 - y1;
-	if(w < 2 || h < 2)
-		return QRect(0, 0, frame->width, frame->height);
+	if(w < 2)
+	{
+		x1 = std::max(0, std::min(frame->width - 2, x1));
+		w = 2;
+	}
+	if(h < 2)
+	{
+		y1 = std::max(0, std::min(frame->height - 2, y1));
+		h = 2;
+	}
 
 	if(w % 2) --w;
 	if(h % 2) --h;
-	if(w < 2 || h < 2)
-		return QRect(0, 0, frame->width, frame->height);
+	if(w < 2) w = 2;
+	if(h < 2) h = 2;
 
 	return QRect(x1, y1, w, h);
 }
