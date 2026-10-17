@@ -277,6 +277,7 @@ void ExtractDialog::on_muxVideoCheckbox_clicked(bool checked)
 	ui->videoPresetComboBox->setEnabled(checked);
 	ui->videoPresetHelpLabel->setEnabled(checked);
 	ui->avOffsetCorrectionCheckBox->setEnabled(checked);
+	ui->avOffsetHelpLabel->setEnabled(checked);
 }
 
 void ExtractDialog::on_fileVideoBrowseButton_clicked()

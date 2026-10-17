@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>599</width>
-    <height>554</height>
+    <height>584</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -19,7 +19,7 @@
      <x>20</x>
      <y>20</y>
      <width>561</width>
-     <height>477</height>
+     <height>507</height>
     </rect>
    </property>
    <layout class="QGridLayout" name="gridLayout">
@@ -297,13 +297,26 @@
       </property>
      </widget>
     </item>
+    <item row="15" column="1">
+     <widget class="QLabel" name="avOffsetHelpLabel">
+      <property name="enabled">
+       <bool>false</bool>
+      </property>
+      <property name="text">
+       <string>Aanbevolen: aan voor 16mm optical sound. Uit: enkel voor speciale gevallen.</string>
+      </property>
+      <property name="wordWrap">
+       <bool>true</bool>
+      </property>
+     </widget>
+    </item>
    </layout>
   </widget>
   <widget class="QWidget" name="horizontalLayoutWidget">
    <property name="geometry">
     <rect>
      <x>375</x>
-     <y>507</y>
+     <y>537</y>
      <width>201</width>
      <height>32</height>
     </rect>
