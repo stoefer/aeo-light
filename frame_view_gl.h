@@ -79,6 +79,7 @@ public:
 	void ProcessRecording(int numsamples);
 	void DestroyRecording( );
 	float **GetRecording() const { return FileRealBuffer; }
+	int GetRecordedSamples() const { return samplepointer; }
     void PrepareVideoOutput(FrameTexture *frame)	;
 	float GetMax(GLfloat* dArray, int iSize) ;
 	void read_frame_texture(FrameTexture *frame);

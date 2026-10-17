@@ -3838,12 +3838,18 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 		}
 
 		frame_window->is_rendering =false;
+
+		const int recordedSamples = frame_window->GetRecordedSamples();
+		outputNumFrames = recordedSamples / frameratesamples;
+		if(outputNumFrames < 1)
+			throw 1;
+
 		traceCurrentOperation = "Process Recording";
-		frame_window->ProcessRecording(outputNumFrames * frameratesamples);
+		frame_window->ProcessRecording(recordedSamples);
 
 		traceCurrentOperation = "Writing wav file";
 		wout.writebuffer(frame_window->FileRealBuffer,
-				outputNumFrames * frameratesamples);
+				recordedSamples);
 
 		// INFO chunk
 		traceCurrentOperation = "Writing Info block";
