@@ -3462,6 +3462,14 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 	outputFrameTexture->bufSize = 640*480*4;
 	outputFrameTexture->isNonNativeEndianess = false;
 	outputFrameTexture->nComponents = 4;
+#ifndef USELIBAV
+	if(outputFrameTexture->buf)
+	{
+		delete [] outputFrameTexture->buf;
+		outputFrameTexture->buf = NULL;
+	}
+	outputFrameTexture->buf = new uint8_t[outputFrameTexture->bufSize];
+#endif
 
 	#ifndef USE_MUX_HACK
 		#ifdef USELIBAV
