@@ -309,6 +309,7 @@ void ExtractDialog::on_muxVideoCheckbox_clicked(bool checked)
 	ui->flipHorizontalCheckBox->setEnabled(checked);
 	ui->flipVerticalCheckBox->setEnabled(checked);
 	ui->rotationComboBox->setEnabled(checked);
+	ui->previewOrientationPresetButton->setEnabled(checked);
 }
 
 void ExtractDialog::on_fileVideoBrowseButton_clicked()
@@ -319,4 +320,13 @@ void ExtractDialog::on_fileVideoBrowseButton_clicked()
 	if(filename.isEmpty()) return;
 
 	ui->filenameVideoText->setText(filename);
+}
+
+void ExtractDialog::on_previewOrientationPresetButton_clicked()
+{
+	// Default preset to match the preview orientation in the current
+	// external mp4 export path.
+	ui->flipHorizontalCheckBox->setChecked(true);
+	ui->flipVerticalCheckBox->setChecked(false);
+	ui->rotationComboBox->setCurrentIndex(0); // 0 degrees
 }

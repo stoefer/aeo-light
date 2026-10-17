@@ -93,6 +93,7 @@ private slots:
 	void on_fileBrowseButton_clicked();
 	void on_muxVideoCheckbox_clicked(bool checked);
 	void on_fileVideoBrowseButton_clicked();
+	void on_previewOrientationPresetButton_clicked();
 };
 
 #endif // EXTRACTDIALOG_H

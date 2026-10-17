@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>599</width>
-    <height>620</height>
+    <height>656</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -19,7 +19,7 @@
      <x>20</x>
      <y>20</y>
      <width>561</width>
-     <height>543</height>
+     <height>579</height>
     </rect>
    </property>
    <layout class="QGridLayout" name="gridLayout">
@@ -374,13 +374,23 @@
       </item>
      </layout>
     </item>
+    <item row="17" column="1">
+     <widget class="QPushButton" name="previewOrientationPresetButton">
+      <property name="enabled">
+       <bool>false</bool>
+      </property>
+      <property name="text">
+       <string>Oriëntatie zoals preview</string>
+      </property>
+     </widget>
+    </item>
    </layout>
   </widget>
   <widget class="QWidget" name="horizontalLayoutWidget">
    <property name="geometry">
     <rect>
      <x>375</x>
-     <y>573</y>
+     <y>610</y>
      <width>201</width>
      <height>32</height>
     </rect>
@@ -430,6 +440,7 @@
   <tabstop>flipHorizontalCheckBox</tabstop>
   <tabstop>flipVerticalCheckBox</tabstop>
   <tabstop>rotationComboBox</tabstop>
+  <tabstop>previewOrientationPresetButton</tabstop>
   <tabstop>originatorReferenceText</tabstop>
   <tabstop>descriptionText</tabstop>
   <tabstop>subjectText</tabstop>
