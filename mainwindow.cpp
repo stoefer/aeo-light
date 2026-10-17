@@ -55,6 +55,7 @@
 #include <cstdio>
 #include <exception>
 #include <memory>
+#include <cmath>
 #include <stdexcept>
 
 #include <fcntl.h>
@@ -192,14 +193,23 @@ static QRect ComputeAlignedVideoCropRect(const FrameTexture *frame,
 
 	float leftNorm = std::min(frameWindow->pixbounds[0], frameWindow->pixbounds[1]);
 	float rightNorm = std::max(frameWindow->pixbounds[0], frameWindow->pixbounds[1]);
-	float topNorm = frameWindow->overlap[3];
-	float bottomNorm = 1.0f + frameWindow->overlap[3] - frameWindow->overlap[0];
+	float topNorm = std::min(frameWindow->overlap[2], frameWindow->overlap[3]);
+	float bottomNorm = std::max(frameWindow->overlap[2], frameWindow->overlap[3]);
+	float alignedBottomNorm = 1.0f + frameWindow->overlap[3] - frameWindow->overlap[0];
 
 	auto clamp01 = [](float v) { return std::max(0.0f, std::min(1.0f, v)); };
 	leftNorm = clamp01(leftNorm);
 	rightNorm = clamp01(rightNorm);
 	topNorm = clamp01(topNorm);
 	bottomNorm = clamp01(bottomNorm);
+	alignedBottomNorm = clamp01(alignedBottomNorm);
+
+	// Prefer the dynamic violet/white guide range when overlap has settled.
+	if(frameWindow->overlap[0] > 0.001f &&
+			std::abs(alignedBottomNorm - topNorm) > 0.03f)
+	{
+		bottomNorm = alignedBottomNorm;
+	}
 
 	if(bottomNorm < topNorm)
 		std::swap(bottomNorm, topNorm);
@@ -3524,7 +3534,6 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 		#else
 		QTemporaryDir externalVideoFrames;
 		int externalVideoFrameCount = 0;
-		QRect externalVideoCropRect;
 		#endif
 	#endif
 
@@ -3543,12 +3552,6 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 
 		frame_window->PrepareVideoOutput(this->outputFrameTexture);
 		frame_window->is_videooutput = true;
-		#ifndef USE_MUX_HACK
-			#ifndef USELIBAV
-			externalVideoCropRect = ComputeAlignedVideoCropRect(
-						this->outputFrameTexture, this->frame_window);
-			#endif
-		#endif
 	}
 
 	wav wout(samplerate);
@@ -3656,11 +3659,13 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 					#ifdef USELIBAV
 					vid->WriteVideoFrame(this->outputFrameTexture);
 					#else
+					QRect frameCropRect = ComputeAlignedVideoCropRect(
+								this->outputFrameTexture, this->frame_window);
 					SaveTextureAsPngFrame(
 							this->outputFrameTexture,
 							externalVideoFrames.path(),
 							externalVideoFrameCount++,
-							externalVideoCropRect);
+							frameCropRect);
 					#endif
 				}
 				#endif
