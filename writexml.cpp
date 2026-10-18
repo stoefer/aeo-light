@@ -143,8 +143,8 @@ void file_premis_xml(FILE *fp, const FileInfo &finfo)
 			"containing an image of the soundtrack. -->\n");
 	fprintf(fp,"\t\t\t<creatingApplicationName>AEO-Light"
 			"</creatingApplicationName>\n");
-	fprintf(fp,"\t\t\t<creatingApplicationVersion>2.1"
-			"</creatingApplicationVersion>\n");
+	fprintf(fp,"\t\t\t<creatingApplicationVersion>%s"
+			"</creatingApplicationVersion>\n", APP_VERSION_STR);
 	fprintf(fp,"\t\t\t<dateCreatedByApplication>%s"
 			"</dateCreatedByApplication>\n",
 			QDateTime::currentDateTime().toString("yyyy-MM-dd").
