@@ -1,0 +1,176 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release-windows:
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          suppress-deprecation-warnings: msystem-mingw64
+          update: true
+          install: >-
+            base-devel
+            git
+            make
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-qt5-base
+            mingw-w64-x86_64-qt5-tools
+            mingw-w64-x86_64-qt5-multimedia
+            mingw-w64-x86_64-ffmpeg
+            mingw-w64-x86_64-libtiff
+            mingw-w64-x86_64-openexr
+            mingw-w64-x86_64-zlib
+            zip
+
+      - name: Build OpenDPX and DSPFilters static libs
+        run: |
+          set -euo pipefail
+          mkdir -p _deps
+          git clone --depth 1 https://github.com/patrickpalmer/dpx.git _deps/dpx
+          git clone --depth 1 https://github.com/vinniefalco/DSPFilters.git _deps/DSPFilters
+
+          mkdir -p include/DspFilters lib
+          cp -r _deps/DSPFilters/shared/DSPFilters/include/DspFilters/* include/DspFilters/
+
+          g++ -std=c++11 -O2 -c \
+            _deps/dpx/libdpx/Codec.cpp \
+            _deps/dpx/libdpx/DPX.cpp \
+            _deps/dpx/libdpx/DPXHeader.cpp \
+            _deps/dpx/libdpx/ElementReadStream.cpp \
+            _deps/dpx/libdpx/InStream.cpp \
+            _deps/dpx/libdpx/OutStream.cpp \
+            _deps/dpx/libdpx/Reader.cpp \
+            _deps/dpx/libdpx/RunLengthEncoding.cpp \
+            _deps/dpx/libdpx/Writer.cpp
+          ar rcs lib/libdpx.a *.o
+          rm -f *.o
+
+          g++ -std=c++11 -O2 -I_deps/DSPFilters/shared/DSPFilters/include -c \
+            _deps/DSPFilters/shared/DSPFilters/source/Bessel.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/Biquad.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/Butterworth.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/Cascade.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/ChebyshevI.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/ChebyshevII.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/Custom.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/Design.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/Documentation.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/Elliptic.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/Filter.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/Legendre.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/Param.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/PoleFilter.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/RBJ.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/RootFinder.cpp \
+            _deps/DSPFilters/shared/DSPFilters/source/State.cpp
+          ar rcs lib/libdspfilters.a *.o
+          rm -f *.o
+
+      - name: Build AEO-Light (Win64)
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          cd build
+          QMAKE_BIN="$(command -v qmake-qt5 || command -v qmake || true)"
+          if [ -z "$QMAKE_BIN" ]; then
+            QMAKE_BIN="/mingw64/bin/qmake-qt5"
+          fi
+          "$QMAKE_BIN" ../aeogui.pro "DEFINES+=AEO_DISABLE_LIBAV" "DEFINES+=AEO_DISABLE_MUX_HACK"
+          make -j"$(nproc)"
+
+      - name: Package release zip
+        run: |
+          set -euo pipefail
+          mkdir -p package/AEO-Light
+          shopt -s nullglob
+          exe_candidates=(build/release/AEO-Light.exe build/AEO-Light.exe build/*/AEO-Light.exe)
+          if [ "${#exe_candidates[@]}" -eq 0 ]; then
+            echo "AEO-Light.exe not found under build/"
+            exit 1
+          fi
+          cp "${exe_candidates[0]}" package/AEO-Light/AEO-Light.exe
+          cp LICENSE.txt package/AEO-Light/
+          cp logos2.png package/AEO-Light/
+          if [ -f /mingw64/bin/ffmpeg.exe ]; then
+            cp /mingw64/bin/ffmpeg.exe package/AEO-Light/
+          fi
+
+          WINDEPLOYQT_BIN="$(command -v windeployqt || command -v windeployqt-qt5 || true)"
+          if [ -z "$WINDEPLOYQT_BIN" ]; then
+            for candidate in /mingw64/bin/windeployqt /mingw64/bin/windeployqt-qt5; do
+              if [ -x "$candidate" ]; then
+                WINDEPLOYQT_BIN="$candidate"
+                break
+              fi
+            done
+          fi
+          if [ -z "$WINDEPLOYQT_BIN" ]; then
+            echo "windeployqt executable not found"
+            exit 1
+          fi
+          "$WINDEPLOYQT_BIN" --release --no-translations --no-angle --no-opengl-sw package/AEO-Light/AEO-Light.exe
+
+          APP_DIR="package/AEO-Light"
+          shopt -s nullglob globstar
+          declare -A queued
+          queue=()
+
+          enqueue_dep_file() {
+            local dep_file="$1"
+            local dep_name
+            dep_name="$(basename "$dep_file")"
+            if [ -n "${queued[$dep_name]:-}" ]; then
+              return
+            fi
+            queued[$dep_name]=1
+            queue+=("$dep_file")
+          }
+
+          for exe in "$APP_DIR"/*.exe; do
+            enqueue_dep_file "$exe"
+          done
+          for dll in "$APP_DIR"/**/*.dll; do
+            enqueue_dep_file "$dll"
+          done
+
+          while [ "${#queue[@]}" -gt 0 ]; do
+            current_file="${queue[0]}"
+            queue=("${queue[@]:1}")
+            while IFS= read -r dep; do
+              dep="${dep//$'\r'/}"
+              [ -z "$dep" ] && continue
+              if [ -f "$APP_DIR/$dep" ]; then
+                enqueue_dep_file "$APP_DIR/$dep"
+              elif [ -f "/mingw64/bin/$dep" ]; then
+                cp "/mingw64/bin/$dep" "$APP_DIR/$dep"
+                enqueue_dep_file "$APP_DIR/$dep"
+              fi
+            done < <(objdump -p "$current_file" | awk '/DLL Name:/{print $3}')
+          done
+
+          cd package
+          zip -r ../AEO-Light-Windows-x64.zip AEO-Light
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: AEO-Light-Windows-x64.zip
+          generate_release_notes: true
