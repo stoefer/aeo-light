@@ -1869,12 +1869,14 @@ void MainWindow::on_videoFrameTopSlider_valueChanged(int value)
 {
 	NormalizeVideoCropControls(true);
 	UpdateVideoCropLabels();
+	GPU_Params_Update(1);
 }
 
 void MainWindow::on_videoFrameBottomSlider_valueChanged(int value)
 {
 	NormalizeVideoCropControls(false);
 	UpdateVideoCropLabels();
+	GPU_Params_Update(1);
 }
 
 void MainWindow::on_overlapSlider_valueChanged(int value)
