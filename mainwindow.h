@@ -304,6 +304,7 @@ private:
 	bool isVideoMuxingRisky;
 	int videoExportMode;
 	bool videoAudioOffsetCorrectionEnabled;
+	bool videoUseStableFrameCrop;
 	bool videoFlipHorizontal;
 	bool videoFlipVertical;
 	int videoRotationDegrees;

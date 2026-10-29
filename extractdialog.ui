@@ -384,6 +384,45 @@
       </property>
      </widget>
     </item>
+    <item row="18" column="0">
+     <widget class="QLabel" name="stableVideoCropLabel">
+      <property name="enabled">
+       <bool>false</bool>
+      </property>
+      <property name="text">
+       <string>Video stabilisatie</string>
+      </property>
+      <property name="alignment">
+       <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+      </property>
+     </widget>
+    </item>
+    <item row="18" column="1">
+     <widget class="QCheckBox" name="stableVideoCropCheckBox">
+      <property name="enabled">
+       <bool>false</bool>
+      </property>
+      <property name="text">
+       <string>Stabiele videokader-crop (los van overlapzoeking)</string>
+      </property>
+      <property name="checked">
+       <bool>true</bool>
+      </property>
+     </widget>
+    </item>
+    <item row="19" column="1">
+     <widget class="QLabel" name="stableVideoCropHelpLabel">
+      <property name="enabled">
+       <bool>false</bool>
+      </property>
+      <property name="text">
+       <string>Aanbevolen: aan. Zo gebruiken videoframes vaste kadergrenzen en hebben schommelingen van de paarse overlaplijn minder invloed op het eindbeeld.</string>
+      </property>
+      <property name="wordWrap">
+       <bool>true</bool>
+      </property>
+     </widget>
+    </item>
    </layout>
   </widget>
   <widget class="QWidget" name="horizontalLayoutWidget">
@@ -437,6 +476,7 @@
   <tabstop>fileVideoBrowseButton</tabstop>
   <tabstop>videoPresetComboBox</tabstop>
   <tabstop>avOffsetCorrectionCheckBox</tabstop>
+  <tabstop>stableVideoCropCheckBox</tabstop>
   <tabstop>flipHorizontalCheckBox</tabstop>
   <tabstop>flipVerticalCheckBox</tabstop>
   <tabstop>rotationComboBox</tabstop>

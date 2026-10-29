@@ -199,7 +199,8 @@ static void SaveTextureAsPngFrame(const FrameTexture *frame,
 static QRect ComputeAlignedVideoCropRect(const FrameTexture *frame,
 		const Frame_Window *frameWindow,
 		float uiLeftNorm, float uiRightNorm,
-		float uiTopNorm, float uiBottomNorm)
+		float uiTopNorm, float uiBottomNorm,
+		bool useStableFrameCrop)
 {
 	if(!frame || frame->width <= 1 || frame->height <= 1)
 		return QRect();
@@ -229,20 +230,23 @@ static QRect ComputeAlignedVideoCropRect(const FrameTexture *frame,
 			rightNorm = clamp01(fwRight);
 		}
 
-		float fwTop = frameWindow->overlap[3];
-		float alignedBottomNorm = 1.0f + frameWindow->overlap[3] - frameWindow->overlap[0];
-		alignedBottomNorm = clamp01(alignedBottomNorm);
-		fwTop = clamp01(fwTop);
-		float dynamicTop = std::min(fwTop, alignedBottomNorm);
-		float dynamicBottom = std::max(fwTop, alignedBottomNorm);
-		float dynamicHeight = dynamicBottom - dynamicTop;
-
-		// Prefer dynamic overlap guides once they are meaningful and not tiny.
-		if(frameWindow->overlap[0] > 0.001f &&
-				dynamicHeight >= 0.03f)
+		if(!useStableFrameCrop)
 		{
-			topNorm = dynamicTop;
-			bottomNorm = dynamicBottom;
+			float fwTop = frameWindow->overlap[3];
+			float alignedBottomNorm = 1.0f + frameWindow->overlap[3] - frameWindow->overlap[0];
+			alignedBottomNorm = clamp01(alignedBottomNorm);
+			fwTop = clamp01(fwTop);
+			float dynamicTop = std::min(fwTop, alignedBottomNorm);
+			float dynamicBottom = std::max(fwTop, alignedBottomNorm);
+			float dynamicHeight = dynamicBottom - dynamicTop;
+
+			// In dynamic mode, follow overlap guides once they are meaningful.
+			if(frameWindow->overlap[0] > 0.001f &&
+					dynamicHeight >= 0.03f)
+			{
+				topNorm = dynamicTop;
+				bottomNorm = dynamicBottom;
+			}
 		}
 	}
 
@@ -566,6 +570,7 @@ MainWindow::MainWindow(QWidget *parent) :
 	isVideoMuxingRisky = false;
 	videoExportMode = SIMPLE_EXPORT_STANDARD;
 	videoAudioOffsetCorrectionEnabled = false;
+	videoUseStableFrameCrop = true;
 	videoFlipHorizontal = false;
 	videoFlipVertical = false;
 	videoRotationDegrees = 0;
@@ -1892,6 +1897,7 @@ bool MainWindow::extractGL(QString filename=QString(), bool doTimer=false)
 	QString videoFilename;
 	videoExportMode = SIMPLE_EXPORT_STANDARD;
 	videoAudioOffsetCorrectionEnabled = false;
+	videoUseStableFrameCrop = true;
 	videoFlipHorizontal = false;
 	videoFlipVertical = false;
 	videoRotationDegrees = 0;
@@ -1969,6 +1975,7 @@ bool MainWindow::extractGL(QString filename=QString(), bool doTimer=false)
 		videoExportMode = dialog.GetVideoExportMode();
 		videoAudioOffsetCorrectionEnabled =
 				dialog.UseVideoAudioOffsetCorrection();
+		videoUseStableFrameCrop = dialog.UseStableVideoFrameCrop();
 		videoFlipHorizontal = dialog.GetVideoFlipHorizontal();
 		videoFlipVertical = dialog.GetVideoFlipVertical();
 		videoRotationDegrees = dialog.GetVideoRotationDegrees();
@@ -3801,7 +3808,8 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 						QRect frameCropRect = ComputeAlignedVideoCropRect(
 									this->outputFrameTexture, this->frame_window,
 									uiLeftPixNorm, uiRightPixNorm,
-									uiTopPitchNorm, uiBottomPitchNorm);
+									uiTopPitchNorm, uiBottomPitchNorm,
+									videoUseStableFrameCrop);
 						SaveTextureAsPngFrame(
 								this->outputFrameTexture,
 								externalVideoFrames.path(),

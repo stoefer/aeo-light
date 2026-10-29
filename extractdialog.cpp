@@ -41,6 +41,7 @@ ExtractDialog::ExtractDialog(QWidget *parent, MetaData &metadata,
 	videoIsRisky = false;
 	ui->videoPresetComboBox->setCurrentIndex(SIMPLE_EXPORT_STANDARD);
 	ui->avOffsetCorrectionCheckBox->setChecked(true);
+	ui->stableVideoCropCheckBox->setChecked(true);
 	ui->flipHorizontalCheckBox->setChecked(false);
 	ui->flipVerticalCheckBox->setChecked(false);
 	ui->rotationComboBox->setCurrentIndex(0);
@@ -93,6 +94,12 @@ bool ExtractDialog::UseVideoAudioOffsetCorrection(void)
 {
 	return ui->muxVideoCheckbox->isChecked() &&
 			ui->avOffsetCorrectionCheckBox->isChecked();
+}
+
+bool ExtractDialog::UseStableVideoFrameCrop(void)
+{
+	return ui->muxVideoCheckbox->isChecked() &&
+			ui->stableVideoCropCheckBox->isChecked();
 }
 
 bool ExtractDialog::GetVideoFlipHorizontal(void)
@@ -305,6 +312,9 @@ void ExtractDialog::on_muxVideoCheckbox_clicked(bool checked)
 	ui->videoPresetHelpLabel->setEnabled(checked);
 	ui->avOffsetCorrectionCheckBox->setEnabled(checked);
 	ui->avOffsetHelpLabel->setEnabled(checked);
+	ui->stableVideoCropLabel->setEnabled(checked);
+	ui->stableVideoCropCheckBox->setEnabled(checked);
+	ui->stableVideoCropHelpLabel->setEnabled(checked);
 	ui->videoOrientationLabel->setEnabled(checked);
 	ui->flipHorizontalCheckBox->setEnabled(checked);
 	ui->flipVerticalCheckBox->setEnabled(checked);

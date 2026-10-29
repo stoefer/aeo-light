@@ -62,6 +62,7 @@ public:
 	QString GetVideoFilename(void);
 	int GetVideoExportMode(void);
 	bool UseVideoAudioOffsetCorrection(void);
+	bool UseStableVideoFrameCrop(void);
 	bool GetVideoFlipHorizontal(void);
 	bool GetVideoFlipVertical(void);
 	int GetVideoRotationDegrees(void);
