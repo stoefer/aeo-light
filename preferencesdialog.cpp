@@ -54,6 +54,11 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
     ui->importText->setText(settings->value("import", sysRead).toString());
     settings->endGroup();
 
+	settings->beginGroup("ui");
+	ui->skipCloseConfirmCheckBox->setChecked(
+			settings->value("skip-close-confirmation", false).toBool());
+	settings->endGroup();
+
 	ui->sourceText->setPlaceholderText(sysRead);
 	ui->projectText->setPlaceholderText(sysWrite);
     ui->exportText->setPlaceholderText(sysWrite);
@@ -206,6 +211,12 @@ void preferencesdialog::Save()
 	settings->setValue("originator", ui->originatorText->text());
 	settings->setValue("archive-location", ui->archiveLocationText->text());
 	settings->setValue("copyright", ui->copyrightText->text());
+	settings->endGroup();
+
+	settings->beginGroup("ui");
+	settings->setValue(
+			"skip-close-confirmation",
+			ui->skipCloseConfirmCheckBox->isChecked());
 	settings->endGroup();
 
 	accept();

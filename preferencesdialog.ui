@@ -310,6 +310,53 @@
      </layout>
     </widget>
    </widget>
+   <widget class="QWidget" name="generalTab">
+    <attribute name="title">
+     <string>General</string>
+    </attribute>
+    <widget class="QWidget" name="verticalLayoutWidget">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>10</y>
+       <width>541</width>
+       <height>161</height>
+      </rect>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout">
+      <item>
+       <widget class="QCheckBox" name="skipCloseConfirmCheckBox">
+        <property name="text">
+         <string>Bevestiging afsluiten niet meer tonen</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="skipCloseConfirmHelpLabel">
+        <property name="text">
+         <string>Als dit aan staat, sluit AEO-Light direct zonder extra bevestiging.</string>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="verticalSpacer_3">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>20</width>
+          <height>40</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+     </layout>
+    </widget>
+   </widget>
   </widget>
  </widget>
  <tabstops>
@@ -320,6 +367,7 @@
   <tabstop>browseForProjectButton</tabstop>
   <tabstop>exportText</tabstop>
   <tabstop>browseForExportButton</tabstop>
+  <tabstop>skipCloseConfirmCheckBox</tabstop>
   <tabstop>originatorText</tabstop>
   <tabstop>archiveLocationText</tabstop>
   <tabstop>copyrightText</tabstop>

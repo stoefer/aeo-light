@@ -635,6 +635,17 @@ void MainWindow::closeEvent(QCloseEvent *event)
 		return;
 	}
 
+	QSettings settings;
+	settings.beginGroup("ui");
+	bool skipConfirmByPreference =
+			settings.value("skip-close-confirmation", false).toBool();
+	settings.endGroup();
+	if(skipConfirmByPreference)
+	{
+		event->accept();
+		return;
+	}
+
 	int answer = QMessageBox::question(
 			this,
 			tr("AEO-Light afsluiten"),
