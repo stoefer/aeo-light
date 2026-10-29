@@ -1940,10 +1940,12 @@ void MainWindow::NormalizeVideoCropControls(bool topChanged)
 
 	if(top + bottom > maxCombinedTicks)
 	{
+		// Clamp only the slider being dragged so the opposite control
+		// stays stable for fine framing adjustments.
 		if(topChanged)
-			bottom = maxCombinedTicks - top;
-		else
 			top = maxCombinedTicks - bottom;
+		else
+			bottom = maxCombinedTicks - top;
 	}
 
 	top = std::max(minTick, std::min(maxTick, top));
