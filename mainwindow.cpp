@@ -579,6 +579,7 @@ MainWindow::MainWindow(QWidget *parent) :
 	videoRotationDegrees = 0;
 	pitchControlSyncLock = false;
 	videoCropControlSyncLock = false;
+	skipCloseConfirmation = false;
 
 	#ifdef USE_MUX_HACK
 	encStartFrame = 0;
@@ -624,6 +625,26 @@ MainWindow::~MainWindow()
 {
 	DeleteTempSoundFile();
 	delete ui;
+}
+
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+	if(skipCloseConfirmation)
+	{
+		event->accept();
+		return;
+	}
+
+	int answer = QMessageBox::question(
+			this,
+			tr("AEO-Light afsluiten"),
+			tr("Wil je AEO-Light echt afsluiten?"),
+			QMessageBox::Yes | QMessageBox::No,
+			QMessageBox::No);
+	if(answer == QMessageBox::Yes)
+		event->accept();
+	else
+		event->ignore();
 }
 
 void MainWindow::SaveDefaultsSoundtrack()
@@ -2040,6 +2061,7 @@ bool MainWindow::extractGL(QString filename=QString(), bool doTimer=false)
 				this->saveproject(stream);
 				stream << "DeleteMe = true\n";
 				savefile.close();
+				skipCloseConfirmation = true;
 				qApp->quit();
 				QStringList args; //qApp->arguments());
 				args << savefile.fileName();
@@ -4448,7 +4470,7 @@ void MainWindow::on_actionSave_Settings_triggered()
 
 void MainWindow::on_actionQuit_triggered()
 {
-	std::exit(0);
+	close();
 }
 
 void MainWindow::on_frame_numberSpinBox_editingFinished()

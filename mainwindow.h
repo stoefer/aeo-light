@@ -24,6 +24,7 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 #include <QMainWindow>
+#include <QCloseEvent>
 #include <QSoundEffect>
 #include <QDate>
 #include <QProgressDialog>
@@ -138,6 +139,7 @@ class MainWindow : public QMainWindow
 public:
 	explicit MainWindow(QWidget *parent = 0);
 	~MainWindow();
+	void closeEvent(QCloseEvent *event) Q_DECL_OVERRIDE;
 	void Render_Frame();
 	Project scan;
 	std::vector< ExtractedSound > samplesPlayed;
@@ -313,6 +315,7 @@ private:
 	int videoRotationDegrees;
 	bool pitchControlSyncLock;
 	bool videoCropControlSyncLock;
+	bool skipCloseConfirmation;
 
 	void NormalizePitchControls(bool startChanged);
 	void NormalizeVideoCropControls(bool topChanged);
