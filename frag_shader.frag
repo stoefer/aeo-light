@@ -23,6 +23,7 @@ uniform vec4 bounds; //x1,x2,y1,y2
 uniform vec4 color_controls; //lift, gamma, gain,sat;
 uniform vec3 manip_controls; //thresh,threshold amount,  blur
 uniform vec4 overlap; //   y_search Area ,y_ offset,  bottom,  top;
+uniform vec2 video_crop; // top and bottom crop margins for video frame guides
 uniform vec4 cal_controls;
 //out int ucol;
 
@@ -562,9 +563,12 @@ vTexRotated = vTexRotated +vec2(0.5,0.5);
 
     if (render_mode==2.0) ////to screen picture render
     {
+        float overlap_center = overlap.x - overlap.a;
+        float overlap_center_flip = 1.0 - overlap_center;
+        float overlap_half = max(0.001, overlap.y * 0.5);
         texel = texture2D(adj_frame_tex, flip_coord    ); //adjusted picture
 
-        if((  abs(flip_coord.y -overlap.a ) < overlap.y)    )
+        if((abs(flip_coord.y - overlap_center_flip) < overlap_half))
         {
 
             float y_lap;
@@ -593,14 +597,14 @@ vTexRotated = vTexRotated +vec2(0.5,0.5);
         }
 
 
-        if( 2.0*(abs(vTexCoord.y- overlap.z) )<overlap.y)
+        if(abs(vTexCoord.y - overlap_center) < overlap_half)
         {
             texel = texture2D(adj_frame_tex, flip_coord    );
             texel+=vec4(0.25);
 
             float comph=1.0-(flip_coord +vec2(0,1.0-overlap.x)  ).y;
 
-            if(  abs(vTexCoord.y- (overlap.x-overlap.a)) <0.0025)
+            if(abs(vTexCoord.y - overlap_center) <0.0025)
             {
 
                 texel=vec4(1,0,1,0);
@@ -630,6 +634,13 @@ vTexRotated = vTexRotated +vec2(0.5,0.5);
                 texel=vec4(1,1,0,0);
             if (abs(vTexCoord.x - pix_boundry.y )   <0.002) //right pix line boundry
                 texel=vec4(1,1,0,0);
+
+            float video_top = clamp(video_crop.x, 0.0, 1.0);
+            float video_bottom = clamp(1.0 - video_crop.y, 0.0, 1.0);
+            if(abs(flip_coord.y - video_top) < 0.002)
+                texel = vec4(0.0, 1.0, 1.0, 0.0); // cyan: video top guide
+            if(abs(flip_coord.y - video_bottom) < 0.002)
+                texel = vec4(1.0, 0.6, 0.0, 0.0); // orange: video bottom guide
 
         }
     }

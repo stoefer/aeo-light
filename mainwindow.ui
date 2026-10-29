@@ -537,7 +537,7 @@
         <item row="6" column="1" colspan="4">
          <widget class="QLabel" name="overlapHelpLabel">
           <property name="text">
-           <string>Tip: Frame Pitch Start/End en Search Size zijn voor audio-overlap. Gebruik Video Frame Top/Bottom als aparte regeling voor de verticale video-crop bij export.</string>
+           <string>Tip: Frame Pitch Start/End en Search Size zijn voor audio-overlap (paarse lijn + zoekrange). Video Frame Top/Bottom stuurt aparte videohulplijnen (cyaan/oranje) en de verticale video-crop bij export.</string>
           </property>
           <property name="wordWrap">
            <bool>true</bool>

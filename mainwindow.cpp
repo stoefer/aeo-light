@@ -1070,6 +1070,10 @@ void MainWindow::GPU_Params_Update(bool renderyes)
 		frame_window->overlap[1] = ui->overlapSlider->value()/100.0f;
 		frame_window->overlap[2] = ui->FramePitchendSlider->value()/1000.0f;
 		frame_window->overlap[3] = ui->framepitchstartSlider->value()/1000.0f;
+		frame_window->video_crop[0] =
+				ui->videoFrameTopSlider->value()/1000.0f;
+		frame_window->video_crop[1] =
+				ui->videoFrameBottomSlider->value()/1000.0f;
 		ui->maxFrequencyLabel->setText(
 				QString("%1").arg(float(this->MaxFrequency())/1000.0));
 

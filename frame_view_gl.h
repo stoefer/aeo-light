@@ -128,6 +128,7 @@ public:
 	float* audio_compare_buffer;
 	GLfloat bounds[4]; // boundry of track area 4 elements x1,x2,y1,y2
 	GLfloat overlap[4]; // used to compute overlap and hold translation numbers:   y1_start, y_size,  translate_Y,window,Y;
+	GLfloat video_crop[2]; // top and bottom crop margins used for video export preview guides
 
     GLfloat rot_angle; // rotation angle
 
@@ -188,6 +189,7 @@ private:
     GLuint m_rot_angle; // bind for rotation angle
 	GLuint m_calcontrol_loc;
 	GLuint m_overlapshow_loc;
+	GLuint m_video_crop_loc;
 	GLuint frame_texture; //image frame texture used as input
 	GLuint adj_frame_fbo; //render fbo writes to adj frame texture
 
