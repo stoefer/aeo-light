@@ -1,8 +1,8 @@
-# AEO-Light 3.1.6 (fork release)
+# AEO-Light 3.1.7 (fork release)
 
-Deze 3.1.6 release bevat een grote stabiliteitsupdate en extra gebruiksgemak voor beginners.
+Deze 3.1.7 release bevat een grote stabiliteitsupdate en extra gebruiksgemak voor beginners.
 
-## Nieuw in 3.1.6
+## Nieuw in 3.1.7
 - Sterkere stabiliteit bij laden/verwerken van frame-reeksen  
 - Betere video-export workflow  
 - Progress-bar met geschatte resterende tijd  
