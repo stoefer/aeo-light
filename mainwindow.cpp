@@ -848,7 +848,8 @@ void MainWindow::LicenseAgreement()
     QLabel *label;
     msg.setWindowTitle("License Agreement");
     msg.setStyleSheet(
-            "QDialog { background-color: #e6e6e6; }"
+            "QDialog { background-color: #d0d0d0; }"
+            "QTextEdit { background-color: #ececec; }"
             "QLabel { background: transparent; }"
             "QDialogButtonBox { background: transparent; }");
     QVBoxLayout vbox(&msg);

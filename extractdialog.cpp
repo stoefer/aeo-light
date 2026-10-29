@@ -25,8 +25,32 @@
 
 #include <QDateTime>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QDebug>
 #include <QMessageBox>
+#include <QSettings>
+
+static QString ReadLastExportDir(const QString &key, const QString &fallback)
+{
+	QSettings settings;
+	settings.beginGroup("default-folder");
+	QString dir = settings.value(key, fallback).toString();
+	settings.endGroup();
+	if(dir.isEmpty()) dir = fallback;
+	return dir;
+}
+
+static void WriteLastExportDir(const QString &key, const QString &dir)
+{
+	if(dir.isEmpty()) return;
+	QSettings settings;
+	settings.beginGroup("default-folder");
+	settings.setValue(key, dir);
+	// Keep the generic export folder aligned with the last audio output.
+	if(key == "last-audio-export")
+		settings.setValue("export", dir);
+	settings.endGroup();
+}
 
 ExtractDialog::ExtractDialog(QWidget *parent, MetaData &metadata,
 			const QString &dir) :
@@ -234,6 +258,17 @@ void ExtractDialog::on_okButton_clicked()
 	meta->comment = ui->subjectText->text();
 	meta->copyright = ui->copyrightText->text();
 
+	QFileInfo audioOut(ui->filenameText->text());
+	if(!audioOut.absolutePath().isEmpty())
+		WriteLastExportDir("last-audio-export", audioOut.absolutePath());
+
+	if(ui->muxVideoCheckbox->isChecked())
+	{
+		QFileInfo videoOut(ui->filenameVideoText->text());
+		if(!videoOut.absolutePath().isEmpty())
+			WriteLastExportDir("last-video-export", videoOut.absolutePath());
+	}
+
 	accept();
 }
 
@@ -259,13 +294,15 @@ static QString SaveFile(QWidget *parent, QString label, QString defaultPath,
 
 void ExtractDialog::on_fileBrowseButton_clicked()
 {
+	QString browseDir = ReadLastExportDir("last-audio-export", defaultDir);
 	QString filename = SaveFile(
-			this, tr("Export audio to"), defaultDir,
+			this, tr("Export audio to"), browseDir,
 			ui->filenameText->text(), "*.wav");
 
 	if(filename.isEmpty()) return;
 
 	ui->filenameText->setText(filename);
+	WriteLastExportDir("last-audio-export", QFileInfo(filename).absolutePath());
 
 	if(ui->filenameVideoText->text().isEmpty())
 	{
@@ -324,12 +361,14 @@ void ExtractDialog::on_muxVideoCheckbox_clicked(bool checked)
 
 void ExtractDialog::on_fileVideoBrowseButton_clicked()
 {
-	QString filename = SaveFile(this, tr("Save video as"), defaultDir,
+	QString browseDir = ReadLastExportDir("last-video-export", defaultDir);
+	QString filename = SaveFile(this, tr("Save video as"), browseDir,
 			ui->filenameVideoText->text(), "*.mp4");
 
 	if(filename.isEmpty()) return;
 
 	ui->filenameVideoText->setText(filename);
+	WriteLastExportDir("last-video-export", QFileInfo(filename).absolutePath());
 }
 
 void ExtractDialog::on_previewOrientationPresetButton_clicked()
