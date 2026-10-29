@@ -65,6 +65,7 @@ public:
 	uint16_t bounds[2]; // left, right pixel columns
 	uint16_t pixBounds[2]; // left, right pixel columns
 	uint16_t framePitch[2]; // top, bottom pixel rows
+	uint16_t videoFrameCrop[2]; // top, bottom crop fractions for video export
 	uint16_t gamma; // [0,500]
 	uint16_t gain; // [0,500]
 	uint16_t sCurve; // [0,600]
@@ -199,6 +200,8 @@ private slots:
 	void on_desatBox_clicked();
 	void on_overlapSlider_valueChanged(int value);
 	void on_framepitchstartSlider_valueChanged(int value);
+	void on_videoFrameTopSlider_valueChanged(int value);
+	void on_videoFrameBottomSlider_valueChanged(int value);
 	void on_frame_numberSpinBox_valueChanged(int arg1);
 
 	void on_extractGLButton_clicked();
@@ -309,8 +312,11 @@ private:
 	bool videoFlipVertical;
 	int videoRotationDegrees;
 	bool pitchControlSyncLock;
+	bool videoCropControlSyncLock;
 
 	void NormalizePitchControls(bool startChanged);
+	void NormalizeVideoCropControls(bool topChanged);
+	void UpdateVideoCropLabels();
 
 public:
 	void SetStartingProject(QString fn) { startingProjectFilename = fn; };

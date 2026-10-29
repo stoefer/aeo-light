@@ -407,6 +407,7 @@ ExtractedSound::ExtractedSound() :
 	bounds[0] = bounds[1] = 0;
 	pixBounds[0] = pixBounds[1] = 0;
 	framePitch[0] = framePitch[1] = 0;
+	videoFrameCrop[0] = videoFrameCrop[1] = 100;
 }
 
 ExtractedSound::~ExtractedSound()
@@ -428,6 +429,8 @@ bool ExtractedSound::operator ==(const ExtractedSound &ref) const
 	if(frameOut != ref.frameOut) return false;
 	if(framePitch[0] != ref.framePitch[0]) return false;
 	if(framePitch[1] != ref.framePitch[1]) return false;
+	if(videoFrameCrop[0] != ref.videoFrameCrop[0]) return false;
+	if(videoFrameCrop[1] != ref.videoFrameCrop[1]) return false;
 	if(overlap != ref.overlap) return false;
 
 	if(useBounds != ref.useBounds) return false;
@@ -575,6 +578,7 @@ MainWindow::MainWindow(QWidget *parent) :
 	videoFlipVertical = false;
 	videoRotationDegrees = 0;
 	pitchControlSyncLock = false;
+	videoCropControlSyncLock = false;
 
 	#ifdef USE_MUX_HACK
 	encStartFrame = 0;
@@ -640,6 +644,8 @@ void MainWindow::SaveDefaultsSoundtrack()
 	settings.setValue("pixbounds/use", ui->OverlapPixCheckBox->isChecked());
 	settings.setValue("framepitch/start", ui->framepitchstartSlider->value()/h);
 	settings.setValue("framepitch/end", ui->FramePitchendSlider->value()/h);
+	settings.setValue("videoframe/top", ui->videoFrameTopSlider->value()/1000.0);
+	settings.setValue("videoframe/bottom", ui->videoFrameBottomSlider->value()/1000.0);
 	settings.setValue("overlap/radius", ui->overlapSlider->value());
 	settings.setValue("overlap/lock", ui->HeightCalculateBtn->isChecked());
 	settings.setValue("isstereo", ui->monostereo_PD->currentIndex());
@@ -713,6 +719,13 @@ void MainWindow::LoadDefaults()
 	intv = int(settings.value("framepitch/end", 0.1).toDouble() * h + 0.5);
 	ui->FramePitchendSlider->setValue(intv);
 	ui->framePitchLabel->setText(QString::number(intv/1000.f,'f',2));
+
+	intv = int(settings.value("videoframe/top", 0.1).toDouble() * 1000 + 0.5);
+	ui->videoFrameTopSlider->setValue(intv);
+	intv = int(settings.value("videoframe/bottom", 0.1).toDouble() * 1000 + 0.5);
+	ui->videoFrameBottomSlider->setValue(intv);
+	NormalizeVideoCropControls(true);
+	UpdateVideoCropLabels();
 
 	intv = settings.value("overlap/radius",5).toInt();
 	ui->overlapSlider->setValue(intv);
@@ -855,6 +868,8 @@ ExtractedSound MainWindow::ExtractionParamsFromGUI()
 
 	params.framePitch[0] = ui->framepitchstartSlider->value();
 	params.framePitch[1] = ui->FramePitchendSlider->value();
+	params.videoFrameCrop[0] = ui->videoFrameTopSlider->value();
+	params.videoFrameCrop[1] = ui->videoFrameBottomSlider->value();
 
 	params.frameIn = ui->frameInSpinBox->value();
 	params.frameOut = ui->frameOutSpinBox->value();
@@ -915,6 +930,10 @@ void MainWindow::ExtractionParametersToGUI(const ExtractedSound &params)
 	ui->framepitchstartSlider->setValue(params.framePitch[0]);
 	ui->framepitchstartLabel->setText(
 				QString::number(params.framePitch[0]/1e3,'f',2));
+	ui->videoFrameTopSlider->setValue(params.videoFrameCrop[0]);
+	ui->videoFrameBottomSlider->setValue(params.videoFrameCrop[1]);
+	NormalizeVideoCropControls(true);
+	UpdateVideoCropLabels();
 
 	ui->maxFrequencyLabel->setText(
 				QString("%1").arg(float(this->MaxFrequency())/1000.0));
@@ -1371,6 +1390,8 @@ bool MainWindow::saveproject(QTextStream &out)
 	out<<"Right Pix Boundary = "<<ui->rightPixSpinBox->value()<<"\n";
 	out<<"Frame Pitch Start = "<<ui->framepitchstartSlider->value()<<"\n";
 	out<<"Frame Pitch End = "<<ui->FramePitchendSlider->value()<<"\n";
+	out<<"Video Frame Top = "<<ui->videoFrameTopSlider->value()<<"\n";
+	out<<"Video Frame Bottom = "<<ui->videoFrameBottomSlider->value()<<"\n";
 	out<<"Overlap Search Size = "<<ui->overlapSlider->value()<<"\n";
 	out<<"Frame Translation = "<< TRANSSLIDER_VALUE <<"\n";
 
@@ -1529,6 +1550,10 @@ bool MainWindow::LoadProjectSettings(QString fn)
 		}
 		if (key.contains("Frame Pitch End"))
 			ui->FramePitchendSlider->setValue(value.toInt());
+		if (key.contains("Video Frame Top"))
+			ui->videoFrameTopSlider->setValue(value.toInt());
+		if (key.contains("Video Frame Bottom"))
+			ui->videoFrameBottomSlider->setValue(value.toInt());
 		if (key.contains("Overlap Search Size"))
 			ui->overlapSlider->setValue(value.toInt());
 		if (key.contains("Lift"))
@@ -1615,6 +1640,8 @@ bool MainWindow::LoadProjectSettings(QString fn)
 		QTimer::singleShot(20, this, SLOT(on_CalBtn_clicked()));
 
 	on_OverlapPixCheckBox_clicked(ui->OverlapPixCheckBox->isChecked());
+	NormalizeVideoCropControls(true);
+	UpdateVideoCropLabels();
 
 	return true;
 }
@@ -1792,6 +1819,18 @@ void MainWindow::on_framepitchstartSlider_valueChanged(int value)
 	GPU_Params_Update(1);
 }
 
+void MainWindow::on_videoFrameTopSlider_valueChanged(int value)
+{
+	NormalizeVideoCropControls(true);
+	UpdateVideoCropLabels();
+}
+
+void MainWindow::on_videoFrameBottomSlider_valueChanged(int value)
+{
+	NormalizeVideoCropControls(false);
+	UpdateVideoCropLabels();
+}
+
 void MainWindow::on_overlapSlider_valueChanged(int value)
 {
 	ui->overlap_label->setText(QString::number(value/100.f,'f',2));
@@ -1833,6 +1872,51 @@ void MainWindow::NormalizePitchControls(bool startChanged)
 	}
 
 	pitchControlSyncLock = false;
+}
+
+void MainWindow::NormalizeVideoCropControls(bool topChanged)
+{
+	if(videoCropControlSyncLock) return;
+	videoCropControlSyncLock = true;
+
+	const int minTick = ui->videoFrameTopSlider->minimum();
+	const int maxTick = ui->videoFrameTopSlider->maximum();
+	const int minCropWindowTicks = 20; // keep at least 2% visible frame
+	const int maxCombinedTicks = maxTick - minCropWindowTicks;
+
+	int top = ui->videoFrameTopSlider->value();
+	int bottom = ui->videoFrameBottomSlider->value();
+
+	top = std::max(minTick, std::min(maxTick, top));
+	bottom = std::max(minTick, std::min(maxTick, bottom));
+
+	if(top + bottom > maxCombinedTicks)
+	{
+		if(topChanged)
+			bottom = maxCombinedTicks - top;
+		else
+			top = maxCombinedTicks - bottom;
+	}
+
+	top = std::max(minTick, std::min(maxTick, top));
+	bottom = std::max(minTick, std::min(maxTick, bottom));
+
+	{
+		QSignalBlocker lockTop(ui->videoFrameTopSlider);
+		QSignalBlocker lockBottom(ui->videoFrameBottomSlider);
+		ui->videoFrameTopSlider->setValue(top);
+		ui->videoFrameBottomSlider->setValue(bottom);
+	}
+
+	videoCropControlSyncLock = false;
+}
+
+void MainWindow::UpdateVideoCropLabels()
+{
+	ui->videoFrameTopLabel->setText(
+			QString::number(ui->videoFrameTopSlider->value()/1000.f,'f',2));
+	ui->videoFrameBottomLabel->setText(
+			QString::number(ui->videoFrameBottomSlider->value()/1000.f,'f',2));
 }
 
 void MainWindow::on_frame_numberSpinBox_valueChanged(int arg1)
@@ -3664,8 +3748,8 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 				float(std::max(1u, this->scan.inFile.Width()));
 		const float uiRightPixNorm = ui->rightPixSpinBox->value() /
 				float(std::max(1u, this->scan.inFile.Width()));
-		const float uiTopPitchNorm = ui->framepitchstartSlider->value() / 1000.0f;
-		const float uiBottomPitchNorm = ui->FramePitchendSlider->value() / 1000.0f;
+		const float uiVideoTopNorm = ui->videoFrameTopSlider->value() / 1000.0f;
+		const float uiVideoBottomNorm = ui->videoFrameBottomSlider->value() / 1000.0f;
 		#endif
 	#endif
 
@@ -3808,7 +3892,7 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 						QRect frameCropRect = ComputeAlignedVideoCropRect(
 									this->outputFrameTexture, this->frame_window,
 									uiLeftPixNorm, uiRightPixNorm,
-									uiTopPitchNorm, uiBottomPitchNorm,
+									uiVideoTopNorm, uiVideoBottomNorm,
 									videoUseStableFrameCrop);
 						SaveTextureAsPngFrame(
 								this->outputFrameTexture,

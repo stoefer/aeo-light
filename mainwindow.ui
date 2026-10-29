@@ -367,6 +367,96 @@
           </property>
          </widget>
         </item>
+        <item row="4" column="1">
+         <layout class="QVBoxLayout" name="videoFrameCropLabelLayout">
+          <item>
+           <widget class="QLabel" name="videoFrameTopTextLabel">
+            <property name="text">
+             <string>Video Frame Top</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="videoFrameBottomTextLabel">
+            <property name="text">
+             <string>Video Frame Bottom</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item row="4" column="2">
+         <layout class="QVBoxLayout" name="videoFrameCropValueLayout">
+          <item>
+           <widget class="QLabel" name="videoFrameTopLabel">
+            <property name="text">
+             <string>0.10</string>
+            </property>
+            <property name="textFormat">
+             <enum>Qt::PlainText</enum>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="videoFrameBottomLabel">
+            <property name="text">
+             <string>0.10</string>
+            </property>
+            <property name="textFormat">
+             <enum>Qt::PlainText</enum>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item row="4" column="3">
+         <layout class="QVBoxLayout" name="videoFrameCropSliderLayout">
+          <item>
+           <widget class="QSlider" name="videoFrameTopSlider">
+            <property name="minimum">
+             <number>0</number>
+            </property>
+            <property name="maximum">
+             <number>350</number>
+            </property>
+            <property name="value">
+             <number>100</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QSlider" name="videoFrameBottomSlider">
+            <property name="minimum">
+             <number>0</number>
+            </property>
+            <property name="maximum">
+             <number>350</number>
+            </property>
+            <property name="value">
+             <number>100</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
         <item row="3" column="4">
          <widget class="QFrame" name="maxFrequencyFrame">
           <property name="frameShape">
@@ -447,7 +537,7 @@
         <item row="6" column="1" colspan="4">
          <widget class="QLabel" name="overlapHelpLabel">
           <property name="text">
-           <string>Tip: gebruik Frame Pitch Start/End om de boven- en ondergrens van het bruikbare beeldgebied te kiezen. Gebruik Search Size alleen als zoekmarge voor overlap: verhoog die enkel als uitlijning mist, en houd ze anders klein voor stabielere resultaten.</string>
+           <string>Tip: Frame Pitch Start/End en Search Size zijn voor audio-overlap. Gebruik Video Frame Top/Bottom als aparte regeling voor de verticale video-crop bij export.</string>
           </property>
           <property name="wordWrap">
            <bool>true</bool>
@@ -2310,6 +2400,8 @@
   <tabstop>rightPixSlider</tabstop>
   <tabstop>framepitchstartSlider</tabstop>
   <tabstop>FramePitchendSlider</tabstop>
+  <tabstop>videoFrameTopSlider</tabstop>
+  <tabstop>videoFrameBottomSlider</tabstop>
   <tabstop>overlapSlider</tabstop>
   <tabstop>HeightCalculateBtn</tabstop>
   <tabstop>soundtrackDefaultsButton</tabstop>
