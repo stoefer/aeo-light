@@ -429,7 +429,7 @@
              <number>0</number>
             </property>
             <property name="maximum">
-             <number>350</number>
+             <number>1000</number>
             </property>
             <property name="value">
              <number>100</number>
@@ -445,7 +445,7 @@
              <number>0</number>
             </property>
             <property name="maximum">
-             <number>350</number>
+             <number>1000</number>
             </property>
             <property name="value">
              <number>100</number>
