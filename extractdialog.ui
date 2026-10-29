@@ -416,7 +416,7 @@
        <bool>false</bool>
       </property>
       <property name="text">
-       <string>Aanbevolen: aan. Zo gebruiken videoframes vaste kadergrenzen en hebben schommelingen van de paarse overlaplijn minder invloed op het eindbeeld.</string>
+       <string>Aanbevolen: aan voor vaste kadergrenzen. Zet uit om de crop-lijnen mee te laten schuiven met overlap/Search Size en lichte verticale scanverschuivingen op te vangen.</string>
       </property>
       <property name="wordWrap">
        <bool>true</bool>

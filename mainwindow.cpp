@@ -200,7 +200,8 @@ static QRect ComputeAlignedVideoCropRect(const FrameTexture *frame,
 		const Frame_Window *frameWindow,
 		float uiLeftNorm, float uiRightNorm,
 		float uiTopNorm, float uiBottomNorm,
-		bool useStableFrameCrop)
+		bool useStableFrameCrop,
+		float overlapDriftNorm)
 {
 	if(!frame || frame->width <= 1 || frame->height <= 1)
 		return QRect();
@@ -232,21 +233,12 @@ static QRect ComputeAlignedVideoCropRect(const FrameTexture *frame,
 
 		if(!useStableFrameCrop)
 		{
-			float fwTop = frameWindow->overlap[3];
-			float alignedBottomNorm = 1.0f + frameWindow->overlap[3] - frameWindow->overlap[0];
-			alignedBottomNorm = clamp01(alignedBottomNorm);
-			fwTop = clamp01(fwTop);
-			float dynamicTop = std::min(fwTop, alignedBottomNorm);
-			float dynamicBottom = std::max(fwTop, alignedBottomNorm);
-			float dynamicHeight = dynamicBottom - dynamicTop;
-
-			// In dynamic mode, follow overlap guides once they are meaningful.
-			if(frameWindow->overlap[0] > 0.001f &&
-					dynamicHeight >= 0.03f)
-			{
-				topNorm = dynamicTop;
-				bottomNorm = dynamicBottom;
-			}
+			// In adaptive mode, keep the user-defined crop height but shift
+			// both lines together by the overlap drift derived from Search Size.
+			float shiftedTop = clamp01(staticTopNorm + overlapDriftNorm);
+			float shiftedBottom = clamp01(staticBottomNorm + overlapDriftNorm);
+			topNorm = std::min(shiftedTop, shiftedBottom);
+			bottomNorm = std::max(shiftedTop, shiftedBottom);
 		}
 	}
 
@@ -3800,6 +3792,8 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 		QTemporaryDir externalVideoFrames;
 		int externalVideoFrameCount = 0;
 		int externalVideoSkipFrames = 0;
+		bool overlapCenterBaseSet = false;
+		float overlapCenterBase = 0.0f;
 		const float uiLeftPixNorm = ui->leftPixSpinBox->value() /
 				float(std::max(1u, this->scan.inFile.Width()));
 		const float uiRightPixNorm = ui->rightPixSpinBox->value() /
@@ -3945,11 +3939,29 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 					}
 					else
 					{
+						float overlapDriftNorm = 0.0f;
+						if(!videoUseStableFrameCrop)
+						{
+							const float overlapCenterNorm =
+									frame_window->overlap[0] - frame_window->overlap[3];
+							if(!overlapCenterBaseSet)
+							{
+								overlapCenterBase = overlapCenterNorm;
+								overlapCenterBaseSet = true;
+							}
+							overlapDriftNorm = overlapCenterNorm - overlapCenterBase;
+							const float driftClamp =
+									std::max(0.005f, frame_window->overlap[1]);
+							overlapDriftNorm = std::max(
+										-driftClamp,
+										std::min(driftClamp, overlapDriftNorm));
+						}
 						QRect frameCropRect = ComputeAlignedVideoCropRect(
 									this->outputFrameTexture, this->frame_window,
 									uiLeftPixNorm, uiRightPixNorm,
 									uiVideoTopNorm, uiVideoBottomNorm,
-									videoUseStableFrameCrop);
+									videoUseStableFrameCrop,
+									overlapDriftNorm);
 						SaveTextureAsPngFrame(
 								this->outputFrameTexture,
 								externalVideoFrames.path(),
