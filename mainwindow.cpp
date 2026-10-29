@@ -629,8 +629,14 @@ MainWindow::~MainWindow()
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
+	auto closePreviewWindow = [this]() {
+		if(frame_window)
+			frame_window->close();
+	};
+
 	if(skipCloseConfirmation)
 	{
+		closePreviewWindow();
 		event->accept();
 		return;
 	}
@@ -642,6 +648,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
 	settings.endGroup();
 	if(skipConfirmByPreference)
 	{
+		closePreviewWindow();
 		event->accept();
 		return;
 	}
@@ -653,7 +660,10 @@ void MainWindow::closeEvent(QCloseEvent *event)
 			QMessageBox::Yes | QMessageBox::No,
 			QMessageBox::No);
 	if(answer == QMessageBox::Yes)
+	{
+		closePreviewWindow();
 		event->accept();
+	}
 	else
 		event->ignore();
 }
