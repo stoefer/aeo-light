@@ -10,7 +10,7 @@
     <x>0</x>
     <y>0</y>
     <width>691</width>
-    <height>773</height>
+    <height>882</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -26,7 +26,7 @@
       <x>0</x>
       <y>0</y>
       <width>684</width>
-      <height>700</height>
+      <height>809</height>
      </rect>
     </property>
     <property name="sizePolicy">
@@ -38,7 +38,7 @@
     <property name="minimumSize">
      <size>
       <width>684</width>
-      <height>700</height>
+      <height>809</height>
      </size>
     </property>
     <property name="baseSize">
@@ -88,7 +88,7 @@
        <x>10</x>
        <y>120</y>
        <width>651</width>
-       <height>311</height>
+       <height>420</height>
       </rect>
      </property>
      <property name="tabPosition">
@@ -110,18 +110,24 @@
          <x>10</x>
          <y>10</y>
          <width>631</width>
-         <height>259</height>
+        <height>343</height>
         </rect>
        </property>
-       <layout class="QGridLayout" name="soundtrackSettingGrid" rowstretch="0,0,1" columnstretch="1">
+      <layout class="QGridLayout" name="soundtrackSettingGrid" rowstretch="1,1,0" columnstretch="1">
         <property name="sizeConstraint">
          <enum>QLayout::SetDefaultConstraint</enum>
         </property>
         <property name="spacing">
-         <number>6</number>
+        <number>8</number>
         </property>
         <item row="0" column="0">
          <widget class="QGroupBox" name="opticalAudioGroupBox">
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>205</height>
+          </size>
+         </property>
           <property name="title">
            <string>Optical Audio</string>
           </property>
@@ -619,6 +625,12 @@
         </item>
         <item row="1" column="0">
          <widget class="QGroupBox" name="videoGroupBox">
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>128</height>
+          </size>
+         </property>
           <property name="title">
            <string>Video</string>
           </property>
@@ -794,7 +806,7 @@
        <property name="geometry">
         <rect>
          <x>259</x>
-         <y>253</y>
+        <y>356</y>
          <width>127</width>
          <height>32</height>
         </rect>
@@ -1935,7 +1947,7 @@
      <property name="geometry">
       <rect>
        <x>28</x>
-       <y>440</y>
+       <y>549</y>
        <width>621</width>
        <height>114</height>
       </rect>
@@ -2139,7 +2151,7 @@
      <property name="geometry">
       <rect>
        <x>100</x>
-       <y>560</y>
+       <y>669</y>
        <width>522</width>
        <height>134</height>
       </rect>
