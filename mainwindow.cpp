@@ -2153,9 +2153,11 @@ void MainWindow::on_testRunExportButton_clicked()
 	QPushButton preset100("100");
 	QPushButton preset300("300");
 	QPushButton preset500("500");
+	QPushButton preset10s("10 sec");
 	presetLayout.addWidget(&preset100);
 	presetLayout.addWidget(&preset300);
 	presetLayout.addWidget(&preset500);
+	presetLayout.addWidget(&preset10s);
 	presetLayout.addStretch(1);
 	layout.addLayout(&presetLayout);
 
@@ -2172,6 +2174,20 @@ void MainWindow::on_testRunExportButton_clicked()
 			[&]() { applyPresetFrames(300); });
 	connect(&preset500, &QPushButton::clicked, &dialog,
 			[&]() { applyPresetFrames(500); });
+	connect(&preset10s, &QPushButton::clicked, &dialog,
+			[&]()
+	{
+		double fps = 24.0;
+		switch(ui->filmrate_PD->currentIndex())
+		{
+		case 0: fps = 23.976; break;
+		case 1: fps = 24.0; break;
+		case 2: fps = 25.0; break;
+		default: break;
+		}
+		int tenSecondFrames = std::max(1, static_cast<int>(std::round(fps * 10.0)));
+		applyPresetFrames(tenSecondFrames);
+	});
 	connect(&firstSpin,
 			static_cast<void(QSpinBox::*)(int)>(&QSpinBox::valueChanged),
 			&dialog,
