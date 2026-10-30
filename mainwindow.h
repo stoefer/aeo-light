@@ -302,6 +302,14 @@ private slots:
     void on_degreeSpinBox_valueChanged(double arg1);
 
     void on_rotateCheckbox_stateChanged(int arg1);
+	void on_audioOutputBrowseButton_clicked();
+	void on_videoOutputBrowseButton_clicked();
+	void on_outputVideoCheckBox_toggled(bool checked);
+	void on_outputVideoOrientationPresetButton_clicked();
+	void on_outputFlipHorizontalCheckBox_toggled(bool checked);
+	void on_outputFlipVerticalCheckBox_toggled(bool checked);
+	void on_videoAvOffsetCheckBox_toggled(bool checked);
+	void on_outputRotationComboBox_currentIndexChanged(int index);
 	void on_videoExportModeComboBox_currentIndexChanged(int index);
 	void on_videoExportContainerComboBox_currentIndexChanged(int index);
 	void on_videoExportCodecComboBox_currentIndexChanged(int index);
@@ -342,6 +350,10 @@ private:
 	void NormalizeVideoCropControls(bool topChanged);
 	void UpdateVideoCropLabels();
 	void UpdateVideoStabilizationControls();
+	void UpdateExtractOutputControls();
+	void LoadExtractOutputSettings();
+	void SaveExtractOutputSettings() const;
+	void ApplyVideoContainerExtensionToOutputFilename();
 	void LoadVideoExportSettings();
 	void SaveVideoExportSettings() const;
 	void UpdateVideoExportControls();

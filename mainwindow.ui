@@ -1537,7 +1537,7 @@
     </widget>
      <widget class="QWidget" name="tab_3">
       <attribute name="title">
-       <string>Extract Audio</string>
+       <string>Extract Audio/Video</string>
       </attribute>
       <widget class="QWidget" name="layoutWidget">
        <property name="geometry">
@@ -1942,6 +1942,143 @@
            <string>Extract</string>
           </property>
          </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QGroupBox" name="extractOutputGroupBox">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>280</y>
+         <width>631</width>
+         <height>200</height>
+        </rect>
+       </property>
+       <property name="title">
+        <string>Output instellingen</string>
+       </property>
+       <layout class="QGridLayout" name="extractOutputGridLayout">
+        <property name="horizontalSpacing">
+         <number>8</number>
+        </property>
+        <property name="verticalSpacing">
+         <number>6</number>
+        </property>
+        <item row="0" column="0">
+         <widget class="QLabel" name="audioOutputLabel">
+          <property name="text">
+           <string>Audio output</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="QLineEdit" name="audioOutputFilenameEdit"/>
+        </item>
+        <item row="0" column="2">
+         <widget class="QPushButton" name="audioOutputBrowseButton">
+          <property name="text">
+           <string>Browse</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QCheckBox" name="outputVideoCheckBox">
+          <property name="text">
+           <string>Output video</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QLineEdit" name="videoOutputFilenameEdit"/>
+        </item>
+        <item row="1" column="2">
+         <widget class="QPushButton" name="videoOutputBrowseButton">
+          <property name="text">
+           <string>Browse</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="videoAvOffsetLabel">
+          <property name="text">
+           <string>Audio/video</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="1" colspan="2">
+         <widget class="QCheckBox" name="videoAvOffsetCheckBox">
+          <property name="text">
+           <string>Corrigeer A/V-offset voor 16mm (26 frames)</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="0">
+         <widget class="QLabel" name="videoOutputOrientationLabel">
+          <property name="text">
+           <string>Video-oriëntatie</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="1" colspan="2">
+         <layout class="QHBoxLayout" name="videoOutputOrientationLayout">
+          <item>
+           <widget class="QCheckBox" name="outputFlipHorizontalCheckBox">
+            <property name="text">
+             <string>Spiegel H</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="outputFlipVerticalCheckBox">
+            <property name="text">
+             <string>Spiegel V</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QComboBox" name="outputRotationComboBox">
+            <item>
+             <property name="text">
+              <string>Rotatie 0°</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Rotatie 90°</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Rotatie 180°</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Rotatie 270°</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="outputVideoOrientationPresetButton">
+            <property name="text">
+             <string>Oriëntatie zoals preview</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
         </item>
        </layout>
       </widget>
@@ -2809,6 +2946,16 @@
   <tabstop>videoExportPresetComboBox</tabstop>
   <tabstop>videoExportQualitySlider</tabstop>
   <tabstop>videoExportAudioBitrateSpinBox</tabstop>
+  <tabstop>audioOutputFilenameEdit</tabstop>
+  <tabstop>audioOutputBrowseButton</tabstop>
+  <tabstop>outputVideoCheckBox</tabstop>
+  <tabstop>videoOutputFilenameEdit</tabstop>
+  <tabstop>videoOutputBrowseButton</tabstop>
+  <tabstop>videoAvOffsetCheckBox</tabstop>
+  <tabstop>outputFlipHorizontalCheckBox</tabstop>
+  <tabstop>outputFlipVerticalCheckBox</tabstop>
+  <tabstop>outputRotationComboBox</tabstop>
+  <tabstop>outputVideoOrientationPresetButton</tabstop>
   <tabstop>frameInSpinBox</tabstop>
   <tabstop>frameOutSpinBox</tabstop>
   <tabstop>filerate_PD</tabstop>

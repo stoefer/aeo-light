@@ -155,6 +155,38 @@ static QString BuildNumberedPath(const QString &requestedPath, int suffix)
 	return QDir(path).filePath(numbered + "." + ext);
 }
 
+static QString VideoContainerExtensionForMode(int mode)
+{
+	switch(mode)
+	{
+	case VIDEO_CONTAINER_MOV: return ".mov";
+	case VIDEO_CONTAINER_MKV: return ".mkv";
+	case VIDEO_CONTAINER_MP4:
+	default: return ".mp4";
+	}
+}
+
+static QString ReadLastExportDirMain(const QString &key, const QString &fallback)
+{
+	QSettings settings;
+	settings.beginGroup("default-folder");
+	QString dir = settings.value(key, fallback).toString();
+	settings.endGroup();
+	if(dir.isEmpty()) dir = fallback;
+	return dir;
+}
+
+static void WriteLastExportDirMain(const QString &key, const QString &dir)
+{
+	if(dir.isEmpty()) return;
+	QSettings settings;
+	settings.beginGroup("default-folder");
+	settings.setValue(key, dir);
+	if(key == "last-audio-export")
+		settings.setValue("export", dir);
+	settings.endGroup();
+}
+
 static QString EnsureNonOverwritingPath(const QString &requestedPath)
 {
 	if(requestedPath.isEmpty()) return requestedPath;
@@ -713,6 +745,7 @@ MainWindow::MainWindow(QWidget *parent) :
 	videoCropControlSyncLock = false;
 	skipCloseConfirmation = false;
 	LoadVideoExportSettings();
+	LoadExtractOutputSettings();
 
 	#ifdef USE_MUX_HACK
 	encStartFrame = 0;
@@ -947,6 +980,13 @@ void MainWindow::SaveDefaultsAudio()
 	settings.setValue("bit-depth", ui->bitDepthComboBox->currentText());
 	settings.setValue("time-code-advance", ui->advance_CB->currentText());
 	settings.setValue("sidecar", ui->xmlSidecarComboBox->currentText());
+	settings.setValue("output-audio-file", ui->audioOutputFilenameEdit->text());
+	settings.setValue("output-video-enabled", ui->outputVideoCheckBox->isChecked());
+	settings.setValue("output-video-file", ui->videoOutputFilenameEdit->text());
+	settings.setValue("video-av-offset", ui->videoAvOffsetCheckBox->isChecked());
+	settings.setValue("video-flip-h", ui->outputFlipHorizontalCheckBox->isChecked());
+	settings.setValue("video-flip-v", ui->outputFlipVerticalCheckBox->isChecked());
+	settings.setValue("video-rotation-index", ui->outputRotationComboBox->currentIndex());
 	settings.endGroup();
 }
 
@@ -1061,7 +1101,24 @@ void MainWindow::LoadDefaults()
 	intv = ui->xmlSidecarComboBox->findText(txt, Qt::MatchFixedString);
 	if(intv != -1) ui->xmlSidecarComboBox->setCurrentIndex(intv);
 
+	ui->audioOutputFilenameEdit->setText(
+			settings.value("output-audio-file", "").toString());
+	ui->outputVideoCheckBox->setChecked(
+			settings.value("output-video-enabled", false).toBool());
+	ui->videoOutputFilenameEdit->setText(
+			settings.value("output-video-file", "").toString());
+	ui->videoAvOffsetCheckBox->setChecked(
+			settings.value("video-av-offset", true).toBool());
+	ui->outputFlipHorizontalCheckBox->setChecked(
+			settings.value("video-flip-h", false).toBool());
+	ui->outputFlipVerticalCheckBox->setChecked(
+			settings.value("video-flip-v", false).toBool());
+	ui->outputRotationComboBox->setCurrentIndex(ClampRangeInt(
+			settings.value("video-rotation-index", 0).toInt(), 0, 3));
+
 	settings.endGroup();
+	UpdateExtractOutputControls();
+	ApplyVideoContainerExtensionToOutputFilename();
 
 }
 
@@ -2257,6 +2314,66 @@ void MainWindow::UpdateVideoStabilizationControls()
 	ui->videoDriftSensitivityLabel->setEnabled(adaptiveMode);
 }
 
+void MainWindow::UpdateExtractOutputControls()
+{
+	const bool outputVideo = ui->outputVideoCheckBox->isChecked();
+	ui->videoOutputFilenameEdit->setEnabled(outputVideo);
+	ui->videoOutputBrowseButton->setEnabled(outputVideo);
+	ui->videoAvOffsetCheckBox->setEnabled(outputVideo);
+	ui->outputFlipHorizontalCheckBox->setEnabled(outputVideo);
+	ui->outputFlipVerticalCheckBox->setEnabled(outputVideo);
+	ui->outputRotationComboBox->setEnabled(outputVideo);
+	ui->outputVideoOrientationPresetButton->setEnabled(outputVideo);
+}
+
+void MainWindow::ApplyVideoContainerExtensionToOutputFilename()
+{
+	QString current = ui->videoOutputFilenameEdit->text().trimmed();
+	if(current.isEmpty()) return;
+
+	QFileInfo info(current);
+	QString adjusted = info.path() + "/" + info.completeBaseName() +
+			VideoContainerExtensionForMode(videoContainerMode);
+	ui->videoOutputFilenameEdit->setText(adjusted);
+}
+
+void MainWindow::LoadExtractOutputSettings()
+{
+	QSettings settings;
+	settings.beginGroup("extraction");
+	ui->audioOutputFilenameEdit->setText(
+			settings.value("output-audio-file", "").toString());
+	ui->outputVideoCheckBox->setChecked(
+			settings.value("output-video-enabled", false).toBool());
+	ui->videoOutputFilenameEdit->setText(
+			settings.value("output-video-file", "").toString());
+	ui->videoAvOffsetCheckBox->setChecked(
+			settings.value("video-av-offset", true).toBool());
+	ui->outputFlipHorizontalCheckBox->setChecked(
+			settings.value("video-flip-h", false).toBool());
+	ui->outputFlipVerticalCheckBox->setChecked(
+			settings.value("video-flip-v", false).toBool());
+	ui->outputRotationComboBox->setCurrentIndex(ClampRangeInt(
+			settings.value("video-rotation-index", 0).toInt(), 0, 3));
+	settings.endGroup();
+	UpdateExtractOutputControls();
+	ApplyVideoContainerExtensionToOutputFilename();
+}
+
+void MainWindow::SaveExtractOutputSettings() const
+{
+	QSettings settings;
+	settings.beginGroup("extraction");
+	settings.setValue("output-audio-file", ui->audioOutputFilenameEdit->text());
+	settings.setValue("output-video-enabled", ui->outputVideoCheckBox->isChecked());
+	settings.setValue("output-video-file", ui->videoOutputFilenameEdit->text());
+	settings.setValue("video-av-offset", ui->videoAvOffsetCheckBox->isChecked());
+	settings.setValue("video-flip-h", ui->outputFlipHorizontalCheckBox->isChecked());
+	settings.setValue("video-flip-v", ui->outputFlipVerticalCheckBox->isChecked());
+	settings.setValue("video-rotation-index", ui->outputRotationComboBox->currentIndex());
+	settings.endGroup();
+}
+
 void MainWindow::LoadVideoExportSettings()
 {
 	QSettings settings;
@@ -2573,54 +2690,99 @@ bool MainWindow::extractGL(QString filename=QString(), bool doTimer=false)
 			expDir = this->prevExportDir;
 		}
 
-		ExtractDialog dialog(this, meta, expDir);
-		dialog.setWindowTitle("Extract to Audio File");
-		dialog.SetStableVideoFrameCrop(ui->videoStableCropCheckBox->isChecked());
-		if(this->isVideoMuxingRisky) dialog.MarkVideoAsRisky();
-
-		if(dialog.exec() == ExtractDialog::Rejected)
+		filename = ui->audioOutputFilenameEdit->text().trimmed();
+		if(filename.isEmpty())
 		{
-			if(dialog.RequestedRestart())
-			{
-				// restart
-				QTemporaryFile savefile;
-				savefile.setAutoRemove(false);
-				savefile.open();
-				QTextStream stream(&savefile);
-				this->saveproject(stream);
-				stream << "DeleteMe = true\n";
-				savefile.close();
-				skipCloseConfirmation = true;
-				qApp->quit();
-				QStringList args; //qApp->arguments());
-				args << savefile.fileName();
-				QProcess::startDetached(qApp->arguments()[0], args);
-			}
-			return false;
+			filename = QFileDialog::getSaveFileName(
+					this, tr("Export audio to"),
+					expDir, "*.wav");
+			if(filename.isEmpty()) return false;
+			ui->audioOutputFilenameEdit->setText(filename);
 		}
-
-		//filename = QFileDialog::getSaveFileName(
-		//			this,tr("Export audio to"),expDir,"*.wav");
-		filename = dialog.GetFilename();
-		if(filename.isEmpty()) return false;
-
 		this->prevExportDir = QFileInfo(filename).absolutePath();
+		WriteLastExportDirMain("last-audio-export", this->prevExportDir);
 
-		videoFilename = dialog.GetVideoFilename();
-		// Advanced compression/format settings are shared via QSettings
-		// with the dedicated "Video instellingen" tab and the extract dialog.
-		LoadVideoExportSettings();
-		videoAudioOffsetCorrectionEnabled =
-				dialog.UseVideoAudioOffsetCorrection();
-		if(!videoFilename.isEmpty())
+		const bool outputVideo = ui->outputVideoCheckBox->isChecked();
+		if(outputVideo)
 		{
-			videoUseStableFrameCrop = dialog.UseStableVideoFrameCrop();
+			if(this->isVideoMuxingRisky)
+			{
+				QMessageBox w(QMessageBox::Warning,
+						tr("Video Instability Warning"),
+						tr("The video creation code is unstable and may crash "
+						   "the program when creating a video a second time.\n\n"
+						   "Restart AEO-Light to avoid this."),
+						QMessageBox::Cancel | QMessageBox::Ignore | QMessageBox::Abort,
+						this);
+				w.button(QMessageBox::Abort)->setText("Restart");
+				w.setDefaultButton(QMessageBox::Cancel);
+				int answer = w.exec();
+				if(answer == QMessageBox::Abort)
+				{
+					QTemporaryFile savefile;
+					savefile.setAutoRemove(false);
+					savefile.open();
+					QTextStream stream(&savefile);
+					this->saveproject(stream);
+					stream << "DeleteMe = true\n";
+					savefile.close();
+					skipCloseConfirmation = true;
+					qApp->quit();
+					QStringList args;
+					args << savefile.fileName();
+					QProcess::startDetached(qApp->arguments()[0], args);
+					return false;
+				}
+				else if(answer == QMessageBox::Cancel)
+				{
+					return false;
+				}
+			}
+
+			videoFilename = ui->videoOutputFilenameEdit->text().trimmed();
+			if(videoFilename.isEmpty())
+			{
+				QFileInfo fi(filename);
+				videoFilename = fi.path() + "/" + fi.completeBaseName() +
+						VideoContainerExtensionForMode(videoContainerMode);
+				ui->videoOutputFilenameEdit->setText(videoFilename);
+			}
+			if(videoFilename.isEmpty())
+			{
+				videoFilename = QFileDialog::getSaveFileName(
+						this, tr("Save video as"),
+						QDir(expDir).filePath("output" +
+								VideoContainerExtensionForMode(videoContainerMode)),
+						"*.mp4 *.mov *.mkv");
+				if(videoFilename.isEmpty()) return false;
+				ui->videoOutputFilenameEdit->setText(videoFilename);
+			}
+			WriteLastExportDirMain("last-video-export",
+					QFileInfo(videoFilename).absolutePath());
+			videoAudioOffsetCorrectionEnabled = ui->videoAvOffsetCheckBox->isChecked();
+			videoUseStableFrameCrop = ui->videoStableCropCheckBox->isChecked();
 			ui->videoStableCropCheckBox->setChecked(videoUseStableFrameCrop);
 			UpdateVideoStabilizationControls();
+			videoFlipHorizontal = ui->outputFlipHorizontalCheckBox->isChecked();
+			videoFlipVertical = ui->outputFlipVerticalCheckBox->isChecked();
+			switch(ui->outputRotationComboBox->currentIndex())
+			{
+			case 1: videoRotationDegrees = 90; break;
+			case 2: videoRotationDegrees = 180; break;
+			case 3: videoRotationDegrees = 270; break;
+			default: videoRotationDegrees = 0; break;
+			}
 		}
-		videoFlipHorizontal = dialog.GetVideoFlipHorizontal();
-		videoFlipVertical = dialog.GetVideoFlipVertical();
-		videoRotationDegrees = dialog.GetVideoRotationDegrees();
+		else
+		{
+			videoFilename.clear();
+			videoAudioOffsetCorrectionEnabled = false;
+			videoFlipHorizontal = false;
+			videoFlipVertical = false;
+			videoRotationDegrees = 0;
+		}
+
+		SaveExtractOutputSettings();
 
 		this->currentMeta = &meta;
 		batch = false;
@@ -5592,6 +5754,109 @@ void MainWindow::on_rotateCheckbox_stateChanged(int arg1)
         GPU_Params_Update(1);
 }
 
+void MainWindow::on_audioOutputBrowseButton_clicked()
+{
+	QString startDir = prevExportDir;
+	if(startDir.isEmpty())
+	{
+		startDir = ReadLastExportDirMain("last-audio-export",
+				QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
+	}
+	QString filename = QFileDialog::getSaveFileName(
+			this, tr("Export audio to"),
+			QDir(startDir).filePath(ui->audioOutputFilenameEdit->text()),
+			"*.wav");
+	if(filename.isEmpty()) return;
+
+	ui->audioOutputFilenameEdit->setText(filename);
+	prevExportDir = QFileInfo(filename).absolutePath();
+	WriteLastExportDirMain("last-audio-export", prevExportDir);
+
+	if(ui->videoOutputFilenameEdit->text().trimmed().isEmpty())
+	{
+		QFileInfo fi(filename);
+		ui->videoOutputFilenameEdit->setText(
+				fi.path() + "/" + fi.completeBaseName() +
+				VideoContainerExtensionForMode(videoContainerMode));
+	}
+	SaveExtractOutputSettings();
+}
+
+void MainWindow::on_videoOutputBrowseButton_clicked()
+{
+	QString fallback = prevExportDir;
+	if(fallback.isEmpty())
+		fallback = ReadLastExportDirMain("last-video-export",
+				QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
+	QString filename = QFileDialog::getSaveFileName(
+			this, tr("Save video as"),
+			QDir(fallback).filePath(ui->videoOutputFilenameEdit->text()),
+			"*.mp4 *.mov *.mkv");
+	if(filename.isEmpty()) return;
+
+	ui->videoOutputFilenameEdit->setText(filename);
+	QString suffix = QFileInfo(filename).suffix().toLower();
+	if(suffix == "mov")
+		videoContainerMode = VIDEO_CONTAINER_MOV;
+	else if(suffix == "mkv")
+		videoContainerMode = VIDEO_CONTAINER_MKV;
+	else
+		videoContainerMode = VIDEO_CONTAINER_MP4;
+	UpdateVideoExportControls();
+	SaveVideoExportSettings();
+	WriteLastExportDirMain("last-video-export", QFileInfo(filename).absolutePath());
+	SaveExtractOutputSettings();
+}
+
+void MainWindow::on_outputVideoCheckBox_toggled(bool checked)
+{
+	if(checked && ui->videoOutputFilenameEdit->text().trimmed().isEmpty())
+	{
+		QString audioPath = ui->audioOutputFilenameEdit->text().trimmed();
+		if(!audioPath.isEmpty())
+		{
+			QFileInfo fi(audioPath);
+			ui->videoOutputFilenameEdit->setText(
+					fi.path() + "/" + fi.completeBaseName() +
+					VideoContainerExtensionForMode(videoContainerMode));
+		}
+	}
+	UpdateExtractOutputControls();
+	SaveExtractOutputSettings();
+}
+
+void MainWindow::on_outputVideoOrientationPresetButton_clicked()
+{
+	ui->outputFlipHorizontalCheckBox->setChecked(true);
+	ui->outputFlipVerticalCheckBox->setChecked(false);
+	ui->outputRotationComboBox->setCurrentIndex(0);
+	SaveExtractOutputSettings();
+}
+
+void MainWindow::on_outputFlipHorizontalCheckBox_toggled(bool checked)
+{
+	Q_UNUSED(checked);
+	SaveExtractOutputSettings();
+}
+
+void MainWindow::on_outputFlipVerticalCheckBox_toggled(bool checked)
+{
+	Q_UNUSED(checked);
+	SaveExtractOutputSettings();
+}
+
+void MainWindow::on_videoAvOffsetCheckBox_toggled(bool checked)
+{
+	Q_UNUSED(checked);
+	SaveExtractOutputSettings();
+}
+
+void MainWindow::on_outputRotationComboBox_currentIndexChanged(int index)
+{
+	Q_UNUSED(index);
+	SaveExtractOutputSettings();
+}
+
 void MainWindow::on_videoExportModeComboBox_currentIndexChanged(int index)
 {
 	videoExportMode = ClampRangeInt(index, SIMPLE_EXPORT_FAST, SIMPLE_EXPORT_ULTRA);
@@ -5602,7 +5867,9 @@ void MainWindow::on_videoExportModeComboBox_currentIndexChanged(int index)
 void MainWindow::on_videoExportContainerComboBox_currentIndexChanged(int index)
 {
 	videoContainerMode = ClampRangeInt(index, VIDEO_CONTAINER_MP4, VIDEO_CONTAINER_MKV);
+	ApplyVideoContainerExtensionToOutputFilename();
 	SaveVideoExportSettings();
+	SaveExtractOutputSettings();
 	UpdateVideoExportControls();
 }
 
