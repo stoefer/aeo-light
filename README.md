@@ -1,6 +1,6 @@
-# AEO-Light 3.1.11 (fork release)
+# AEO-Light 3.1.12 (fork release)
 
-Deze 3.1.11 patchrelease fixt de release-build en bevat de switchbare light/dark layout.
+Deze 3.1.12 patchrelease bevat UI-groepering in de workflow voor een overzichtelijkere bediening.
 
 ## Nieuw in 3.1.11
 - Sterkere stabiliteit bij laden/verwerken van frame-reeksen  
