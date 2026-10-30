@@ -1284,6 +1284,257 @@
        </property>
       </widget>
      </widget>
+    <widget class="QWidget" name="tab_videoExport">
+     <attribute name="title">
+      <string>Video instellingen</string>
+     </attribute>
+     <widget class="QWidget" name="videoExportLayoutWidget">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>10</y>
+        <width>631</width>
+        <height>470</height>
+       </rect>
+      </property>
+      <layout class="QVBoxLayout" name="videoExportMainLayout">
+       <item>
+        <widget class="QGroupBox" name="videoExportGroupBox">
+         <property name="title">
+          <string>Video compressie en formaat</string>
+         </property>
+         <layout class="QGridLayout" name="videoExportGridLayout">
+          <property name="horizontalSpacing">
+           <number>8</number>
+          </property>
+          <property name="verticalSpacing">
+           <number>6</number>
+          </property>
+          <item row="0" column="0">
+           <widget class="QLabel" name="videoExportModeLabel">
+            <property name="text">
+             <string>Simple export mode</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1" colspan="2">
+           <widget class="QComboBox" name="videoExportModeComboBox">
+            <item>
+             <property name="text">
+              <string>Snel (klein bestand, lagere kwaliteit)</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Standaard (balans)</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Kwaliteit (groter bestand, beste kwaliteit)</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Ultra kwaliteit (minimum artefacten, zeer groot bestand)</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="videoExportContainerLabel">
+            <property name="text">
+             <string>Container</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1" colspan="2">
+           <widget class="QComboBox" name="videoExportContainerComboBox">
+            <item>
+             <property name="text">
+              <string>MP4</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>MOV</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>MKV</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="videoExportCodecLabel">
+            <property name="text">
+             <string>Output formaat</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1" colspan="2">
+           <widget class="QComboBox" name="videoExportCodecComboBox">
+            <item>
+             <property name="text">
+              <string>H.264 (aanbevolen)</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>HEVC / H.265</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>MPEG-4 (legacy)</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="videoExportPresetLabel">
+            <property name="text">
+             <string>Encoder preset</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1" colspan="2">
+           <widget class="QComboBox" name="videoExportPresetComboBox">
+            <item>
+             <property name="text">
+              <string>Sneller encoderen</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Gebalanceerd</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Langzamer, beste compressie</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item row="4" column="0">
+           <widget class="QLabel" name="videoExportQualityLabel">
+            <property name="text">
+             <string>Video kwaliteit</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="1">
+           <widget class="QSlider" name="videoExportQualitySlider">
+            <property name="minimum">
+             <number>1</number>
+            </property>
+            <property name="maximum">
+             <number>100</number>
+            </property>
+            <property name="value">
+             <number>85</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="2">
+           <widget class="QLabel" name="videoExportQualityValueLabel">
+            <property name="text">
+             <string>85%</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="0">
+           <widget class="QLabel" name="videoExportAudioBitrateLabel">
+            <property name="text">
+             <string>Audio bitrate</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="1" colspan="2">
+           <widget class="QSpinBox" name="videoExportAudioBitrateSpinBox">
+            <property name="minimum">
+             <number>96</number>
+            </property>
+            <property name="maximum">
+             <number>512</number>
+            </property>
+            <property name="singleStep">
+             <number>16</number>
+            </property>
+            <property name="value">
+             <number>192</number>
+            </property>
+            <property name="suffix">
+             <string> kbps</string>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="0" colspan="3">
+           <widget class="QLabel" name="videoExportHelpLabel">
+            <property name="text">
+             <string>Tip: start met H.264 + MP4 + Standaard of Kwaliteit. Gebruik Ultra kwaliteit voor minimaal zichtbare compressie-artefacten.</string>
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="7" column="0" colspan="3">
+           <widget class="QLabel" name="videoExportSummaryLabel">
+            <property name="text">
+             <string>Actieve instellingen</string>
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <spacer name="videoExportVerticalSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+    </widget>
      <widget class="QWidget" name="tab_3">
       <attribute name="title">
        <string>Extract Audio</string>
@@ -2552,6 +2803,12 @@
   <tabstop>CalBtn</tabstop>
   <tabstop>CalEnableCB</tabstop>
   <tabstop>imageDefaultsButton</tabstop>
+  <tabstop>videoExportModeComboBox</tabstop>
+  <tabstop>videoExportContainerComboBox</tabstop>
+  <tabstop>videoExportCodecComboBox</tabstop>
+  <tabstop>videoExportPresetComboBox</tabstop>
+  <tabstop>videoExportQualitySlider</tabstop>
+  <tabstop>videoExportAudioBitrateSpinBox</tabstop>
   <tabstop>frameInSpinBox</tabstop>
   <tabstop>frameOutSpinBox</tabstop>
   <tabstop>filerate_PD</tabstop>

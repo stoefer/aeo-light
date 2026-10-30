@@ -84,7 +84,6 @@ ExtractDialog::ExtractDialog(QWidget *parent, MetaData &metadata,
 	videoAudioBitrateKbps = 192;
 	videoPresetMode = 1;
 	LoadVideoExportSettings();
-	ui->videoPresetComboBox->setCurrentIndex(SIMPLE_EXPORT_STANDARD);
 	ui->avOffsetCorrectionCheckBox->setChecked(true);
 	ui->stableVideoCropCheckBox->setChecked(true);
 	ui->flipHorizontalCheckBox->setChecked(false);
@@ -317,6 +316,12 @@ void ExtractDialog::on_okButton_clicked()
 	if(ui->muxVideoCheckbox->isChecked())
 	{
 		ApplyContainerExtensionToVideoFilename();
+		QSettings settings;
+		settings.beginGroup("video-export");
+		settings.setValue("simple-mode",
+				ClampInt(ui->videoPresetComboBox->currentIndex(),
+					SIMPLE_EXPORT_FAST, SIMPLE_EXPORT_ULTRA));
+		settings.endGroup();
 		QFileInfo videoOut(ui->filenameVideoText->text());
 		if(!videoOut.absolutePath().isEmpty())
 			WriteLastExportDir("last-video-export", videoOut.absolutePath());
@@ -549,7 +554,11 @@ void ExtractDialog::LoadVideoExportSettings()
 	videoPresetMode = ClampInt(
 				settings.value("preset-mode", 1).toInt(),
 				0, 2);
+	int simpleMode = ClampInt(
+				settings.value("simple-mode", SIMPLE_EXPORT_STANDARD).toInt(),
+				SIMPLE_EXPORT_FAST, SIMPLE_EXPORT_ULTRA);
 	settings.endGroup();
+	ui->videoPresetComboBox->setCurrentIndex(simpleMode);
 }
 
 void ExtractDialog::SaveVideoExportSettings()

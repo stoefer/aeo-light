@@ -302,6 +302,12 @@ private slots:
     void on_degreeSpinBox_valueChanged(double arg1);
 
     void on_rotateCheckbox_stateChanged(int arg1);
+	void on_videoExportModeComboBox_currentIndexChanged(int index);
+	void on_videoExportContainerComboBox_currentIndexChanged(int index);
+	void on_videoExportCodecComboBox_currentIndexChanged(int index);
+	void on_videoExportPresetComboBox_currentIndexChanged(int index);
+	void on_videoExportQualitySlider_valueChanged(int value);
+	void on_videoExportAudioBitrateSpinBox_valueChanged(int arg1);
 
 private:
 	QString startingProjectFilename;
@@ -336,6 +342,9 @@ private:
 	void NormalizeVideoCropControls(bool topChanged);
 	void UpdateVideoCropLabels();
 	void UpdateVideoStabilizationControls();
+	void LoadVideoExportSettings();
+	void SaveVideoExportSettings() const;
+	void UpdateVideoExportControls();
 	void ApplyThemeFromSettings();
 	void PositionPreviewWindowBesideMainWindow();
 

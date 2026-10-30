@@ -203,6 +203,13 @@ static QString BuildLightThemeStyleSheet()
 	return QString("QGroupBox::title { font-weight: 700; }");
 }
 
+static int ClampRangeInt(int value, int minValue, int maxValue)
+{
+	if(value < minValue) return minValue;
+	if(value > maxValue) return maxValue;
+	return value;
+}
+
 static bool ConfirmExtractionCancel(QProgressDialog &progress,
 		int currentValue, const QString &currentLabel)
 {
@@ -705,6 +712,7 @@ MainWindow::MainWindow(QWidget *parent) :
 	pitchControlSyncLock = false;
 	videoCropControlSyncLock = false;
 	skipCloseConfirmation = false;
+	LoadVideoExportSettings();
 
 	#ifdef USE_MUX_HACK
 	encStartFrame = 0;
@@ -815,28 +823,67 @@ void MainWindow::PositionPreviewWindowBesideMainWindow()
 	const int gap = 12;
 	const QRect mainRect = this->frameGeometry();
 	const QMargins previewMargins = frame_window->frameMargins();
-	QSize previewSize = frame_window->frameGeometry().size();
-	if(previewSize.width() <= 0 || previewSize.height() <= 0)
-		previewSize = frame_window->size();
-	if(previewSize.width() <= 0 || previewSize.height() <= 0)
-		return;
+	QSize previewContentSize = frame_window->size();
+	if(previewContentSize.width() <= 0 || previewContentSize.height() <= 0)
+		previewContentSize = QSize(640, 640);
+	const double aspectRatio = std::max(0.1,
+			static_cast<double>(previewContentSize.width()) /
+			static_cast<double>(previewContentSize.height()));
 
 	QScreen *screen = this->screen();
 	if(!screen) screen = QGuiApplication::primaryScreen();
 	if(!screen) return;
 	const QRect available = screen->availableGeometry();
+	const int frameMarginsW = previewMargins.left() + previewMargins.right();
+	const int frameMarginsH = previewMargins.top() + previewMargins.bottom();
 
-	int frameX = mainRect.right() + gap;
-	int frameY = mainRect.top();
+	const int topAlignedFrameY = std::max(available.top(),
+			std::min(mainRect.top(), available.bottom()));
+	const int maxFrameHeightFromTop = std::max(240,
+			available.bottom() - topAlignedFrameY + 1);
+	int targetFrameHeight = std::min(mainRect.height(), maxFrameHeightFromTop);
+	targetFrameHeight = std::max(targetFrameHeight, 240);
+	int targetContentHeight = std::max(120, targetFrameHeight - frameMarginsH);
+	int targetContentWidth = std::max(120,
+			static_cast<int>(std::lround(targetContentHeight * aspectRatio)));
+	int targetFrameWidth = targetContentWidth + frameMarginsW;
 
-	// Prefer to the right of the main UI; fall back to the left if needed.
-	if(frameX + previewSize.width() > available.right())
-		frameX = mainRect.left() - gap - previewSize.width();
+	const int rightSpace = std::max(120, available.right() - (mainRect.right() + gap) + 1);
+	const int leftSpace = std::max(120, (mainRect.left() - gap) - available.left() + 1);
+	bool placeRight = (rightSpace >= leftSpace);
+
+	int availableSideWidth = placeRight ? rightSpace : leftSpace;
+	if(targetFrameWidth > availableSideWidth)
+	{
+		targetFrameWidth = availableSideWidth;
+		targetContentWidth = std::max(120, targetFrameWidth - frameMarginsW);
+		targetContentHeight = std::max(120, static_cast<int>(
+				std::lround(targetContentWidth / aspectRatio)));
+		targetFrameHeight = targetContentHeight + frameMarginsH;
+	}
+	if(targetFrameHeight > maxFrameHeightFromTop)
+	{
+		targetFrameHeight = maxFrameHeightFromTop;
+		targetContentHeight = std::max(120, targetFrameHeight - frameMarginsH);
+		targetContentWidth = std::max(120, static_cast<int>(
+				std::lround(targetContentHeight * aspectRatio)));
+		targetFrameWidth = targetContentWidth + frameMarginsW;
+	}
+
+	if(frame_window->size() != QSize(targetContentWidth, targetContentHeight))
+		frame_window->resize(targetContentWidth, targetContentHeight);
+
+	int frameX = placeRight ? (mainRect.right() + gap) :
+			(mainRect.left() - gap - targetFrameWidth);
+	int frameY = topAlignedFrameY;
+
 	if(frameX < available.left())
 		frameX = available.left();
+	if(frameX + targetFrameWidth > available.right())
+		frameX = available.right() - targetFrameWidth + 1;
 
-	if(frameY + previewSize.height() > available.bottom())
-		frameY = available.bottom() - previewSize.height();
+	if(frameY + targetFrameHeight > available.bottom())
+		frameY = available.bottom() - targetFrameHeight + 1;
 	if(frameY < available.top())
 		frameY = available.top();
 
@@ -2210,6 +2257,89 @@ void MainWindow::UpdateVideoStabilizationControls()
 	ui->videoDriftSensitivityLabel->setEnabled(adaptiveMode);
 }
 
+void MainWindow::LoadVideoExportSettings()
+{
+	QSettings settings;
+	settings.beginGroup("video-export");
+	videoExportMode = ClampRangeInt(
+			settings.value("simple-mode", SIMPLE_EXPORT_STANDARD).toInt(),
+			SIMPLE_EXPORT_FAST, SIMPLE_EXPORT_ULTRA);
+	videoContainerMode = ClampRangeInt(
+			settings.value("container", VIDEO_CONTAINER_MP4).toInt(),
+			VIDEO_CONTAINER_MP4, VIDEO_CONTAINER_MKV);
+	videoCodecMode = ClampRangeInt(
+			settings.value("codec", VIDEO_CODEC_H264).toInt(),
+			VIDEO_CODEC_H264, VIDEO_CODEC_MPEG4);
+	videoQualityPercent = ClampRangeInt(
+			settings.value("quality-percent", 85).toInt(), 1, 100);
+	videoAudioBitrateKbps = ClampRangeInt(
+			settings.value("audio-bitrate-kbps", 192).toInt(), 96, 512);
+	videoPresetMode = ClampRangeInt(
+			settings.value("preset-mode", 1).toInt(), 0, 2);
+	settings.endGroup();
+	UpdateVideoExportControls();
+}
+
+void MainWindow::SaveVideoExportSettings() const
+{
+	QSettings settings;
+	settings.beginGroup("video-export");
+	settings.setValue("simple-mode", videoExportMode);
+	settings.setValue("container", videoContainerMode);
+	settings.setValue("codec", videoCodecMode);
+	settings.setValue("quality-percent", videoQualityPercent);
+	settings.setValue("audio-bitrate-kbps", videoAudioBitrateKbps);
+	settings.setValue("preset-mode", videoPresetMode);
+	settings.endGroup();
+}
+
+void MainWindow::UpdateVideoExportControls()
+{
+	QSignalBlocker blockMode(ui->videoExportModeComboBox);
+	QSignalBlocker blockContainer(ui->videoExportContainerComboBox);
+	QSignalBlocker blockCodec(ui->videoExportCodecComboBox);
+	QSignalBlocker blockPreset(ui->videoExportPresetComboBox);
+	QSignalBlocker blockQuality(ui->videoExportQualitySlider);
+	QSignalBlocker blockAudio(ui->videoExportAudioBitrateSpinBox);
+
+	ui->videoExportModeComboBox->setCurrentIndex(
+			ClampRangeInt(videoExportMode, SIMPLE_EXPORT_FAST, SIMPLE_EXPORT_ULTRA));
+	ui->videoExportContainerComboBox->setCurrentIndex(
+			ClampRangeInt(videoContainerMode, VIDEO_CONTAINER_MP4, VIDEO_CONTAINER_MKV));
+	ui->videoExportCodecComboBox->setCurrentIndex(
+			ClampRangeInt(videoCodecMode, VIDEO_CODEC_H264, VIDEO_CODEC_MPEG4));
+	ui->videoExportPresetComboBox->setCurrentIndex(
+			ClampRangeInt(videoPresetMode, 0, 2));
+	ui->videoExportQualitySlider->setValue(
+			ClampRangeInt(videoQualityPercent, 1, 100));
+	ui->videoExportAudioBitrateSpinBox->setValue(
+			ClampRangeInt(videoAudioBitrateKbps, 96, 512));
+
+	static const char *modeNames[] = {
+		"Snel", "Standaard", "Kwaliteit", "Ultra kwaliteit"
+	};
+	static const char *containerNames[] = {
+		"MP4", "MOV", "MKV"
+	};
+	static const char *codecNames[] = {
+		"H.264", "HEVC", "MPEG-4"
+	};
+	static const char *presetNames[] = {
+		"Sneller", "Gebalanceerd", "Langzamer"
+	};
+
+	ui->videoExportQualityValueLabel->setText(
+			QString("%1%").arg(videoQualityPercent));
+	ui->videoExportSummaryLabel->setText(
+			tr("Actief: %1, %2, preset %3, kwaliteit %4%, audio %5 kbps.")
+			.arg(modeNames[ClampRangeInt(videoExportMode, 0, 3)])
+			.arg(containerNames[ClampRangeInt(videoContainerMode, 0, 2)])
+			.arg(codecNames[ClampRangeInt(videoCodecMode, 0, 2)])
+			.arg(presetNames[ClampRangeInt(videoPresetMode, 0, 2)])
+			.arg(videoQualityPercent)
+			.arg(videoAudioBitrateKbps));
+}
+
 void MainWindow::ApplyThemeFromSettings()
 {
 	QSettings settings;
@@ -2394,7 +2524,9 @@ bool MainWindow::extractGL(QString filename=QString(), bool doTimer=false)
 	bool batch = true;
 	MetaData meta;
 	QString videoFilename;
-	videoExportMode = SIMPLE_EXPORT_STANDARD;
+	videoExportMode = ClampRangeInt(
+			ui->videoExportModeComboBox->currentIndex(),
+			SIMPLE_EXPORT_FAST, SIMPLE_EXPORT_ULTRA);
 	videoAudioOffsetCorrectionEnabled = false;
 	videoUseStableFrameCrop = ui->videoStableCropCheckBox->isChecked();
 	videoDriftSensitivityFactor = std::max(
@@ -2475,12 +2607,9 @@ bool MainWindow::extractGL(QString filename=QString(), bool doTimer=false)
 		this->prevExportDir = QFileInfo(filename).absolutePath();
 
 		videoFilename = dialog.GetVideoFilename();
-		videoExportMode = dialog.GetVideoExportMode();
-		videoContainerMode = dialog.GetVideoContainerMode();
-		videoCodecMode = dialog.GetVideoCodecMode();
-		videoQualityPercent = dialog.GetVideoQualityPercent();
-		videoAudioBitrateKbps = dialog.GetVideoAudioBitrateKbps();
-		videoPresetMode = dialog.GetVideoPresetMode();
+		// Advanced compression/format settings are shared via QSettings
+		// with the dedicated "Video instellingen" tab and the extract dialog.
+		LoadVideoExportSettings();
 		videoAudioOffsetCorrectionEnabled =
 				dialog.UseVideoAudioOffsetCorrection();
 		if(!videoFilename.isEmpty())
@@ -5461,5 +5590,47 @@ void MainWindow::on_degreeSpinBox_valueChanged(double arg1)
 void MainWindow::on_rotateCheckbox_stateChanged(int arg1)
 {
         GPU_Params_Update(1);
+}
+
+void MainWindow::on_videoExportModeComboBox_currentIndexChanged(int index)
+{
+	videoExportMode = ClampRangeInt(index, SIMPLE_EXPORT_FAST, SIMPLE_EXPORT_ULTRA);
+	SaveVideoExportSettings();
+	UpdateVideoExportControls();
+}
+
+void MainWindow::on_videoExportContainerComboBox_currentIndexChanged(int index)
+{
+	videoContainerMode = ClampRangeInt(index, VIDEO_CONTAINER_MP4, VIDEO_CONTAINER_MKV);
+	SaveVideoExportSettings();
+	UpdateVideoExportControls();
+}
+
+void MainWindow::on_videoExportCodecComboBox_currentIndexChanged(int index)
+{
+	videoCodecMode = ClampRangeInt(index, VIDEO_CODEC_H264, VIDEO_CODEC_MPEG4);
+	SaveVideoExportSettings();
+	UpdateVideoExportControls();
+}
+
+void MainWindow::on_videoExportPresetComboBox_currentIndexChanged(int index)
+{
+	videoPresetMode = ClampRangeInt(index, 0, 2);
+	SaveVideoExportSettings();
+	UpdateVideoExportControls();
+}
+
+void MainWindow::on_videoExportQualitySlider_valueChanged(int value)
+{
+	videoQualityPercent = ClampRangeInt(value, 1, 100);
+	SaveVideoExportSettings();
+	UpdateVideoExportControls();
+}
+
+void MainWindow::on_videoExportAudioBitrateSpinBox_valueChanged(int arg1)
+{
+	videoAudioBitrateKbps = ClampRangeInt(arg1, 96, 512);
+	SaveVideoExportSettings();
+	UpdateVideoExportControls();
 }
 
