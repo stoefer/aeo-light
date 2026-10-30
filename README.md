@@ -1,8 +1,9 @@
-# AEO-Light 3.1.13 (fork release)
+# AEO-Light 3.1.14 (fork release)
 
-Deze 3.1.13 patchrelease bevat UI-groepering en herstelt de Windows release-build.
+Deze 3.1.14 patchrelease bevat de UI overlap hotfix in Soundtrack Settings en bouwt voort op de recente releaseverbeteringen.
 
-## Nieuw in 3.1.11
+## Nieuw in 3.1.14
+- Hotfix: overlap opgelost in de Soundtrack Settings-groep.
 - Sterkere stabiliteit bij laden/verwerken van frame-reeksen  
 - Betere video-export workflow  
 - Progress-bar met geschatte resterende tijd  
