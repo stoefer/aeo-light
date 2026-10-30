@@ -1,8 +1,8 @@
-# AEO-Light 3.1.8 (fork release)
+# AEO-Light 3.1.9 (fork release)
 
-Deze 3.1.8 release bevat een grote stabiliteitsupdate en extra gebruiksgemak voor beginners.
+Deze 3.1.9 release bouwt verder op de stabiliteitsupdate en voegt extra snelle test-tools toe.
 
-## Nieuw in 3.1.8
+## Nieuw in 3.1.9
 - Sterkere stabiliteit bij laden/verwerken van frame-reeksen  
 - Betere video-export workflow  
 - Progress-bar met geschatte resterende tijd  
@@ -10,6 +10,9 @@ Deze 3.1.8 release bevat een grote stabiliteitsupdate en extra gebruiksgemak voo
 - Veiliger stoppen: bevestigingsdialoog bij annuleren  
 - Oriëntatie-opties (spiegelen/roteren) + preset **“Oriëntatie zoals preview”**  
 - Optionele audio in MP4 met 16mm-correctie (26 frames), uitschakelbaar  
+- Nieuwe **Test Run** export met vrij framebereik  
+- Snelle Test Run-presets: **100 / 300 / 500 / 10 sec**  
+- Exportbestanden worden niet overschreven (automatische oplopende suffix)  
 
 ## Installatie (Windows 11)
 1. Download `AEO-Light-Windows-x64.zip` uit de release.
