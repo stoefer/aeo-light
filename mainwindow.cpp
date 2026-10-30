@@ -964,9 +964,13 @@ void MainWindow::LicenseAgreement()
     QLabel *label;
     msg.setWindowTitle("License Agreement");
     msg.setStyleSheet(
-            "QDialog { background-color: #d0d0d0; }"
-            "QTextEdit { background-color: #ececec; }"
-            "QLabel { background: transparent; }"
+            "QDialog { background-color: #d0d0d0; color: #1f1f1f; }"
+            "QTextEdit { background-color: #ececec; color: #1f1f1f; "
+                    "border: 1px solid #8a8a8a; selection-background-color: #b9d6ff; }"
+            "QLabel { background: transparent; color: #1f1f1f; }"
+            "QPushButton { background-color: #e0e0e0; color: #1f1f1f; "
+                    "border: 1px solid #8a8a8a; padding: 4px 10px; }"
+            "QPushButton:hover { background-color: #ebebeb; }"
             "QDialogButtonBox { background: transparent; }");
     QVBoxLayout vbox(&msg);
     label = new QLabel("<b>License Agreement</b>");
@@ -978,6 +982,7 @@ void MainWindow::LicenseAgreement()
 
     QTextEdit *text = new QTextEdit();
     text->setText(lic);
+    text->setReadOnly(true);
     QFontMetrics fm = text->fontMetrics();
     int w = fm.averageCharWidth();
     text->setMinimumWidth(w*80);
