@@ -1,14 +1,21 @@
-# AEO-Light 3.1.17 (fork release)
+# AEO-Light 3.1.18 (fork release)
 
-Deze 3.1.17 patchrelease voegt betere video-exportcontrole toe voor minder compressie-artefacten.
+Deze 3.1.18 patchrelease verbetert de UI-afstemming en fijnregeling van Frame Pitch.
 
-## Nieuw in 3.1.17
+## Nieuw in 3.1.18
+- Preview window wordt op gelijke hoogte naast het hoofdvenster geplaatst.
+- Sub-panel titels staan nu vet (bold) in zowel light als dark theme.
+- Frame Pitch Start/End fijner af te stellen:
+  - verbeterde koppellogica zodat sliders elkaar minder tegenwerken
+  - waarden met 3 decimalen voor preciezere feedback
+  - extra tiptekst voor exacte uitlijning via pijltjestoetsen
+
+## Eerder toegevoegd in 3.1.17
 - Nieuw **Video/Audio venster...** in het extract-scherm met aparte geavanceerde instellingen:
   - container: **MP4 / MOV / MKV**
   - output-formaat: **H.264 / HEVC / MPEG-4**
   - video-kwaliteit, encoder-preset en audio-bitrate
 - Nieuwe **Simple export preset: Ultra kwaliteit** (minimum artefacten, groter bestand)
-- Bestaande patchverbeteringen uit 3.1.16 blijven inbegrepen
 
 ## Eerder toegevoegd in 3.1.16
 - Main window/layout vergroot zodat Soundtrack-secties niet meer afgekapt of overlappend staan.
