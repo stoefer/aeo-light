@@ -1,8 +1,18 @@
-# AEO-Light 3.1.19 (fork release)
+# AEO-Light 3.1.20 (fork release)
 
-Deze 3.1.19 patchrelease voegt een aparte tab voor video-exportinstellingen toe en verfijnt de preview-weergave.
+Deze 3.1.20 patchrelease brengt audio/video extract-instellingen samen in één direct workflow-scherm.
 
-## Nieuw in 3.1.19
+## Nieuw in 3.1.20
+- Tab hernoemd naar **Extract Audio/Video**.
+- Opties die voordien in een popup stonden, zitten nu rechtstreeks in deze tab:
+  - audio output pad
+  - video output aan/uit + video output pad
+  - A/V offset-correctie (16mm, 26 frames)
+  - video-oriëntatie (Spiegel H/V + rotatie + preset “Oriëntatie zoals preview”)
+- Vanuit hetzelfde venster kan je nu meteen audio en/of video exporteren zonder extra popup.
+- Deze output-instellingen worden onthouden (laatst gebruikte waarden en paden).
+
+## Eerder toegevoegd in 3.1.19
 - Nieuwe tab **Video instellingen** (tussen Image Processing en Extract Audio) voor altijd bereikbare video-opties.
 - Compressie/formaat-instellingen in de nieuwe tab:
   - Simple export mode: **Snel / Standaard / Kwaliteit / Ultra kwaliteit**
