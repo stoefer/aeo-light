@@ -774,7 +774,7 @@ void MainWindow::PositionPreviewWindowBesideMainWindow()
 	if(y < available.top())
 		y = available.top();
 
-	frame_window->move(x, y);
+	frame_window->setPosition(x, y);
 }
 
 void MainWindow::SaveDefaultsSoundtrack()

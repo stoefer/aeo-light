@@ -1,6 +1,6 @@
-# AEO-Light 3.1.12 (fork release)
+# AEO-Light 3.1.13 (fork release)
 
-Deze 3.1.12 patchrelease bevat UI-groepering in de workflow voor een overzichtelijkere bediening.
+Deze 3.1.13 patchrelease bevat UI-groepering en herstelt de Windows release-build.
 
 ## Nieuw in 3.1.11
 - Sterkere stabiliteit bij laden/verwerken van frame-reeksen  
