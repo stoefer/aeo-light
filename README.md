@@ -1,9 +1,13 @@
-# AEO-Light 3.1.14 (fork release)
+# AEO-Light 3.1.15 (fork release)
 
-Deze 3.1.14 patchrelease bevat de UI overlap hotfix in Soundtrack Settings en bouwt voort op de recente releaseverbeteringen.
+Deze 3.1.15 patchrelease verbetert de leesbaarheid in de Soundtrack Settings en in het License Agreement-venster.
 
-## Nieuw in 3.1.14
+## Nieuw in 3.1.15
+- Extra visuele omkadering in Soundtrack Settings:
+  - apart kader voor **Soundtrack + Picture Strip**
+  - apart kader voor **Frame Pitch + Search Size**
 - Hotfix: overlap opgelost in de Soundtrack Settings-groep.
+- Hotfix: License Agreement terug goed leesbaar in dark theme.
 - Sterkere stabiliteit bij laden/verwerken van frame-reeksen  
 - Betere video-export workflow  
 - Progress-bar met geschatte resterende tijd  
