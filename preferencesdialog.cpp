@@ -57,7 +57,7 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 	settings->beginGroup("ui");
 	ui->skipCloseConfirmCheckBox->setChecked(
 			settings->value("skip-close-confirmation", false).toBool());
-	QString theme = settings.value("theme", "light").toString().toLower();
+	QString theme = settings->value("theme", "light").toString().toLower();
 	ui->themeComboBox->setCurrentIndex(theme == "dark" ? 1 : 0);
 	settings->endGroup();
 

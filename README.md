@@ -1,8 +1,8 @@
-# AEO-Light 3.1.10 (fork release)
+# AEO-Light 3.1.11 (fork release)
 
-Deze 3.1.10 patchrelease voegt een switchbare light/dark layout toe en bouwt verder op de stabiliteitsupdates.
+Deze 3.1.11 patchrelease fixt de release-build en bevat de switchbare light/dark layout.
 
-## Nieuw in 3.1.10
+## Nieuw in 3.1.11
 - Sterkere stabiliteit bij laden/verwerken van frame-reeksen  
 - Betere video-export workflow  
 - Progress-bar met geschatte resterende tijd  
