@@ -29,6 +29,21 @@
 #include <QDebug>
 #include <QMessageBox>
 #include <QSettings>
+#include <QDialogButtonBox>
+#include <QFormLayout>
+#include <QComboBox>
+#include <QSlider>
+#include <QSpinBox>
+#include <QHBoxLayout>
+#include <QVBoxLayout>
+#include <QLabel>
+
+static int ClampInt(int v, int minv, int maxv)
+{
+	if(v < minv) return minv;
+	if(v > maxv) return maxv;
+	return v;
+}
 
 static QString ReadLastExportDir(const QString &key, const QString &fallback)
 {
@@ -63,6 +78,12 @@ ExtractDialog::ExtractDialog(QWidget *parent, MetaData &metadata,
 	defaultDir = dir;
 	requestRestart = false;
 	videoIsRisky = false;
+	videoContainerMode = VIDEO_CONTAINER_MP4;
+	videoCodecMode = VIDEO_CODEC_H264;
+	videoQualityPercent = 85;
+	videoAudioBitrateKbps = 192;
+	videoPresetMode = 1;
+	LoadVideoExportSettings();
 	ui->videoPresetComboBox->setCurrentIndex(SIMPLE_EXPORT_STANDARD);
 	ui->avOffsetCorrectionCheckBox->setChecked(true);
 	ui->stableVideoCropCheckBox->setChecked(true);
@@ -79,6 +100,7 @@ ExtractDialog::ExtractDialog(QWidget *parent, MetaData &metadata,
 
 	ui->datetimeDisplay->setText(
 			QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
+	UpdateVideoAdvancedSummary();
 
 }
 
@@ -112,6 +134,31 @@ int ExtractDialog::GetVideoExportMode(void)
 	if(ui->muxVideoCheckbox->isChecked())
 		return ui->videoPresetComboBox->currentIndex();
 	return SIMPLE_EXPORT_STANDARD;
+}
+
+int ExtractDialog::GetVideoContainerMode(void)
+{
+	return videoContainerMode;
+}
+
+int ExtractDialog::GetVideoCodecMode(void)
+{
+	return videoCodecMode;
+}
+
+int ExtractDialog::GetVideoQualityPercent(void)
+{
+	return videoQualityPercent;
+}
+
+int ExtractDialog::GetVideoAudioBitrateKbps(void)
+{
+	return videoAudioBitrateKbps;
+}
+
+int ExtractDialog::GetVideoPresetMode(void)
+{
+	return videoPresetMode;
 }
 
 bool ExtractDialog::UseVideoAudioOffsetCorrection(void)
@@ -269,6 +316,7 @@ void ExtractDialog::on_okButton_clicked()
 
 	if(ui->muxVideoCheckbox->isChecked())
 	{
+		ApplyContainerExtensionToVideoFilename();
 		QFileInfo videoOut(ui->filenameVideoText->text());
 		if(!videoOut.absolutePath().isEmpty())
 			WriteLastExportDir("last-video-export", videoOut.absolutePath());
@@ -313,7 +361,8 @@ void ExtractDialog::on_fileBrowseButton_clicked()
 	{
 		QFileInfo fi(filename);
 		ui->filenameVideoText->setText(
-				fi.dir().path() + "/" + fi.completeBaseName() + ".mp4");
+				fi.dir().path() + "/" + fi.completeBaseName() +
+				VideoContainerExtension(videoContainerMode));
 	}
 }
 
@@ -351,6 +400,7 @@ void ExtractDialog::on_muxVideoCheckbox_clicked(bool checked)
 	ui->fileVideoBrowseButton->setEnabled(checked);
 	ui->videoPresetLabel->setEnabled(checked);
 	ui->videoPresetComboBox->setEnabled(checked);
+	ui->videoAdvancedButton->setEnabled(checked);
 	ui->videoPresetHelpLabel->setEnabled(checked);
 	ui->avOffsetCorrectionCheckBox->setEnabled(checked);
 	ui->avOffsetHelpLabel->setEnabled(checked);
@@ -368,11 +418,20 @@ void ExtractDialog::on_fileVideoBrowseButton_clicked()
 {
 	QString browseDir = ReadLastExportDir("last-video-export", defaultDir);
 	QString filename = SaveFile(this, tr("Save video as"), browseDir,
-			ui->filenameVideoText->text(), "*.mp4");
+			ui->filenameVideoText->text(), "*.mp4 *.mov *.mkv");
 
 	if(filename.isEmpty()) return;
 
 	ui->filenameVideoText->setText(filename);
+	QString suffix = QFileInfo(filename).suffix().toLower();
+	if(suffix == "mov")
+		videoContainerMode = VIDEO_CONTAINER_MOV;
+	else if(suffix == "mkv")
+		videoContainerMode = VIDEO_CONTAINER_MKV;
+	else
+		videoContainerMode = VIDEO_CONTAINER_MP4;
+	SaveVideoExportSettings();
+	UpdateVideoAdvancedSummary();
 	WriteLastExportDir("last-video-export", QFileInfo(filename).absolutePath());
 }
 
@@ -383,4 +442,162 @@ void ExtractDialog::on_previewOrientationPresetButton_clicked()
 	ui->flipHorizontalCheckBox->setChecked(true);
 	ui->flipVerticalCheckBox->setChecked(false);
 	ui->rotationComboBox->setCurrentIndex(0); // 0 degrees
+}
+
+void ExtractDialog::on_videoAdvancedButton_clicked()
+{
+	QDialog dialog(this);
+	dialog.setWindowTitle(tr("Video & Optical Audio instellingen"));
+
+	QVBoxLayout *layout = new QVBoxLayout(&dialog);
+	QLabel *title = new QLabel(tr("Stel container, output-formaat en compressie in.\n"
+								  "Hogere kwaliteit vermindert artefacten."), &dialog);
+	title->setWordWrap(true);
+	layout->addWidget(title);
+
+	QFormLayout *form = new QFormLayout();
+
+	QComboBox *containerCombo = new QComboBox(&dialog);
+	containerCombo->addItem("MP4");
+	containerCombo->addItem("MOV");
+	containerCombo->addItem("MKV");
+	containerCombo->setCurrentIndex(videoContainerMode);
+
+	QComboBox *codecCombo = new QComboBox(&dialog);
+	codecCombo->addItem("H.264 (aanbevolen)");
+	codecCombo->addItem("HEVC / H.265");
+	codecCombo->addItem("MPEG-4 (legacy)");
+	codecCombo->setCurrentIndex(videoCodecMode);
+
+	QComboBox *presetCombo = new QComboBox(&dialog);
+	presetCombo->addItem("Sneller encoderen");
+	presetCombo->addItem("Gebalanceerd");
+	presetCombo->addItem("Langzamer, beste compressie");
+	presetCombo->setCurrentIndex(videoPresetMode);
+
+	QSlider *qualitySlider = new QSlider(Qt::Horizontal, &dialog);
+	qualitySlider->setRange(1, 100);
+	qualitySlider->setValue(videoQualityPercent);
+	QLabel *qualityValueLabel = new QLabel(
+			QString("%1%").arg(videoQualityPercent), &dialog);
+	QHBoxLayout *qualityLayout = new QHBoxLayout();
+	qualityLayout->addWidget(qualitySlider, 1);
+	qualityLayout->addWidget(qualityValueLabel);
+
+	QSpinBox *audioBitrateSpin = new QSpinBox(&dialog);
+	audioBitrateSpin->setRange(96, 512);
+	audioBitrateSpin->setSingleStep(16);
+	audioBitrateSpin->setSuffix(" kbps");
+	audioBitrateSpin->setValue(videoAudioBitrateKbps);
+
+	QObject::connect(qualitySlider, &QSlider::valueChanged,
+			[qualityValueLabel](int value)
+	{
+		qualityValueLabel->setText(QString("%1%").arg(value));
+	});
+
+	form->addRow(tr("Container"), containerCombo);
+	form->addRow(tr("Output formaat"), codecCombo);
+	form->addRow(tr("Encoder preset"), presetCombo);
+	form->addRow(tr("Video kwaliteit"), qualityLayout);
+	form->addRow(tr("Audio bitrate"), audioBitrateSpin);
+	layout->addLayout(form);
+
+	QLabel *hint = new QLabel(tr("Tip: start met H.264 + MP4 + kwaliteit 85% voor minder artefacten."),
+			&dialog);
+	hint->setWordWrap(true);
+	layout->addWidget(hint);
+
+	QDialogButtonBox *buttons = new QDialogButtonBox(
+			QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+	layout->addWidget(buttons);
+	QObject::connect(buttons, &QDialogButtonBox::accepted,
+			&dialog, &QDialog::accept);
+	QObject::connect(buttons, &QDialogButtonBox::rejected,
+			&dialog, &QDialog::reject);
+
+	if(dialog.exec() != QDialog::Accepted)
+		return;
+
+	videoContainerMode = containerCombo->currentIndex();
+	videoCodecMode = codecCombo->currentIndex();
+	videoPresetMode = presetCombo->currentIndex();
+	videoQualityPercent = qualitySlider->value();
+	videoAudioBitrateKbps = audioBitrateSpin->value();
+
+	SaveVideoExportSettings();
+	ApplyContainerExtensionToVideoFilename();
+	UpdateVideoAdvancedSummary();
+}
+
+void ExtractDialog::LoadVideoExportSettings()
+{
+	QSettings settings;
+	settings.beginGroup("video-export");
+	videoContainerMode = ClampInt(
+				settings.value("container", VIDEO_CONTAINER_MP4).toInt(),
+				VIDEO_CONTAINER_MP4, VIDEO_CONTAINER_MKV);
+	videoCodecMode = ClampInt(
+				settings.value("codec", VIDEO_CODEC_H264).toInt(),
+				VIDEO_CODEC_H264, VIDEO_CODEC_MPEG4);
+	videoQualityPercent = ClampInt(
+				settings.value("quality-percent", 85).toInt(),
+				1, 100);
+	videoAudioBitrateKbps = ClampInt(
+				settings.value("audio-bitrate-kbps", 192).toInt(),
+				96, 512);
+	videoPresetMode = ClampInt(
+				settings.value("preset-mode", 1).toInt(),
+				0, 2);
+	settings.endGroup();
+}
+
+void ExtractDialog::SaveVideoExportSettings()
+{
+	QSettings settings;
+	settings.beginGroup("video-export");
+	settings.setValue("container", videoContainerMode);
+	settings.setValue("codec", videoCodecMode);
+	settings.setValue("quality-percent", videoQualityPercent);
+	settings.setValue("audio-bitrate-kbps", videoAudioBitrateKbps);
+	settings.setValue("preset-mode", videoPresetMode);
+	settings.endGroup();
+}
+
+QString ExtractDialog::VideoContainerExtension(int mode) const
+{
+	switch(mode)
+	{
+	case VIDEO_CONTAINER_MOV: return ".mov";
+	case VIDEO_CONTAINER_MKV: return ".mkv";
+	case VIDEO_CONTAINER_MP4:
+	default: return ".mp4";
+	}
+}
+
+void ExtractDialog::ApplyContainerExtensionToVideoFilename()
+{
+	QString current = ui->filenameVideoText->text();
+	if(current.isEmpty()) return;
+
+	QFileInfo info(current);
+	QString adjusted = info.path() + "/" + info.completeBaseName() +
+			VideoContainerExtension(videoContainerMode);
+	ui->filenameVideoText->setText(adjusted);
+}
+
+void ExtractDialog::UpdateVideoAdvancedSummary()
+{
+	static const char *containers[] = { "MP4", "MOV", "MKV" };
+	static const char *codecs[] = { "H.264", "HEVC", "MPEG-4" };
+	static const char *presets[] = { "Sneller", "Gebalanceerd", "Langzamer" };
+
+	QString summary = tr("Tip voor beginners: kies \"Standaard\".\n"
+						 "Uitgebreid: %1, %2, preset %3, kwaliteit %4%, audio %5 kbps.")
+			.arg(containers[ClampInt(videoContainerMode, 0, 2)])
+			.arg(codecs[ClampInt(videoCodecMode, 0, 2)])
+			.arg(presets[ClampInt(videoPresetMode, 0, 2)])
+			.arg(videoQualityPercent)
+			.arg(videoAudioBitrateKbps);
+	ui->videoPresetHelpLabel->setText(summary);
 }

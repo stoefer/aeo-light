@@ -317,6 +317,11 @@ private:
 	FrameTexture *outputFrameTexture;
 	bool isVideoMuxingRisky;
 	int videoExportMode;
+	int videoContainerMode;
+	int videoCodecMode;
+	int videoQualityPercent;
+	int videoAudioBitrateKbps;
+	int videoPresetMode;
 	bool videoAudioOffsetCorrectionEnabled;
 	bool videoUseStableFrameCrop;
 	float videoDriftSensitivityFactor;

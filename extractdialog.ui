@@ -271,6 +271,16 @@
       </item>
      </widget>
     </item>
+    <item row="12" column="2">
+     <widget class="QPushButton" name="videoAdvancedButton">
+      <property name="enabled">
+       <bool>false</bool>
+      </property>
+      <property name="text">
+       <string>Video/Audio venster...</string>
+      </property>
+     </widget>
+    </item>
     <item row="13" column="1">
      <widget class="QLabel" name="videoPresetHelpLabel">
       <property name="enabled">
@@ -475,6 +485,7 @@
   <tabstop>filenameVideoText</tabstop>
   <tabstop>fileVideoBrowseButton</tabstop>
   <tabstop>videoPresetComboBox</tabstop>
+  <tabstop>videoAdvancedButton</tabstop>
   <tabstop>avOffsetCorrectionCheckBox</tabstop>
   <tabstop>stableVideoCropCheckBox</tabstop>
   <tabstop>flipHorizontalCheckBox</tabstop>

@@ -37,6 +37,20 @@ enum SimpleExportMode
 	SIMPLE_EXPORT_QUALITY = 2
 };
 
+enum VideoContainerMode
+{
+	VIDEO_CONTAINER_MP4 = 0,
+	VIDEO_CONTAINER_MOV = 1,
+	VIDEO_CONTAINER_MKV = 2
+};
+
+enum VideoCodecMode
+{
+	VIDEO_CODEC_H264 = 0,
+	VIDEO_CODEC_HEVC = 1,
+	VIDEO_CODEC_MPEG4 = 2
+};
+
 class ExtractDialog : public QDialog
 {
 	Q_OBJECT
@@ -61,6 +75,11 @@ public:
 	QString GetFilename(void);
 	QString GetVideoFilename(void);
 	int GetVideoExportMode(void);
+	int GetVideoContainerMode(void);
+	int GetVideoCodecMode(void);
+	int GetVideoQualityPercent(void);
+	int GetVideoAudioBitrateKbps(void);
+	int GetVideoPresetMode(void);
 	bool UseVideoAudioOffsetCorrection(void);
 	bool UseStableVideoFrameCrop(void);
 	bool GetVideoFlipHorizontal(void);
@@ -96,6 +115,21 @@ private slots:
 	void on_muxVideoCheckbox_clicked(bool checked);
 	void on_fileVideoBrowseButton_clicked();
 	void on_previewOrientationPresetButton_clicked();
+	void on_videoAdvancedButton_clicked();
+
+private:
+	void LoadVideoExportSettings();
+	void SaveVideoExportSettings();
+	void ApplyContainerExtensionToVideoFilename();
+	QString VideoContainerExtension(int mode) const;
+	void UpdateVideoAdvancedSummary();
+
+private:
+	int videoContainerMode;
+	int videoCodecMode;
+	int videoQualityPercent;
+	int videoAudioBitrateKbps;
+	int videoPresetMode;
 };
 
 #endif // EXTRACTDIALOG_H

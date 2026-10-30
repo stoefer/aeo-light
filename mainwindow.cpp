@@ -347,7 +347,13 @@ static QRect ComputeAlignedVideoCropRect(const FrameTexture *frame,
 
 static void EncodeVideoWithExternalFfmpeg(const QString &frameDir,
 		const QString &audioWav, const QString &videoOut, double fps,
-		int exportMode, QProgressDialog *progress, bool *wasCanceled,
+		int exportMode,
+		int containerMode,
+		int codecMode,
+		int qualityPercent,
+		int audioBitrateKbps,
+		int presetMode,
+		QProgressDialog *progress, bool *wasCanceled,
 		bool allowCancel)
 {
 	if(wasCanceled) *wasCanceled = false;
@@ -356,20 +362,49 @@ static void EncodeVideoWithExternalFfmpeg(const QString &frameDir,
 	if(ffmpegBin.isEmpty())
 		throw std::runtime_error("ffmpeg executable not found for video export");
 
-	QString videoQualityArg = "4";
-	QString audioBitrateArg = "160k";
+	int effectiveQuality = std::max(1, std::min(100, qualityPercent));
+	int effectiveAudioBitrate = std::max(96, std::min(512, audioBitrateKbps));
 	switch(exportMode)
 	{
 	case SIMPLE_EXPORT_FAST:
-		videoQualityArg = "8";
-		audioBitrateArg = "128k";
+		effectiveQuality = std::min(effectiveQuality, 65);
+		effectiveAudioBitrate = std::min(effectiveAudioBitrate, 128);
 		break;
 	case SIMPLE_EXPORT_QUALITY:
-		videoQualityArg = "2";
-		audioBitrateArg = "192k";
+		effectiveQuality = std::max(effectiveQuality, 90);
+		effectiveAudioBitrate = std::max(effectiveAudioBitrate, 192);
 		break;
 	default:
 		break;
+	}
+
+	int crf = 34 - (effectiveQuality * 20 / 100); // 100% -> 14, 1% -> 34
+	crf = std::max(14, std::min(34, crf));
+	int mpeg4Q = 11 - (effectiveQuality / 10);    // 100% -> 1, ~50% -> 6
+	mpeg4Q = std::max(2, std::min(10, mpeg4Q));
+
+	QString containerArg = "mp4";
+	switch(containerMode)
+	{
+	case VIDEO_CONTAINER_MOV: containerArg = "mov"; break;
+	case VIDEO_CONTAINER_MKV: containerArg = "matroska"; break;
+	default: break;
+	}
+
+	QString codecArg = "libx264";
+	switch(codecMode)
+	{
+	case VIDEO_CODEC_HEVC: codecArg = "libx265"; break;
+	case VIDEO_CODEC_MPEG4: codecArg = "mpeg4"; break;
+	default: break;
+	}
+
+	QString presetArg = "medium";
+	switch(presetMode)
+	{
+	case 0: presetArg = "veryfast"; break;
+	case 2: presetArg = "slow"; break;
+	default: break;
 	}
 
 	QString fpsArg = QString::number(fps, 'f', 3);
@@ -379,12 +414,25 @@ static void EncodeVideoWithExternalFfmpeg(const QString &frameDir,
 	     << "-framerate" << fpsArg
 	     << "-i" << pattern
 	     << "-i" << audioWav
-	     << "-c:v" << "mpeg4"
-	     << "-q:v" << videoQualityArg
-	     << "-pix_fmt" << "yuv420p"
-	     << "-c:a" << "aac"
-	     << "-b:a" << audioBitrateArg
-	     << "-shortest"
+	     << "-f" << containerArg;
+
+	if(codecArg == "mpeg4")
+	{
+		args << "-c:v" << "mpeg4"
+			 << "-q:v" << QString::number(mpeg4Q)
+			 << "-pix_fmt" << "yuv420p";
+	}
+	else
+	{
+		args << "-c:v" << codecArg
+			 << "-preset" << presetArg
+			 << "-crf" << QString::number(crf)
+			 << "-pix_fmt" << "yuv420p";
+	}
+
+	args << "-c:a" << "aac"
+		 << "-b:a" << QString("%1k").arg(effectiveAudioBitrate)
+		 << "-shortest"
 	     << videoOut;
 
 	QProcess ffmpeg;
@@ -631,6 +679,11 @@ MainWindow::MainWindow(QWidget *parent) :
 
 	isVideoMuxingRisky = false;
 	videoExportMode = SIMPLE_EXPORT_STANDARD;
+	videoContainerMode = VIDEO_CONTAINER_MP4;
+	videoCodecMode = VIDEO_CODEC_H264;
+	videoQualityPercent = 85;
+	videoAudioBitrateKbps = 192;
+	videoPresetMode = 1;
 	videoAudioOffsetCorrectionEnabled = false;
 	videoUseStableFrameCrop = true;
 	videoDriftSensitivityFactor = 1.0f;
@@ -2403,6 +2456,11 @@ bool MainWindow::extractGL(QString filename=QString(), bool doTimer=false)
 
 		videoFilename = dialog.GetVideoFilename();
 		videoExportMode = dialog.GetVideoExportMode();
+		videoContainerMode = dialog.GetVideoContainerMode();
+		videoCodecMode = dialog.GetVideoCodecMode();
+		videoQualityPercent = dialog.GetVideoQualityPercent();
+		videoAudioBitrateKbps = dialog.GetVideoAudioBitrateKbps();
+		videoPresetMode = dialog.GetVideoPresetMode();
 		videoAudioOffsetCorrectionEnabled =
 				dialog.UseVideoAudioOffsetCorrection();
 		if(!videoFilename.isEmpty())
@@ -4386,6 +4444,11 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 					QString::fromLocal8Bit(videoFn),
 					exportVideoFps,
 					videoExportMode,
+					videoContainerMode,
+					videoCodecMode,
+					videoQualityPercent,
+					videoAudioBitrateKbps,
+					videoPresetMode,
 					&progress,
 					&ffmpegCanceled,
 					!stoppedEarlyByUser);
