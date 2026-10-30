@@ -1,8 +1,9 @@
-# AEO-Light 3.1.15 (fork release)
+# AEO-Light 3.1.16 (fork release)
 
-Deze 3.1.15 patchrelease verbetert de leesbaarheid in de Soundtrack Settings en in het License Agreement-venster.
+Deze 3.1.16 patchrelease vergroot het main window zodat alle Soundtrack-kaders en sliders visueel netjes passen.
 
-## Nieuw in 3.1.15
+## Nieuw in 3.1.16
+- Main window/layout vergroot zodat Soundtrack-secties niet meer afgekapt of overlappend staan.
 - Extra visuele omkadering in Soundtrack Settings:
   - apart kader voor **Soundtrack + Picture Strip**
   - apart kader voor **Frame Pitch + Search Size**
