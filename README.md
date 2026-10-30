@@ -1,8 +1,16 @@
-# AEO-Light 3.1.16 (fork release)
+# AEO-Light 3.1.17 (fork release)
 
-Deze 3.1.16 patchrelease vergroot het main window zodat alle Soundtrack-kaders en sliders visueel netjes passen.
+Deze 3.1.17 patchrelease voegt betere video-exportcontrole toe voor minder compressie-artefacten.
 
-## Nieuw in 3.1.16
+## Nieuw in 3.1.17
+- Nieuw **Video/Audio venster...** in het extract-scherm met aparte geavanceerde instellingen:
+  - container: **MP4 / MOV / MKV**
+  - output-formaat: **H.264 / HEVC / MPEG-4**
+  - video-kwaliteit, encoder-preset en audio-bitrate
+- Nieuwe **Simple export preset: Ultra kwaliteit** (minimum artefacten, groter bestand)
+- Bestaande patchverbeteringen uit 3.1.16 blijven inbegrepen
+
+## Eerder toegevoegd in 3.1.16
 - Main window/layout vergroot zodat Soundtrack-secties niet meer afgekapt of overlappend staan.
 - Extra visuele omkadering in Soundtrack Settings:
   - apart kader voor **Soundtrack + Picture Strip**
@@ -12,7 +20,7 @@ Deze 3.1.16 patchrelease vergroot het main window zodat alle Soundtrack-kaders e
 - Sterkere stabiliteit bij laden/verwerken van frame-reeksen  
 - Betere video-export workflow  
 - Progress-bar met geschatte resterende tijd  
-- “Simple export mode” met presets: **Snel / Standaard / Kwaliteit**  
+- “Simple export mode” met presets: **Snel / Standaard / Kwaliteit / Ultra kwaliteit**
 - Veiliger stoppen: bevestigingsdialoog bij annuleren  
 - Oriëntatie-opties (spiegelen/roteren) + preset **“Oriëntatie zoals preview”**  
 - Optionele audio in MP4 met 16mm-correctie (26 frames), uitschakelbaar  
