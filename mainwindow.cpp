@@ -55,6 +55,7 @@
 #include <QProgressDialog>
 #include <QStandardPaths>
 #include <QSignalBlocker>
+#include <QScreen>
 #include <QSpinBox>
 #include <QHBoxLayout>
 #include <QPushButton>
@@ -729,6 +730,53 @@ void MainWindow::closeEvent(QCloseEvent *event)
 		event->ignore();
 }
 
+void MainWindow::moveEvent(QMoveEvent *event)
+{
+	QMainWindow::moveEvent(event);
+	PositionPreviewWindowBesideMainWindow();
+}
+
+void MainWindow::resizeEvent(QResizeEvent *event)
+{
+	QMainWindow::resizeEvent(event);
+	PositionPreviewWindowBesideMainWindow();
+}
+
+void MainWindow::PositionPreviewWindowBesideMainWindow()
+{
+	if(!frame_window) return;
+	if(!frame_window->isVisible()) return;
+
+	const int gap = 12;
+	const QRect mainRect = this->frameGeometry();
+	QSize previewSize = frame_window->frameGeometry().size();
+	if(previewSize.width() <= 0 || previewSize.height() <= 0)
+		previewSize = frame_window->size();
+	if(previewSize.width() <= 0 || previewSize.height() <= 0)
+		return;
+
+	QScreen *screen = this->screen();
+	if(!screen) screen = QGuiApplication::primaryScreen();
+	if(!screen) return;
+	const QRect available = screen->availableGeometry();
+
+	int x = mainRect.right() + gap;
+	int y = mainRect.top();
+
+	// Prefer to the right of the main UI; fall back to the left if needed.
+	if(x + previewSize.width() > available.right())
+		x = mainRect.left() - gap - previewSize.width();
+	if(x < available.left())
+		x = available.left();
+
+	if(y + previewSize.height() > available.bottom())
+		y = available.bottom() - previewSize.height();
+	if(y < available.top())
+		y = available.top();
+
+	frame_window->move(x, y);
+}
+
 void MainWindow::SaveDefaultsSoundtrack()
 {
 	QSettings settings;
@@ -1394,6 +1442,7 @@ bool MainWindow::NewSource(QString filename, SourceFormat ft)
 
 			traceCurrentOperation = "Showing frame window";
 			frame_window->show();
+			PositionPreviewWindowBesideMainWindow();
 			qApp->processEvents();
 
 			traceCurrentOperation = "Updating GUI controls for new source";

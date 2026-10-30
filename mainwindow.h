@@ -25,6 +25,8 @@
 #define MAINWINDOW_H
 #include <QMainWindow>
 #include <QCloseEvent>
+#include <QMoveEvent>
+#include <QResizeEvent>
 #include <QSoundEffect>
 #include <QDate>
 #include <QProgressDialog>
@@ -142,6 +144,8 @@ public:
 	explicit MainWindow(QWidget *parent = 0);
 	~MainWindow();
 	void closeEvent(QCloseEvent *event) Q_DECL_OVERRIDE;
+	void moveEvent(QMoveEvent *event) Q_DECL_OVERRIDE;
+	void resizeEvent(QResizeEvent *event) Q_DECL_OVERRIDE;
 	void Render_Frame();
 	Project scan;
 	std::vector< ExtractedSound > samplesPlayed;
@@ -328,6 +332,7 @@ private:
 	void UpdateVideoCropLabels();
 	void UpdateVideoStabilizationControls();
 	void ApplyThemeFromSettings();
+	void PositionPreviewWindowBesideMainWindow();
 
 public:
 	void SetStartingProject(QString fn) { startingProjectFilename = fn; };
