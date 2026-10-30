@@ -411,7 +411,7 @@
                    </sizepolicy>
                   </property>
                   <property name="text">
-                   <string>0.10</string>
+                   <string>0.100</string>
                   </property>
                   <property name="textFormat">
                    <enum>Qt::PlainText</enum>
@@ -430,7 +430,7 @@
                    </sizepolicy>
                   </property>
                   <property name="text">
-                   <string>0.10</string>
+                   <string>0.100</string>
                   </property>
                   <property name="textFormat">
                    <enum>Qt::PlainText</enum>
@@ -640,7 +640,7 @@
               <item row="2" column="1" colspan="4">
                <widget class="QLabel" name="overlapHelpLabel">
                 <property name="text">
-                 <string>Tip: Frame Pitch Start/End en Search Size zijn voor audio-overlap (paarse lijn + zoekrange).</string>
+                 <string>Tip: Frame Pitch Start/End en Search Size zijn voor audio-overlap (paarse lijn + zoekrange). Voor exacte uitlijning: klik op een slider en gebruik de pijltjestoetsen.</string>
                 </property>
                 <property name="wordWrap">
                  <bool>true</bool>

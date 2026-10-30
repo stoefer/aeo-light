@@ -194,7 +194,13 @@ static QString BuildDarkThemeStyleSheet()
 			"QToolTip { color: #ffffff; background-color: #444444; border: 1px solid #777777; }"
 			"QProgressBar { border: 1px solid #555555; text-align: center; "
 				"background-color: #1f1f1f; color: #e8e8e8; }"
-			"QProgressBar::chunk { background-color: #4f8cc9; }");
+			"QProgressBar::chunk { background-color: #4f8cc9; }"
+			"QGroupBox::title { font-weight: 700; }");
+}
+
+static QString BuildLightThemeStyleSheet()
+{
+	return QString("QGroupBox::title { font-weight: 700; }");
 }
 
 static bool ConfirmExtractionCancel(QProgressDialog &progress,
@@ -808,6 +814,7 @@ void MainWindow::PositionPreviewWindowBesideMainWindow()
 
 	const int gap = 12;
 	const QRect mainRect = this->frameGeometry();
+	const QMargins previewMargins = frame_window->frameMargins();
 	QSize previewSize = frame_window->frameGeometry().size();
 	if(previewSize.width() <= 0 || previewSize.height() <= 0)
 		previewSize = frame_window->size();
@@ -819,21 +826,25 @@ void MainWindow::PositionPreviewWindowBesideMainWindow()
 	if(!screen) return;
 	const QRect available = screen->availableGeometry();
 
-	int x = mainRect.right() + gap;
-	int y = mainRect.top();
+	int frameX = mainRect.right() + gap;
+	int frameY = mainRect.top();
 
 	// Prefer to the right of the main UI; fall back to the left if needed.
-	if(x + previewSize.width() > available.right())
-		x = mainRect.left() - gap - previewSize.width();
-	if(x < available.left())
-		x = available.left();
+	if(frameX + previewSize.width() > available.right())
+		frameX = mainRect.left() - gap - previewSize.width();
+	if(frameX < available.left())
+		frameX = available.left();
 
-	if(y + previewSize.height() > available.bottom())
-		y = available.bottom() - previewSize.height();
-	if(y < available.top())
-		y = available.top();
+	if(frameY + previewSize.height() > available.bottom())
+		frameY = available.bottom() - previewSize.height();
+	if(frameY < available.top())
+		frameY = available.top();
 
-	frame_window->setPosition(x, y);
+	// setPosition() is content-based for QWindow: compensate frame margins
+	// so outer window frames end up aligned at equal height.
+	const int contentX = frameX + previewMargins.left();
+	const int contentY = frameY + previewMargins.top();
+	frame_window->setPosition(contentX, contentY);
 }
 
 void MainWindow::SaveDefaultsSoundtrack()
@@ -927,10 +938,10 @@ void MainWindow::LoadDefaults()
 
 	intv = int(settings.value("framepitch/start", 0.1).toDouble() * h + 0.5);
 	ui->framepitchstartSlider->setValue(intv);
-	ui->framepitchstartLabel->setText(QString::number(intv/1000.f,'f',2));
+	ui->framepitchstartLabel->setText(QString::number(intv/1000.f,'f',3));
 	intv = int(settings.value("framepitch/end", 0.1).toDouble() * h + 0.5);
 	ui->FramePitchendSlider->setValue(intv);
-	ui->framePitchLabel->setText(QString::number(intv/1000.f,'f',2));
+	ui->framePitchLabel->setText(QString::number(intv/1000.f,'f',3));
 
 	intv = int(settings.value("videoframe/top", 0.1).toDouble() * 1000 + 0.5);
 	ui->videoFrameTopSlider->setValue(intv);
@@ -1155,10 +1166,10 @@ void MainWindow::ExtractionParametersToGUI(const ExtractedSound &params)
 
 	ui->FramePitchendSlider->setValue(params.framePitch[1]);
 	ui->framePitchLabel->setText(
-				QString::number(params.framePitch[1]/1e3,'f',2));
+				QString::number(params.framePitch[1]/1e3,'f',3));
 	ui->framepitchstartSlider->setValue(params.framePitch[0]);
 	ui->framepitchstartLabel->setText(
-				QString::number(params.framePitch[0]/1e3,'f',2));
+				QString::number(params.framePitch[0]/1e3,'f',3));
 	ui->videoFrameTopSlider->setValue(params.videoFrameCrop[0]);
 	ui->videoFrameBottomSlider->setValue(params.videoFrameCrop[1]);
 	NormalizeVideoCropControls(true);
@@ -1232,10 +1243,10 @@ void MainWindow::GUI_Params_Update()
 		ui->FramePitchendSlider->setValue(
 				frame_window->overlap[2] * 1000.0f);
 		ui->framePitchLabel->setText(
-				QString::number(frame_window->overlap[2],'f',2));
+				QString::number(frame_window->overlap[2],'f',3));
 		ui->framepitchstartSlider->setValue(frame_window->overlap[3]*1000.0f);
 		ui->framepitchstartLabel->setText(
-				QString::number(frame_window->overlap[3],'f',2));
+				QString::number(frame_window->overlap[3],'f',3));
 		ui->maxFrequencyLabel->setText(
 				QString("%1").arg(float(this->MaxFrequency())/1000.0));
 	}
@@ -1785,7 +1796,7 @@ bool MainWindow::LoadProjectSettings(QString fn)
 		{
 			ui->framepitchstartSlider->setValue(value.toInt());
 			ui->framepitchstartLabel->setText(
-					QString::number(value.toInt()/1000.f,'f',2));
+					QString::number(value.toInt()/1000.f,'f',3));
 		}
 		if (key.contains("Frame Pitch End"))
 			ui->FramePitchendSlider->setValue(value.toInt());
@@ -2057,9 +2068,9 @@ void MainWindow::on_framepitchstartSlider_valueChanged(int value)
 {
 	NormalizePitchControls(true);
 	ui->framepitchstartLabel->setText(
-			QString::number(ui->framepitchstartSlider->value()/1000.f,'f',2));
+			QString::number(ui->framepitchstartSlider->value()/1000.f,'f',3));
 	ui->framePitchLabel->setText(
-			QString::number(ui->FramePitchendSlider->value()/1000.f,'f',2));
+			QString::number(ui->FramePitchendSlider->value()/1000.f,'f',3));
 	GPU_Params_Update(1);
 }
 
@@ -2103,7 +2114,9 @@ void MainWindow::NormalizePitchControls(bool startChanged)
 	const int minTick = ui->framepitchstartSlider->minimum();
 	const int maxTick = ui->framepitchstartSlider->maximum();
 	const int minPitchWindowTicks = 20; // keep at least 2% pitch window
-	const int maxCombinedTicks = maxTick - minPitchWindowTicks;
+	// Pitch sliders are stored in thousandths of frame height.
+	// Clamp against full-frame span (1.0 = 1000), not slider max (0.35).
+	const int maxCombinedTicks = 1000 - minPitchWindowTicks;
 
 	int start = ui->framepitchstartSlider->value();
 	int end = ui->FramePitchendSlider->value();
@@ -2113,10 +2126,11 @@ void MainWindow::NormalizePitchControls(bool startChanged)
 
 	if(start + end > maxCombinedTicks)
 	{
+		// Keep the opposite control stable while fine-tuning.
 		if(startChanged)
-			end = maxCombinedTicks - start;
-		else
 			start = maxCombinedTicks - end;
+		else
+			end = maxCombinedTicks - start;
 	}
 
 	start = std::max(minTick, std::min(maxTick, start));
@@ -2206,7 +2220,7 @@ void MainWindow::ApplyThemeFromSettings()
 	if(theme == "dark")
 		qApp->setStyleSheet(BuildDarkThemeStyleSheet());
 	else
-		qApp->setStyleSheet(QString());
+		qApp->setStyleSheet(BuildLightThemeStyleSheet());
 }
 
 void MainWindow::on_frame_numberSpinBox_valueChanged(int arg1)
@@ -4605,9 +4619,9 @@ void MainWindow::on_FramePitchendSlider_valueChanged(int value)
 {
 	NormalizePitchControls(false);
 	ui->framepitchstartLabel->setText(
-			QString::number(ui->framepitchstartSlider->value()/1000.f,'f',2));
+			QString::number(ui->framepitchstartSlider->value()/1000.f,'f',3));
 	ui->framePitchLabel->setText(
-			QString::number(ui->FramePitchendSlider->value()/1000.f,'f',2));
+			QString::number(ui->FramePitchendSlider->value()/1000.f,'f',3));
 	GPU_Params_Update(1);
 }
 
