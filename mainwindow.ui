@@ -113,7 +113,7 @@
          <height>259</height>
         </rect>
        </property>
-       <layout class="QGridLayout" name="soundtrackSettingGrid" rowstretch="0,0,0,0,0,0,0" columnstretch="0,0,0,0,0">
+       <layout class="QGridLayout" name="soundtrackSettingGrid" rowstretch="0,0,0,0,0,0,0,0,0" columnstretch="0,0,0,0,0">
         <property name="sizeConstraint">
          <enum>QLayout::SetDefaultConstraint</enum>
         </property>
@@ -534,17 +534,63 @@
           </widget>
          </widget>
         </item>
-        <item row="6" column="1" colspan="4">
+        <item row="6" column="1">
+         <widget class="QLabel" name="videoStableCropTextLabel">
+          <property name="text">
+           <string>Video stabilisatie</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="6" column="2">
+         <widget class="QCheckBox" name="videoStableCropCheckBox">
+          <property name="text">
+           <string>Stabiele crop</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item row="6" column="3">
+         <widget class="QSlider" name="videoDriftSensitivitySlider">
+          <property name="minimum">
+           <number>10</number>
+          </property>
+          <property name="maximum">
+           <number>300</number>
+          </property>
+          <property name="value">
+           <number>100</number>
+          </property>
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+         </widget>
+        </item>
+        <item row="6" column="4">
+         <widget class="QLabel" name="videoDriftSensitivityLabel">
+          <property name="text">
+           <string>1.00x</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="7" column="1" colspan="4">
          <widget class="QLabel" name="overlapHelpLabel">
           <property name="text">
-           <string>Tip: Frame Pitch Start/End en Search Size zijn voor audio-overlap (paarse lijn + zoekrange). Video Frame Top/Bottom stuurt aparte videohulplijnen (cyaan/oranje) en de verticale video-crop bij export.</string>
+           <string>Tip: Frame Pitch Start/End en Search Size zijn voor audio-overlap (paarse lijn + zoekrange). Video Frame Top/Bottom stuurt aparte videohulplijnen (cyaan/oranje) en de verticale video-crop bij export. Zet &quot;Stabiele crop&quot; uit om Search Size ook op videodrift toe te passen; gebruik Gevoeligheid voor fine-tuning.</string>
           </property>
           <property name="wordWrap">
            <bool>true</bool>
           </property>
          </widget>
         </item>
-        <item row="7" column="1">
+        <item row="8" column="1">
          <spacer name="verticalSpacer_2">
           <property name="orientation">
            <enum>Qt::Vertical</enum>
@@ -1557,6 +1603,13 @@
          </spacer>
         </item>
         <item>
+         <widget class="QPushButton" name="testRunExportButton">
+          <property name="text">
+           <string>Test Run</string>
+          </property>
+         </widget>
+        </item>
+        <item>
          <widget class="QPushButton" name="extractGLButton">
           <property name="text">
            <string>Extract</string>
@@ -2402,6 +2455,8 @@
   <tabstop>FramePitchendSlider</tabstop>
   <tabstop>videoFrameTopSlider</tabstop>
   <tabstop>videoFrameBottomSlider</tabstop>
+  <tabstop>videoStableCropCheckBox</tabstop>
+  <tabstop>videoDriftSensitivitySlider</tabstop>
   <tabstop>overlapSlider</tabstop>
   <tabstop>HeightCalculateBtn</tabstop>
   <tabstop>soundtrackDefaultsButton</tabstop>
@@ -2429,6 +2484,7 @@
   <tabstop>xmlSidecarComboBox</tabstop>
   <tabstop>extractDefaultsButton</tabstop>
   <tabstop>enqueueButton</tabstop>
+  <tabstop>testRunExportButton</tabstop>
   <tabstop>extractGLButton</tabstop>
   <tabstop>queueExtractButton</tabstop>
   <tabstop>waveformZoomCheckBox</tabstop>

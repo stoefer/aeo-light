@@ -66,6 +66,7 @@ public:
 	bool GetVideoFlipHorizontal(void);
 	bool GetVideoFlipVertical(void);
 	int GetVideoRotationDegrees(void);
+	void SetStableVideoFrameCrop(bool enabled);
 	QString GetOriginator(void);
 	QString GetOriginatorReference(void);
 	QString GetDescription(void);

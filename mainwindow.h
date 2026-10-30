@@ -67,6 +67,8 @@ public:
 	uint16_t pixBounds[2]; // left, right pixel columns
 	uint16_t framePitch[2]; // top, bottom pixel rows
 	uint16_t videoFrameCrop[2]; // top, bottom crop fractions for video export
+	bool videoStableCrop; // use fixed crop instead of overlap-driven drift
+	uint16_t videoDriftSensitivity; // percentage, 100 = neutral
 	uint16_t gamma; // [0,500]
 	uint16_t gain; // [0,500]
 	uint16_t sCurve; // [0,600]
@@ -202,8 +204,11 @@ private slots:
 	void on_desatBox_clicked();
 	void on_overlapSlider_valueChanged(int value);
 	void on_framepitchstartSlider_valueChanged(int value);
+	void on_videoStableCropCheckBox_clicked(bool checked);
+	void on_videoDriftSensitivitySlider_valueChanged(int value);
 	void on_videoFrameTopSlider_valueChanged(int value);
 	void on_videoFrameBottomSlider_valueChanged(int value);
+	void on_testRunExportButton_clicked();
 	void on_frame_numberSpinBox_valueChanged(int arg1);
 
 	void on_extractGLButton_clicked();
@@ -310,6 +315,7 @@ private:
 	int videoExportMode;
 	bool videoAudioOffsetCorrectionEnabled;
 	bool videoUseStableFrameCrop;
+	float videoDriftSensitivityFactor;
 	bool videoFlipHorizontal;
 	bool videoFlipVertical;
 	int videoRotationDegrees;
@@ -320,6 +326,7 @@ private:
 	void NormalizePitchControls(bool startChanged);
 	void NormalizeVideoCropControls(bool topChanged);
 	void UpdateVideoCropLabels();
+	void UpdateVideoStabilizationControls();
 
 public:
 	void SetStartingProject(QString fn) { startingProjectFilename = fn; };

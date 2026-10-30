@@ -40,9 +40,11 @@
 #include <QMessageBox>
 #include <QDesktopServices>
 #include <QInputDialog>
+#include <QFormLayout>
 #include <QSoundEffect>
 #include <QImage>
 #include <QFile>
+#include <QLabel>
 #include <QMouseEvent>
 #include <QDateTime>
 #include <QTemporaryFile>
@@ -53,6 +55,8 @@
 #include <QProgressDialog>
 #include <QStandardPaths>
 #include <QSignalBlocker>
+#include <QSpinBox>
+#include <QVBoxLayout>
 
 #include <cstdio>
 #include <exception>
@@ -133,6 +137,34 @@ static QString FormatEtaSeconds(double seconds)
 	return QString("%1:%2")
 			.arg(mins, 2, 10, QChar('0'))
 			.arg(secs, 2, 10, QChar('0'));
+}
+
+static QString BuildNumberedPath(const QString &requestedPath, int suffix)
+{
+	QFileInfo info(requestedPath);
+	QString path = info.path();
+	QString base = info.completeBaseName();
+	QString ext = info.completeSuffix();
+	QString numbered = QString("%1-%2").arg(base).arg(suffix);
+
+	if(ext.isEmpty())
+		return QDir(path).filePath(numbered);
+	return QDir(path).filePath(numbered + "." + ext);
+}
+
+static QString EnsureNonOverwritingPath(const QString &requestedPath)
+{
+	if(requestedPath.isEmpty()) return requestedPath;
+	if(!QFileInfo::exists(requestedPath)) return requestedPath;
+
+	int suffix = 1;
+	QString candidate = BuildNumberedPath(requestedPath, suffix);
+	while(QFileInfo::exists(candidate))
+	{
+		suffix++;
+		candidate = BuildNumberedPath(requestedPath, suffix);
+	}
+	return candidate;
 }
 
 static bool ConfirmExtractionCancel(QProgressDialog &progress,
@@ -379,6 +411,8 @@ static const char *traceSubroutineOperation = NULL;
 ExtractedSound::ExtractedSound() :
 	frameIn(0),
 	frameOut(0),
+	videoStableCrop(true),
+	videoDriftSensitivity(100),
 	gamma(100),
 	gain (100),
 	sCurve(0),
@@ -423,6 +457,8 @@ bool ExtractedSound::operator ==(const ExtractedSound &ref) const
 	if(framePitch[1] != ref.framePitch[1]) return false;
 	if(videoFrameCrop[0] != ref.videoFrameCrop[0]) return false;
 	if(videoFrameCrop[1] != ref.videoFrameCrop[1]) return false;
+	if(videoStableCrop != ref.videoStableCrop) return false;
+	if(videoDriftSensitivity != ref.videoDriftSensitivity) return false;
 	if(overlap != ref.overlap) return false;
 
 	if(useBounds != ref.useBounds) return false;
@@ -566,6 +602,7 @@ MainWindow::MainWindow(QWidget *parent) :
 	videoExportMode = SIMPLE_EXPORT_STANDARD;
 	videoAudioOffsetCorrectionEnabled = false;
 	videoUseStableFrameCrop = true;
+	videoDriftSensitivityFactor = 1.0f;
 	videoFlipHorizontal = false;
 	videoFlipVertical = false;
 	videoRotationDegrees = 0;
@@ -611,6 +648,8 @@ MainWindow::MainWindow(QWidget *parent) :
 
     connect(ui->queueImportVFBClipsButton, &QPushButton::clicked,
             this, &MainWindow::QueueImportVFB);
+
+	UpdateVideoStabilizationControls();
 }
 
 MainWindow::~MainWindow()
@@ -680,6 +719,8 @@ void MainWindow::SaveDefaultsSoundtrack()
 	settings.setValue("framepitch/end", ui->FramePitchendSlider->value()/h);
 	settings.setValue("videoframe/top", ui->videoFrameTopSlider->value()/1000.0);
 	settings.setValue("videoframe/bottom", ui->videoFrameBottomSlider->value()/1000.0);
+	settings.setValue("video/stable-crop", ui->videoStableCropCheckBox->isChecked());
+	settings.setValue("video/drift-sensitivity", ui->videoDriftSensitivitySlider->value());
 	settings.setValue("overlap/radius", ui->overlapSlider->value());
 	settings.setValue("overlap/lock", ui->HeightCalculateBtn->isChecked());
 	settings.setValue("isstereo", ui->monostereo_PD->currentIndex());
@@ -760,6 +801,11 @@ void MainWindow::LoadDefaults()
 	ui->videoFrameBottomSlider->setValue(intv);
 	NormalizeVideoCropControls(true);
 	UpdateVideoCropLabels();
+	ui->videoStableCropCheckBox->setChecked(
+			settings.value("video/stable-crop", true).toBool());
+	intv = settings.value("video/drift-sensitivity", 100).toInt();
+	ui->videoDriftSensitivitySlider->setValue(intv);
+	UpdateVideoStabilizationControls();
 
 	intv = settings.value("overlap/radius",5).toInt();
 	ui->overlapSlider->setValue(intv);
@@ -909,6 +955,8 @@ ExtractedSound MainWindow::ExtractionParamsFromGUI()
 	params.framePitch[1] = ui->FramePitchendSlider->value();
 	params.videoFrameCrop[0] = ui->videoFrameTopSlider->value();
 	params.videoFrameCrop[1] = ui->videoFrameBottomSlider->value();
+	params.videoStableCrop = ui->videoStableCropCheckBox->isChecked();
+	params.videoDriftSensitivity = ui->videoDriftSensitivitySlider->value();
 
 	params.frameIn = ui->frameInSpinBox->value();
 	params.frameOut = ui->frameOutSpinBox->value();
@@ -973,6 +1021,9 @@ void MainWindow::ExtractionParametersToGUI(const ExtractedSound &params)
 	ui->videoFrameBottomSlider->setValue(params.videoFrameCrop[1]);
 	NormalizeVideoCropControls(true);
 	UpdateVideoCropLabels();
+	ui->videoStableCropCheckBox->setChecked(params.videoStableCrop);
+	ui->videoDriftSensitivitySlider->setValue(params.videoDriftSensitivity);
+	UpdateVideoStabilizationControls();
 
 	ui->maxFrequencyLabel->setText(
 				QString("%1").arg(float(this->MaxFrequency())/1000.0));
@@ -1435,6 +1486,8 @@ bool MainWindow::saveproject(QTextStream &out)
 	out<<"Frame Pitch End = "<<ui->FramePitchendSlider->value()<<"\n";
 	out<<"Video Frame Top = "<<ui->videoFrameTopSlider->value()<<"\n";
 	out<<"Video Frame Bottom = "<<ui->videoFrameBottomSlider->value()<<"\n";
+	out<<"Video Stable Crop = "<<ui->videoStableCropCheckBox->isChecked()<<"\n";
+	out<<"Video Drift Sensitivity = "<<ui->videoDriftSensitivitySlider->value()<<"\n";
 	out<<"Overlap Search Size = "<<ui->overlapSlider->value()<<"\n";
 	out<<"Frame Translation = "<< TRANSSLIDER_VALUE <<"\n";
 
@@ -1597,6 +1650,10 @@ bool MainWindow::LoadProjectSettings(QString fn)
 			ui->videoFrameTopSlider->setValue(value.toInt());
 		if (key.contains("Video Frame Bottom"))
 			ui->videoFrameBottomSlider->setValue(value.toInt());
+		if (key.contains("Video Stable Crop"))
+			ui->videoStableCropCheckBox->setChecked(value.toInt());
+		if (key.contains("Video Drift Sensitivity"))
+			ui->videoDriftSensitivitySlider->setValue(value.toInt());
 		if (key.contains("Overlap Search Size"))
 			ui->overlapSlider->setValue(value.toInt());
 		if (key.contains("Lift"))
@@ -1685,6 +1742,7 @@ bool MainWindow::LoadProjectSettings(QString fn)
 	on_OverlapPixCheckBox_clicked(ui->OverlapPixCheckBox->isChecked());
 	NormalizeVideoCropControls(true);
 	UpdateVideoCropLabels();
+	UpdateVideoStabilizationControls();
 
 	return true;
 }
@@ -1876,6 +1934,18 @@ void MainWindow::on_videoFrameBottomSlider_valueChanged(int value)
 	GPU_Params_Update(1);
 }
 
+void MainWindow::on_videoStableCropCheckBox_clicked(bool checked)
+{
+	videoUseStableFrameCrop = checked;
+	UpdateVideoStabilizationControls();
+}
+
+void MainWindow::on_videoDriftSensitivitySlider_valueChanged(int value)
+{
+	videoDriftSensitivityFactor = std::max(0.1f, value / 100.0f);
+	UpdateVideoStabilizationControls();
+}
+
 void MainWindow::on_overlapSlider_valueChanged(int value)
 {
 	ui->overlap_label->setText(QString::number(value/100.f,'f',2));
@@ -1966,6 +2036,23 @@ void MainWindow::UpdateVideoCropLabels()
 			QString::number(ui->videoFrameBottomSlider->value()/1000.f,'f',2));
 }
 
+void MainWindow::UpdateVideoStabilizationControls()
+{
+	int sliderValue = ui->videoDriftSensitivitySlider->value();
+	sliderValue = std::max(ui->videoDriftSensitivitySlider->minimum(),
+			std::min(ui->videoDriftSensitivitySlider->maximum(), sliderValue));
+
+	videoDriftSensitivityFactor = std::max(0.1f, sliderValue / 100.0f);
+	videoUseStableFrameCrop = ui->videoStableCropCheckBox->isChecked();
+
+	ui->videoDriftSensitivityLabel->setText(
+			QString("%1x").arg(videoDriftSensitivityFactor, 0, 'f', 2));
+
+	const bool adaptiveMode = !videoUseStableFrameCrop;
+	ui->videoDriftSensitivitySlider->setEnabled(adaptiveMode);
+	ui->videoDriftSensitivityLabel->setEnabled(adaptiveMode);
+}
+
 void MainWindow::on_frame_numberSpinBox_valueChanged(int arg1)
 {
 	// load the previous frame so that overlap can be computed
@@ -2021,6 +2108,66 @@ void MainWindow::on_extractGLButton_clicked()
 		extractGL(true);
 }
 
+void MainWindow::on_testRunExportButton_clicked()
+{
+	if(!this->scan.inFile.IsReady()) return;
+
+	const int minFrame = this->scan.inFile.FirstFrame();
+	const int maxFrame = this->scan.inFile.LastFrame();
+	if(maxFrame < minFrame) return;
+
+	QDialog dialog(this);
+	dialog.setWindowTitle("Test Run - framebereik");
+
+	QVBoxLayout layout(&dialog);
+	QLabel help(
+			"Kies een deelbereik om de instellingen te testen.\n"
+			"Een bestaand exportbestand wordt niet overschreven "
+			"(oplopend nummer wordt toegevoegd).");
+	help.setWordWrap(true);
+	layout.addWidget(&help);
+
+	QFormLayout form;
+	QSpinBox firstSpin;
+	QSpinBox lastSpin;
+	firstSpin.setRange(minFrame, maxFrame);
+	lastSpin.setRange(minFrame, maxFrame);
+	firstSpin.setValue(
+			std::max(minFrame, std::min(maxFrame, ui->frameInSpinBox->value())));
+	lastSpin.setValue(
+			std::max(minFrame, std::min(maxFrame, ui->frameOutSpinBox->value())));
+
+	if(lastSpin.value() < firstSpin.value())
+		lastSpin.setValue(firstSpin.value());
+
+	form.addRow("Eerste frame", &firstSpin);
+	form.addRow("Laatste frame", &lastSpin);
+	layout.addLayout(&form);
+
+	QDialogButtonBox buttons(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+	layout.addWidget(&buttons);
+	connect(&buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+	connect(&buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+	if(dialog.exec() != QDialog::Accepted)
+		return;
+
+	int first = firstSpin.value();
+	int last = lastSpin.value();
+	if(last < first)
+		std::swap(first, last);
+
+	const int prevFrameIn = ui->frameInSpinBox->value();
+	const int prevFrameOut = ui->frameOutSpinBox->value();
+
+	ui->frameInSpinBox->setValue(first);
+	ui->frameOutSpinBox->setValue(last);
+	const bool doTimer = true;
+	extractGL(doTimer);
+	ui->frameInSpinBox->setValue(prevFrameIn);
+	ui->frameOutSpinBox->setValue(prevFrameOut);
+}
+
 bool MainWindow::extractGL(QString filename=QString(), bool doTimer=false)
 {
 	bool batch = true;
@@ -2028,7 +2175,9 @@ bool MainWindow::extractGL(QString filename=QString(), bool doTimer=false)
 	QString videoFilename;
 	videoExportMode = SIMPLE_EXPORT_STANDARD;
 	videoAudioOffsetCorrectionEnabled = false;
-	videoUseStableFrameCrop = true;
+	videoUseStableFrameCrop = ui->videoStableCropCheckBox->isChecked();
+	videoDriftSensitivityFactor = std::max(
+			0.1f, ui->videoDriftSensitivitySlider->value() / 100.0f);
 	videoFlipHorizontal = false;
 	videoFlipVertical = false;
 	videoRotationDegrees = 0;
@@ -2073,6 +2222,7 @@ bool MainWindow::extractGL(QString filename=QString(), bool doTimer=false)
 
 		ExtractDialog dialog(this, meta, expDir);
 		dialog.setWindowTitle("Extract to Audio File");
+		dialog.SetStableVideoFrameCrop(ui->videoStableCropCheckBox->isChecked());
 		if(this->isVideoMuxingRisky) dialog.MarkVideoAsRisky();
 
 		if(dialog.exec() == ExtractDialog::Rejected)
@@ -2107,7 +2257,12 @@ bool MainWindow::extractGL(QString filename=QString(), bool doTimer=false)
 		videoExportMode = dialog.GetVideoExportMode();
 		videoAudioOffsetCorrectionEnabled =
 				dialog.UseVideoAudioOffsetCorrection();
-		videoUseStableFrameCrop = dialog.UseStableVideoFrameCrop();
+		if(!videoFilename.isEmpty())
+		{
+			videoUseStableFrameCrop = dialog.UseStableVideoFrameCrop();
+			ui->videoStableCropCheckBox->setChecked(videoUseStableFrameCrop);
+			UpdateVideoStabilizationControls();
+		}
 		videoFlipHorizontal = dialog.GetVideoFlipHorizontal();
 		videoFlipVertical = dialog.GetVideoFlipVertical();
 		videoRotationDegrees = dialog.GetVideoRotationDegrees();
@@ -2115,6 +2270,10 @@ bool MainWindow::extractGL(QString filename=QString(), bool doTimer=false)
 		this->currentMeta = &meta;
 		batch = false;
 	}
+
+	filename = EnsureNonOverwritingPath(filename);
+	if(!videoFilename.isEmpty())
+		videoFilename = EnsureNonOverwritingPath(videoFilename);
 
 	QElapsedTimer timer;
 	if(doTimer) timer.start();
@@ -3942,6 +4101,8 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 						float overlapDriftNorm = 0.0f;
 						if(!videoUseStableFrameCrop)
 						{
+							const float sensitivity =
+									std::max(0.1f, videoDriftSensitivityFactor);
 							const float overlapCenterNorm =
 									frame_window->overlap[0] - frame_window->overlap[3];
 							if(!overlapCenterBaseSet)
@@ -3949,9 +4110,12 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 								overlapCenterBase = overlapCenterNorm;
 								overlapCenterBaseSet = true;
 							}
-							overlapDriftNorm = overlapCenterNorm - overlapCenterBase;
-							const float driftClamp =
-									std::max(0.005f, frame_window->overlap[1]);
+							overlapDriftNorm =
+									(overlapCenterNorm - overlapCenterBase) * sensitivity;
+							const float driftClamp = std::min(
+										0.45f,
+										std::max(0.005f,
+												frame_window->overlap[1] * sensitivity));
 							overlapDriftNorm = std::max(
 										-driftClamp,
 										std::min(driftClamp, overlapDriftNorm));

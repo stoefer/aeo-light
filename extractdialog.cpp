@@ -150,6 +150,11 @@ int ExtractDialog::GetVideoRotationDegrees(void)
 	}
 }
 
+void ExtractDialog::SetStableVideoFrameCrop(bool enabled)
+{
+	ui->stableVideoCropCheckBox->setChecked(enabled);
+}
+
 QString ExtractDialog::GetOriginator(void)
 {
 	return ui->originatorDisplay->text();
