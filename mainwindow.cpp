@@ -56,6 +56,8 @@
 #include <QStandardPaths>
 #include <QSignalBlocker>
 #include <QSpinBox>
+#include <QHBoxLayout>
+#include <QPushButton>
 #include <QVBoxLayout>
 
 #include <cstdio>
@@ -2143,6 +2145,41 @@ void MainWindow::on_testRunExportButton_clicked()
 	form.addRow("Eerste frame", &firstSpin);
 	form.addRow("Laatste frame", &lastSpin);
 	layout.addLayout(&form);
+
+	QLabel presetLabel("Snelle presets:");
+	layout.addWidget(&presetLabel);
+
+	QHBoxLayout presetLayout;
+	QPushButton preset100("100");
+	QPushButton preset300("300");
+	QPushButton preset500("500");
+	presetLayout.addWidget(&preset100);
+	presetLayout.addWidget(&preset300);
+	presetLayout.addWidget(&preset500);
+	presetLayout.addStretch(1);
+	layout.addLayout(&presetLayout);
+
+	auto applyPresetFrames = [&](int frameCount)
+	{
+		int startFrame = firstSpin.value();
+		int endFrame = startFrame + frameCount - 1;
+		endFrame = std::max(startFrame, std::min(maxFrame, endFrame));
+		lastSpin.setValue(endFrame);
+	};
+	connect(&preset100, &QPushButton::clicked, &dialog,
+			[&]() { applyPresetFrames(100); });
+	connect(&preset300, &QPushButton::clicked, &dialog,
+			[&]() { applyPresetFrames(300); });
+	connect(&preset500, &QPushButton::clicked, &dialog,
+			[&]() { applyPresetFrames(500); });
+	connect(&firstSpin,
+			static_cast<void(QSpinBox::*)(int)>(&QSpinBox::valueChanged),
+			&dialog,
+			[&](int firstValue)
+	{
+		if(lastSpin.value() < firstValue)
+			lastSpin.setValue(firstValue);
+	});
 
 	QDialogButtonBox buttons(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
 	layout.addWidget(&buttons);
