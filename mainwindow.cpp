@@ -374,6 +374,10 @@ static void EncodeVideoWithExternalFfmpeg(const QString &frameDir,
 		effectiveQuality = std::max(effectiveQuality, 90);
 		effectiveAudioBitrate = std::max(effectiveAudioBitrate, 192);
 		break;
+	case SIMPLE_EXPORT_ULTRA:
+		effectiveQuality = std::max(effectiveQuality, 96);
+		effectiveAudioBitrate = std::max(effectiveAudioBitrate, 256);
+		break;
 	default:
 		break;
 	}
@@ -406,6 +410,8 @@ static void EncodeVideoWithExternalFfmpeg(const QString &frameDir,
 	case 2: presetArg = "slow"; break;
 	default: break;
 	}
+	if(exportMode == SIMPLE_EXPORT_ULTRA && presetArg != "slow")
+		presetArg = "slow";
 
 	QString fpsArg = QString::number(fps, 'f', 3);
 	QString pattern = QDir(frameDir).filePath("frame_%06d.png");

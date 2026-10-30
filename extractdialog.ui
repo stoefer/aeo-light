@@ -269,6 +269,11 @@
         <string>Kwaliteit (groter bestand, beste kwaliteit)</string>
        </property>
       </item>
+      <item>
+       <property name="text">
+        <string>Ultra kwaliteit (minimum artefacten, zeer groot bestand)</string>
+       </property>
+      </item>
      </widget>
     </item>
     <item row="12" column="2">
@@ -287,7 +292,7 @@
        <bool>false</bool>
       </property>
       <property name="text">
-       <string>Tip voor beginners: kies &quot;Standaard&quot;. Gebruik &quot;Snel&quot; voor snelle previews en &quot;Kwaliteit&quot; voor eindbestanden.</string>
+       <string>Tip voor beginners: kies &quot;Standaard&quot;. Gebruik &quot;Snel&quot; voor snelle previews, &quot;Kwaliteit&quot; voor eindbestanden en &quot;Ultra kwaliteit&quot; voor minimum artefacten.</string>
       </property>
       <property name="wordWrap">
        <bool>true</bool>
