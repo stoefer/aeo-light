@@ -1,8 +1,8 @@
-# AEO-Light 3.1.9 (fork release)
+# AEO-Light 3.1.10 (fork release)
 
-Deze 3.1.9 release bouwt verder op de stabiliteitsupdate en voegt extra snelle test-tools toe.
+Deze 3.1.10 patchrelease voegt een switchbare light/dark layout toe en bouwt verder op de stabiliteitsupdates.
 
-## Nieuw in 3.1.9
+## Nieuw in 3.1.10
 - Sterkere stabiliteit bij laden/verwerken van frame-reeksen  
 - Betere video-export workflow  
 - Progress-bar met geschatte resterende tijd  
@@ -13,6 +13,7 @@ Deze 3.1.9 release bouwt verder op de stabiliteitsupdate en voegt extra snelle t
 - Nieuwe **Test Run** export met vrij framebereik  
 - Snelle Test Run-presets: **100 / 300 / 500 / 10 sec**  
 - Exportbestanden worden niet overschreven (automatische oplopende suffix)  
+- Nieuwe thema-switch in Preferences: **Licht / Donker** (wordt onthouden)  
 
 ## Installatie (Windows 11)
 1. Download `AEO-Light-Windows-x64.zip` uit de release.
