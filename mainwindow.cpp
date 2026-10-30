@@ -169,6 +169,33 @@ static QString EnsureNonOverwritingPath(const QString &requestedPath)
 	return candidate;
 }
 
+static QString BuildDarkThemeStyleSheet()
+{
+	return QString(
+			"QWidget { background-color: #2b2b2b; color: #e8e8e8; }"
+			"QMainWindow, QDialog { background-color: #2b2b2b; }"
+			"QMenuBar { background-color: #323232; color: #e8e8e8; }"
+			"QMenuBar::item:selected { background-color: #454545; }"
+			"QMenu { background-color: #323232; color: #e8e8e8; border: 1px solid #555555; }"
+			"QMenu::item:selected { background-color: #4a4a4a; }"
+			"QPushButton { background-color: #3a3a3a; border: 1px solid #555555; "
+				"padding: 4px; border-radius: 3px; }"
+			"QPushButton:hover { background-color: #464646; }"
+			"QPushButton:disabled { color: #888888; background-color: #2f2f2f; border-color: #3b3b3b; }"
+			"QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QTextEdit, QPlainTextEdit { "
+				"background-color: #1f1f1f; color: #f0f0f0; border: 1px solid #555555; "
+				"selection-background-color: #2d6ea3; }"
+			"QTabWidget::pane { border: 1px solid #555555; }"
+			"QTabBar::tab { background-color: #363636; color: #e8e8e8; "
+				"padding: 6px; border: 1px solid #555555; border-bottom: none; }"
+			"QTabBar::tab:selected { background-color: #2b2b2b; }"
+			"QStatusBar { background-color: #323232; color: #e8e8e8; }"
+			"QToolTip { color: #ffffff; background-color: #444444; border: 1px solid #777777; }"
+			"QProgressBar { border: 1px solid #555555; text-align: center; "
+				"background-color: #1f1f1f; color: #e8e8e8; }"
+			"QProgressBar::chunk { background-color: #4f8cc9; }");
+}
+
 static bool ConfirmExtractionCancel(QProgressDialog &progress,
 		int currentValue, const QString &currentLabel)
 {
@@ -526,6 +553,7 @@ MainWindow::MainWindow(QWidget *parent) :
 	ui(new Ui::MainWindow)
 {
 	ui->setupUi(this);
+	ApplyThemeFromSettings();
 
     #ifdef Q_OS_WIN
 	QString fontsize = "18pt";
@@ -2053,6 +2081,19 @@ void MainWindow::UpdateVideoStabilizationControls()
 	const bool adaptiveMode = !videoUseStableFrameCrop;
 	ui->videoDriftSensitivitySlider->setEnabled(adaptiveMode);
 	ui->videoDriftSensitivityLabel->setEnabled(adaptiveMode);
+}
+
+void MainWindow::ApplyThemeFromSettings()
+{
+	QSettings settings;
+	settings.beginGroup("ui");
+	QString theme = settings.value("theme", "light").toString().toLower();
+	settings.endGroup();
+
+	if(theme == "dark")
+		qApp->setStyleSheet(BuildDarkThemeStyleSheet());
+	else
+		qApp->setStyleSheet(QString());
 }
 
 void MainWindow::on_frame_numberSpinBox_valueChanged(int arg1)
@@ -5249,10 +5290,12 @@ void MainWindow::on_actionPreferences_triggered()
 {
 	preferencesdialog *pref = new preferencesdialog(this);
 	pref->setWindowTitle("Preferences");
-	pref->exec();
+	const int result = pref->exec();
 
 	// the dialog itself modifies the app's preferences if accepted,
-	// so there's no additional processing to do here.
+	// so we only need to re-apply live UI preferences after save.
+	if(result == QDialog::Accepted)
+		ApplyThemeFromSettings();
 
 	delete pref;
 }

@@ -325,6 +325,54 @@
      </property>
      <layout class="QVBoxLayout" name="verticalLayout">
       <item>
+       <layout class="QHBoxLayout" name="themeLayout">
+        <item>
+         <widget class="QLabel" name="themeLabel">
+          <property name="text">
+           <string>Thema</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="themeComboBox">
+          <item>
+           <property name="text">
+            <string>Licht</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Donker</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item>
+         <spacer name="horizontalSpacer_2">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QLabel" name="themeHelpLabel">
+        <property name="text">
+         <string>Kies tussen lichte of donkere layout. Wijziging wordt bewaard en bij de volgende start opnieuw toegepast.</string>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QCheckBox" name="skipCloseConfirmCheckBox">
         <property name="text">
          <string>Bevestiging afsluiten niet meer tonen</string>
@@ -367,6 +415,7 @@
   <tabstop>browseForProjectButton</tabstop>
   <tabstop>exportText</tabstop>
   <tabstop>browseForExportButton</tabstop>
+  <tabstop>themeComboBox</tabstop>
   <tabstop>skipCloseConfirmCheckBox</tabstop>
   <tabstop>originatorText</tabstop>
   <tabstop>archiveLocationText</tabstop>

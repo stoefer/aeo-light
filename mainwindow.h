@@ -327,6 +327,7 @@ private:
 	void NormalizeVideoCropControls(bool topChanged);
 	void UpdateVideoCropLabels();
 	void UpdateVideoStabilizationControls();
+	void ApplyThemeFromSettings();
 
 public:
 	void SetStartingProject(QString fn) { startingProjectFilename = fn; };
