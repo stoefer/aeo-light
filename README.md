@@ -1,8 +1,12 @@
-# AEO-Light 3.1.21 (fork release)
+# AEO-Light 3.1.22 (fork release)
 
-Deze 3.1.21 patchrelease fixeert de videouitsnede zodat die de gevonden frame-scheiding beter volgt binnen de Search Size-zone.
+Deze 3.1.22 patchrelease verbetert de exportfeedback en maakt de acties in Extract visueel duidelijker.
 
-## Nieuw in 3.1.21
+## Nieuw in 3.1.22
+- Progress pop-up toont nu **verstreken tijd**, **verwacht totaal** en **resterende tijd** tijdens wegschrijven van WAV en/of MP4.
+- Knoppen **Test Run** en **Extract** hebben nu een verschillende kleur zodat de acties direct duidelijk zijn.
+
+## Eerder toegevoegd in 3.1.21
 - Bugfix in adaptieve video-crop driftberekening: de uitsnede volgt nu de gedetecteerde frame-separatielijn met correcte richting.
 - Minder kans dat een deel van het beeld van het frame erboven/eronder in de output verschijnt bij drift.
 
