@@ -57,6 +57,7 @@
 #include <QSignalBlocker>
 #include <QScreen>
 #include <QSpinBox>
+#include <QRegularExpression>
 #include <QHBoxLayout>
 #include <QPushButton>
 #include <QVBoxLayout>
@@ -398,6 +399,7 @@ static void EncodeVideoWithExternalFfmpeg(const QString &frameDir,
 		int qualityPercent,
 		int audioBitrateKbps,
 		int presetMode,
+		int totalFrames,
 		QProgressDialog *progress, bool *wasCanceled,
 		bool allowCancel)
 {
@@ -492,9 +494,61 @@ static void EncodeVideoWithExternalFfmpeg(const QString &frameDir,
 	if(!ffmpeg.waitForStarted())
 		throw std::runtime_error("Could not start ffmpeg process");
 
+	QString ffmpegOutput;
+	QRegularExpression frameRegex("frame=\\s*(\\d+)");
+	int encodedFrames = 0;
+	QElapsedTimer ffmpegTimer;
+	ffmpegTimer.start();
+
+	auto updateFfmpegProgress = [&]()
+	{
+		if(!progress) return;
+		if(totalFrames > 0)
+		{
+			progress->setRange(0, totalFrames);
+			progress->setValue(std::max(0, std::min(totalFrames, encodedFrames)));
+		}
+
+		const double elapsedSec = ffmpegTimer.elapsed() / 1000.0;
+		QString status = QString("Video coderen... (%1/%2 frames)")
+				.arg(std::max(0, encodedFrames))
+				.arg(std::max(0, totalFrames));
+		status += QString("\nVerstreken: %1")
+				.arg(FormatEtaSeconds(elapsedSec));
+
+		if(totalFrames > 0 && encodedFrames > 0)
+		{
+			const double fpsNow = encodedFrames / std::max(0.001, elapsedSec);
+			const double remainingSec = (totalFrames - encodedFrames) /
+					std::max(0.001, fpsNow);
+			const double expectedTotalSec = elapsedSec + remainingSec;
+			status += QString(" | Verwacht totaal: %1 | Resterend: %2")
+					.arg(FormatEtaSeconds(expectedTotalSec))
+					.arg(FormatEtaSeconds(remainingSec));
+		}
+		else
+		{
+			status += " | Verwacht totaal: --:-- | Resterend: --:--";
+		}
+		status += "\n(klik op Cancel om te onderbreken)";
+		progress->setLabelText(status);
+	};
+
+	updateFfmpegProgress();
+
 	while(ffmpeg.state() != QProcess::NotRunning)
 	{
 		ffmpeg.waitForFinished(100);
+		ffmpegOutput += QString::fromLocal8Bit(ffmpeg.readAll());
+		if(ffmpegOutput.size() > 32768)
+			ffmpegOutput = ffmpegOutput.right(32768);
+		auto matchIt = frameRegex.globalMatch(ffmpegOutput);
+		while(matchIt.hasNext())
+		{
+			const QRegularExpressionMatch m = matchIt.next();
+			encodedFrames = std::max(encodedFrames, m.captured(1).toInt());
+		}
+		updateFfmpegProgress();
 		qApp->processEvents();
 		if(allowCancel && progress && progress->wasCanceled())
 		{
@@ -514,11 +568,12 @@ static void EncodeVideoWithExternalFfmpeg(const QString &frameDir,
 		}
 	}
 
+	ffmpegOutput += QString::fromLocal8Bit(ffmpeg.readAll());
+
 	if(ffmpeg.exitStatus() != QProcess::NormalExit || ffmpeg.exitCode() != 0)
 	{
-		QString output = QString::fromLocal8Bit(ffmpeg.readAll());
 		throw std::runtime_error(
-				QString("ffmpeg failed while creating video: %1").arg(output).toStdString());
+				QString("ffmpeg failed while creating video: %1").arg(ffmpegOutput).toStdString());
 	}
 }
 #endif
@@ -4368,9 +4423,13 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 	else
 		av_log(NULL, AV_LOG_INFO, "WriteVideo: -no-\n");
 
-	QProgressDialog progress("Extracting Audio...","Cancel",0,numFrames);
+	const bool exportingVideo = (videoFn != NULL);
+	QProgressDialog progress(
+			exportingVideo ? "Extracting Audio/Video..." : "Extracting Audio...",
+			"Cancel",0,numFrames);
 	progress.setWindowModality(Qt::WindowModal);
-	progress.setWindowTitle("Extracting Audio...");
+	progress.setWindowTitle(
+			exportingVideo ? "Extracting Audio/Video..." : "Extracting Audio...");
 	progress.setMinimumDuration(0);
 
 	this->requestCancel = false;
@@ -4389,13 +4448,22 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 				.arg(phaseText)
 				.arg(shownFrames)
 				.arg(numFrames);
+		double elapsedSec = progressTimer.elapsed() / 1000.0;
+		status += QString("\nVerstreken: %1")
+				.arg(FormatEtaSeconds(elapsedSec));
 
 		if(shownFrames > 0)
 		{
-			double elapsedSec = progressTimer.elapsed() / 1000.0;
 			double fps = shownFrames / std::max(0.001, elapsedSec);
 			double remainingSec = (numFrames - shownFrames) / std::max(0.001, fps);
-			status += QString(" - ETA %1").arg(FormatEtaSeconds(remainingSec));
+			double expectedTotalSec = elapsedSec + remainingSec;
+			status += QString(" | Verwacht totaal: %1 | Resterend: %2")
+					.arg(FormatEtaSeconds(expectedTotalSec))
+					.arg(FormatEtaSeconds(remainingSec));
+		}
+		else
+		{
+			status += " | Verwacht totaal: --:-- | Resterend: --:--";
 		}
 
 		progressStatusText = status;
@@ -4765,6 +4833,7 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 					videoQualityPercent,
 					videoAudioBitrateKbps,
 					videoPresetMode,
+					externalVideoFrameCount,
 					&progress,
 					&ffmpegCanceled,
 					!stoppedEarlyByUser);
