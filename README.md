@@ -1,8 +1,12 @@
-# AEO-Light 3.1.20 (fork release)
+# AEO-Light 3.1.21 (fork release)
 
-Deze 3.1.20 patchrelease brengt audio/video extract-instellingen samen in één direct workflow-scherm.
+Deze 3.1.21 patchrelease fixeert de videouitsnede zodat die de gevonden frame-scheiding beter volgt binnen de Search Size-zone.
 
-## Nieuw in 3.1.20
+## Nieuw in 3.1.21
+- Bugfix in adaptieve video-crop driftberekening: de uitsnede volgt nu de gedetecteerde frame-separatielijn met correcte richting.
+- Minder kans dat een deel van het beeld van het frame erboven/eronder in de output verschijnt bij drift.
+
+## Eerder toegevoegd in 3.1.20
 - Tab hernoemd naar **Extract Audio/Video**.
 - Opties die voordien in een popup stonden, zitten nu rechtstreeks in deze tab:
   - audio output pad
