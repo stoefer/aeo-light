@@ -1931,6 +1931,25 @@
         </item>
         <item>
          <widget class="QPushButton" name="testRunExportButton">
+          <property name="styleSheet">
+           <string notr="true">QPushButton {
+    background-color: #2f5f9f;
+    border: 1px solid #4f78b4;
+    color: #ffffff;
+    font-weight: 600;
+}
+QPushButton:hover {
+    background-color: #3a6fb9;
+}
+QPushButton:pressed {
+    background-color: #285589;
+}
+QPushButton:disabled {
+    background-color: #2f2f2f;
+    border: 1px solid #444444;
+    color: #888888;
+}</string>
+          </property>
           <property name="text">
            <string>Test Run</string>
           </property>
@@ -1938,6 +1957,25 @@
         </item>
         <item>
          <widget class="QPushButton" name="extractGLButton">
+          <property name="styleSheet">
+           <string notr="true">QPushButton {
+    background-color: #2f7f47;
+    border: 1px solid #4f9f67;
+    color: #ffffff;
+    font-weight: 600;
+}
+QPushButton:hover {
+    background-color: #3a9a58;
+}
+QPushButton:pressed {
+    background-color: #2a6d3f;
+}
+QPushButton:disabled {
+    background-color: #2f2f2f;
+    border: 1px solid #444444;
+    color: #888888;
+}</string>
+          </property>
           <property name="text">
            <string>Extract</string>
           </property>
