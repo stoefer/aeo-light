@@ -4620,15 +4620,20 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 						{
 							const float sensitivity =
 									std::max(0.1f, videoDriftSensitivityFactor);
-							const float overlapCenterNorm =
-									frame_window->overlap[0] - frame_window->overlap[3];
+							// Use the detected frame-separation line that comes from
+							// the overlap search window (Search Size zone). This keeps
+							// video crop drift aligned with the same match target used
+							// by the overlap detector.
+							const float frameSeparationNorm =
+									1.0f + (frame_window->overlap[3] -
+											frame_window->overlap[0]);
 							if(!overlapCenterBaseSet)
 							{
-								overlapCenterBase = overlapCenterNorm;
+								overlapCenterBase = frameSeparationNorm;
 								overlapCenterBaseSet = true;
 							}
 							overlapDriftNorm =
-									(overlapCenterNorm - overlapCenterBase) * sensitivity;
+									(frameSeparationNorm - overlapCenterBase) * sensitivity;
 							const float driftClamp = std::min(
 										0.45f,
 										std::max(0.005f,
