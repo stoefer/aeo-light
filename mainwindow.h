@@ -27,6 +27,7 @@
 #include <QCloseEvent>
 #include <QMoveEvent>
 #include <QResizeEvent>
+#include <QHash>
 #include <QSoundEffect>
 #include <QDate>
 #include <QProgressDialog>
@@ -355,6 +356,11 @@ private:
 	bool audioQualityPresetSyncLock;
 	bool audioOnlyQualityPresetSyncLock;
 	int uiScalePercent;
+	bool uiScaleGeometryCaptured;
+	bool uiScaleLayoutActive;
+	QSize uiScaleBaseSize;
+	QHash<QWidget*, QRect> uiScaleBaseGeometry;
+	QHash<QWidget*, int> uiScaleBaseFontPt;
 
 	void NormalizePitchControls(bool startChanged);
 	void NormalizeVideoCropControls(bool topChanged);
@@ -369,6 +375,7 @@ private:
 	void UpdateVideoExportControls();
 	void UpdateAudioQualityPresetFromControls();
 	void UpdateAudioOnlyQualityPresetFromControls();
+	void CaptureUiScaleBaseGeometry();
 	void UpdateAdaptiveUiScale();
 	void ApplyThemeFromSettings();
 	void PositionPreviewWindowBesideMainWindow();

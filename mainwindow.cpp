@@ -61,6 +61,7 @@
 #include <QHBoxLayout>
 #include <QPushButton>
 #include <QVBoxLayout>
+#include <QSlider>
 
 #include <cstdio>
 #include <exception>
@@ -864,8 +865,13 @@ MainWindow::MainWindow(QWidget *parent) :
 	audioQualityPresetSyncLock = false;
 	audioOnlyQualityPresetSyncLock = false;
 	uiScalePercent = -1;
+	uiScaleGeometryCaptured = false;
+	uiScaleLayoutActive = false;
+	uiScaleBaseSize = QSize();
 	LoadVideoExportSettings();
 	LoadExtractOutputSettings();
+
+	CaptureUiScaleBaseGeometry();
 
 	#ifdef USE_MUX_HACK
 	encStartFrame = 0;
@@ -969,47 +975,126 @@ void MainWindow::resizeEvent(QResizeEvent *event)
 	PositionPreviewWindowBesideMainWindow();
 }
 
-void MainWindow::UpdateAdaptiveUiScale()
+void MainWindow::CaptureUiScaleBaseGeometry()
 {
-	const double baseWidth = 760.0;
-	const double baseHeight = 640.0;
-	const double widthScale = std::max(1.0, static_cast<double>(this->width()) / baseWidth);
-	const double heightScale = std::max(1.0, static_cast<double>(this->height()) / baseHeight);
-	const double scale = std::min(1.8, std::min(widthScale, heightScale));
-	int newPercent = static_cast<int>(std::lround(scale * 100.0));
+	QWidget *cw = this->centralWidget();
+	if(!cw) return;
 
-	if(newPercent <= 102)
-		newPercent = 100;
+	uiScaleBaseSize = cw->size();
+	if(uiScaleBaseSize.width() <= 0 || uiScaleBaseSize.height() <= 0)
+		uiScaleBaseSize = QSize(760, 640);
 
-	if(newPercent == uiScalePercent)
-		return;
-	uiScalePercent = newPercent;
+	uiScaleBaseGeometry.clear();
+	uiScaleBaseFontPt.clear();
 
-	if(newPercent <= 100)
+	const QList<QWidget*> topChildren = cw->findChildren<QWidget*>(
+			QString(), Qt::FindDirectChildrenOnly);
+	for(QWidget *w : topChildren)
 	{
-		this->setStyleSheet(QString());
-		return;
+		if(!w) continue;
+		uiScaleBaseGeometry.insert(w, w->geometry());
 	}
 
-	const double scaleFactor = newPercent / 100.0;
-	const int fontPt = std::max(9, static_cast<int>(std::lround(9.0 * scaleFactor)));
-	const int sliderGroove = std::max(6, static_cast<int>(std::lround(6.0 * scaleFactor)));
-	const int sliderHandle = std::max(14, static_cast<int>(std::lround(14.0 * scaleFactor)));
-	const int sliderMargin = std::max(2, static_cast<int>(std::lround(sliderHandle / 3.0)));
+	QList<QWidget*> allChildren = cw->findChildren<QWidget*>();
+	allChildren.prepend(cw);
+	for(QWidget *w : allChildren)
+	{
+		if(!w) continue;
+		int pt = w->font().pointSize();
+		if(pt > 0)
+			uiScaleBaseFontPt.insert(w, pt);
+	}
 
-	const QString style = QString(
-			"QLabel, QCheckBox, QRadioButton, QGroupBox, QPushButton, "
-			"QComboBox, QSpinBox, QDoubleSpinBox, QLineEdit, QTextEdit { "
-			"font-size: %1pt; }"
-			"QSlider::groove:horizontal { height: %2px; }"
-			"QSlider::handle:horizontal { width: %3px; margin: -%4px 0; }"
-			"QSlider::groove:vertical { width: %2px; }"
-			"QSlider::handle:vertical { height: %3px; margin: 0 -%4px; }")
-			.arg(fontPt)
+	uiScaleGeometryCaptured = true;
+}
+
+void MainWindow::UpdateAdaptiveUiScale()
+{
+	QWidget *cw = this->centralWidget();
+	if(!cw) return;
+	if(!uiScaleGeometryCaptured)
+		CaptureUiScaleBaseGeometry();
+	if(!uiScaleGeometryCaptured)
+		return;
+
+	QSettings settings;
+	settings.beginGroup("ui");
+	QString layoutMode = settings.value("window-layout-mode", "").toString().toLower().trimmed();
+	if(layoutMode.isEmpty())
+	{
+		const bool legacyDual =
+				settings.value("window-layout-dual-screen", false).toBool();
+		const bool legacySingle =
+				settings.value("window-layout-single-fill", false).toBool();
+		if(legacyDual)
+			layoutMode = "dual";
+		else if(legacySingle)
+			layoutMode = "single";
+		else
+			layoutMode = "standard";
+	}
+	settings.endGroup();
+
+	const bool layoutScaledMode = (layoutMode == "single" || layoutMode == "dual");
+	double sx = 1.0;
+	double sy = 1.0;
+	double fontScale = 1.0;
+
+	if(layoutScaledMode && uiScaleBaseSize.width() > 0 && uiScaleBaseSize.height() > 0)
+	{
+		sx = std::max(1.0, static_cast<double>(cw->width()) / uiScaleBaseSize.width());
+		sy = std::max(1.0, static_cast<double>(cw->height()) / uiScaleBaseSize.height());
+		fontScale = std::min(2.0, std::min(sx, sy));
+	}
+
+	const int newPercent = static_cast<int>(std::lround(fontScale * 100.0));
+	if(newPercent == uiScalePercent && layoutScaledMode == uiScaleLayoutActive)
+		return;
+
+	uiScalePercent = newPercent;
+	uiScaleLayoutActive = layoutScaledMode;
+
+	for(auto it = uiScaleBaseGeometry.constBegin(); it != uiScaleBaseGeometry.constEnd(); ++it)
+	{
+		QWidget *w = it.key();
+		if(!w) continue;
+		const QRect base = it.value();
+		QRect scaled(
+				static_cast<int>(std::lround(base.x() * sx)),
+				static_cast<int>(std::lround(base.y() * sy)),
+				static_cast<int>(std::lround(base.width() * sx)),
+				static_cast<int>(std::lround(base.height() * sy)));
+		w->setGeometry(scaled);
+	}
+
+	for(auto it = uiScaleBaseFontPt.constBegin(); it != uiScaleBaseFontPt.constEnd(); ++it)
+	{
+		QWidget *w = it.key();
+		if(!w) continue;
+		int basePt = it.value();
+		int targetPt = std::max(8, static_cast<int>(std::lround(basePt * fontScale)));
+		QFont f = w->font();
+		f.setPointSize(targetPt);
+		w->setFont(f);
+	}
+
+	const int sliderGroove = std::max(6, static_cast<int>(std::lround(6.0 * fontScale)));
+	const int sliderHandle = std::max(14, static_cast<int>(std::lround(14.0 * fontScale)));
+	const int sliderMargin = std::max(2, static_cast<int>(std::lround(sliderHandle / 3.0)));
+	const QString sliderStyle = QString(
+			"QSlider::groove:horizontal { height: %1px; }"
+			"QSlider::handle:horizontal { width: %2px; margin: -%3px 0; }"
+			"QSlider::groove:vertical { width: %1px; }"
+			"QSlider::handle:vertical { height: %2px; margin: 0 -%3px; }")
 			.arg(sliderGroove)
 			.arg(sliderHandle)
 			.arg(sliderMargin);
-	this->setStyleSheet(style);
+	const QList<QSlider*> sliders = cw->findChildren<QSlider*>();
+	for(QSlider *slider : sliders)
+	{
+		if(!slider) continue;
+		slider->setStyleSheet(sliderStyle);
+	}
 }
 
 void MainWindow::PositionPreviewWindowBesideMainWindow()
@@ -6142,6 +6227,7 @@ void MainWindow::on_actionPreferences_triggered()
 	if(result == QDialog::Accepted)
 	{
 		ApplyThemeFromSettings();
+		UpdateAdaptiveUiScale();
 		PositionPreviewWindowBesideMainWindow();
 	}
 
