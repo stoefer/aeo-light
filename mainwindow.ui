@@ -1889,7 +1889,51 @@
           </property>
          </widget>
         </item>
+        <item row="6" column="0">
+         <widget class="QLabel" name="audioOnlyQualityPresetLabel">
+          <property name="text">
+           <string>Audio only kwaliteit</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+          </property>
+         </widget>
+        </item>
         <item row="6" column="1">
+         <widget class="QComboBox" name="audioOnlyQualityPresetComboBox">
+          <item>
+           <property name="text">
+            <string>Compact (48kHz, 16-bit)</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Standaard (48kHz, 24-bit)</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Hoog (96kHz, 24-bit)</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Aangepast (handmatig)</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="6" column="2">
+         <widget class="QLabel" name="audioOnlyQualityPresetHelpLabel">
+          <property name="text">
+           <string>Deze preset stuurt enkel WAV audio-instellingen (sampling rate + bit depth), los van video-audio bitrate.</string>
+          </property>
+          <property name="wordWrap">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item row="7" column="1">
          <widget class="QComboBox" name="xmlSidecarComboBox">
           <item>
            <property name="text">
@@ -1908,7 +1952,7 @@
           </item>
          </widget>
         </item>
-        <item row="6" column="0">
+        <item row="7" column="0">
          <widget class="QLabel" name="xmlSidecarLabel">
           <property name="text">
            <string>XML Sidecar File</string>
@@ -3088,6 +3132,7 @@ QPushButton:disabled {
   <tabstop>filerate_PD</tabstop>
   <tabstop>bitDepthComboBox</tabstop>
   <tabstop>audioQualityPresetComboBox</tabstop>
+  <tabstop>audioOnlyQualityPresetComboBox</tabstop>
   <tabstop>advance_CB</tabstop>
   <tabstop>xmlSidecarComboBox</tabstop>
   <tabstop>extractDefaultsButton</tabstop>

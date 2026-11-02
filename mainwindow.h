@@ -318,6 +318,7 @@ private slots:
 	void on_videoExportQualitySlider_valueChanged(int value);
 	void on_videoExportAudioBitrateSpinBox_valueChanged(int arg1);
 	void on_audioQualityPresetComboBox_currentIndexChanged(int index);
+	void on_audioOnlyQualityPresetComboBox_currentIndexChanged(int index);
 	void on_filerate_PD_currentIndexChanged(int index);
 	void on_bitDepthComboBox_currentIndexChanged(int index);
 
@@ -352,6 +353,7 @@ private:
 	bool skipCloseConfirmation;
 	bool applyingWindowLayout;
 	bool audioQualityPresetSyncLock;
+	bool audioOnlyQualityPresetSyncLock;
 
 	void NormalizePitchControls(bool startChanged);
 	void NormalizeVideoCropControls(bool topChanged);
@@ -365,6 +367,7 @@ private:
 	void SaveVideoExportSettings() const;
 	void UpdateVideoExportControls();
 	void UpdateAudioQualityPresetFromControls();
+	void UpdateAudioOnlyQualityPresetFromControls();
 	void ApplyThemeFromSettings();
 	void PositionPreviewWindowBesideMainWindow();
 

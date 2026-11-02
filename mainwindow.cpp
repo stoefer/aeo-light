@@ -862,6 +862,7 @@ MainWindow::MainWindow(QWidget *parent) :
 	skipCloseConfirmation = false;
 	applyingWindowLayout = false;
 	audioQualityPresetSyncLock = false;
+	audioOnlyQualityPresetSyncLock = false;
 	LoadVideoExportSettings();
 	LoadExtractOutputSettings();
 
@@ -1180,6 +1181,8 @@ void MainWindow::SaveDefaultsAudio()
 	settings.beginGroup("extraction");
 	settings.setValue("audio-quality-preset",
 			ui->audioQualityPresetComboBox->currentIndex());
+	settings.setValue("audio-only-quality-preset",
+			ui->audioOnlyQualityPresetComboBox->currentIndex());
 	settings.setValue("sampling-rate", ui->filerate_PD->currentText());
 	settings.setValue("bit-depth", ui->bitDepthComboBox->currentText());
 	settings.setValue("time-code-advance", ui->advance_CB->currentText());
@@ -1320,7 +1323,23 @@ void MainWindow::LoadDefaults()
 	ui->outputRotationComboBox->setCurrentIndex(ClampRangeInt(
 			settings.value("video-rotation-index", 0).toInt(), 0, 3));
 
-	if(settings.contains("audio-quality-preset"))
+	const bool hasAudioOnlyPreset = settings.contains("audio-only-quality-preset");
+	const bool hasAudioPreset = settings.contains("audio-quality-preset");
+
+	audioOnlyQualityPresetSyncLock = true;
+	audioQualityPresetSyncLock = true;
+
+	if(hasAudioOnlyPreset)
+	{
+		intv = ClampRangeInt(
+				settings.value("audio-only-quality-preset",
+						AUDIO_QUALITY_PRESET_CUSTOM).toInt(),
+				AUDIO_QUALITY_PRESET_COMPACT,
+				AUDIO_QUALITY_PRESET_CUSTOM);
+		ui->audioOnlyQualityPresetComboBox->setCurrentIndex(intv);
+	}
+
+	if(hasAudioPreset)
 	{
 		intv = ClampRangeInt(
 				settings.value("audio-quality-preset",
@@ -1329,10 +1348,14 @@ void MainWindow::LoadDefaults()
 				AUDIO_QUALITY_PRESET_CUSTOM);
 		ui->audioQualityPresetComboBox->setCurrentIndex(intv);
 	}
-	else
-	{
+
+	audioQualityPresetSyncLock = false;
+	audioOnlyQualityPresetSyncLock = false;
+
+	if(!hasAudioOnlyPreset)
+		UpdateAudioOnlyQualityPresetFromControls();
+	if(!hasAudioPreset)
 		UpdateAudioQualityPresetFromControls();
-	}
 
 	settings.endGroup();
 	UpdateExtractOutputControls();
@@ -2705,6 +2728,28 @@ void MainWindow::UpdateAudioQualityPresetFromControls()
 		ui->audioQualityPresetComboBox->setCurrentIndex(targetPreset);
 
 	audioQualityPresetSyncLock = false;
+}
+
+void MainWindow::UpdateAudioOnlyQualityPresetFromControls()
+{
+	if(audioOnlyQualityPresetSyncLock) return;
+	audioOnlyQualityPresetSyncLock = true;
+
+	int targetPreset = AUDIO_QUALITY_PRESET_CUSTOM;
+	const int samplerateIndex = ui->filerate_PD->currentIndex();
+	const int bitDepthIndex = ui->bitDepthComboBox->currentIndex();
+
+	if(samplerateIndex == 0 && bitDepthIndex == 0)
+		targetPreset = AUDIO_QUALITY_PRESET_COMPACT;
+	else if(samplerateIndex == 0 && bitDepthIndex == 1)
+		targetPreset = AUDIO_QUALITY_PRESET_STANDARD;
+	else if(samplerateIndex == 1 && bitDepthIndex == 1)
+		targetPreset = AUDIO_QUALITY_PRESET_HIGH;
+
+	if(ui->audioOnlyQualityPresetComboBox->currentIndex() != targetPreset)
+		ui->audioOnlyQualityPresetComboBox->setCurrentIndex(targetPreset);
+
+	audioOnlyQualityPresetSyncLock = false;
 }
 
 void MainWindow::ApplyThemeFromSettings()
@@ -6146,18 +6191,50 @@ void MainWindow::on_audioQualityPresetComboBox_currentIndexChanged(int index)
 	}
 	audioQualityPresetSyncLock = false;
 
+	UpdateAudioOnlyQualityPresetFromControls();
+	SaveDefaultsAudio();
+}
+
+void MainWindow::on_audioOnlyQualityPresetComboBox_currentIndexChanged(int index)
+{
+	if(audioOnlyQualityPresetSyncLock) return;
+
+	audioOnlyQualityPresetSyncLock = true;
+	switch(index)
+	{
+	case AUDIO_QUALITY_PRESET_COMPACT:
+		ui->filerate_PD->setCurrentIndex(0); // 48khz
+		ui->bitDepthComboBox->setCurrentIndex(0); // 16 bit
+		break;
+	case AUDIO_QUALITY_PRESET_STANDARD:
+		ui->filerate_PD->setCurrentIndex(0); // 48khz
+		ui->bitDepthComboBox->setCurrentIndex(1); // 24 bit
+		break;
+	case AUDIO_QUALITY_PRESET_HIGH:
+		ui->filerate_PD->setCurrentIndex(1); // 96khz
+		ui->bitDepthComboBox->setCurrentIndex(1); // 24 bit
+		break;
+	case AUDIO_QUALITY_PRESET_CUSTOM:
+	default:
+		break;
+	}
+	audioOnlyQualityPresetSyncLock = false;
+
+	UpdateAudioQualityPresetFromControls();
 	SaveDefaultsAudio();
 }
 
 void MainWindow::on_filerate_PD_currentIndexChanged(int index)
 {
 	Q_UNUSED(index);
+	UpdateAudioOnlyQualityPresetFromControls();
 	UpdateAudioQualityPresetFromControls();
 }
 
 void MainWindow::on_bitDepthComboBox_currentIndexChanged(int index)
 {
 	Q_UNUSED(index);
+	UpdateAudioOnlyQualityPresetFromControls();
 	UpdateAudioQualityPresetFromControls();
 }
 
