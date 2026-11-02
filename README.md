@@ -1,8 +1,11 @@
-# AEO-Light 3.1.30 (fork release)
+# AEO-Light 3.1.31 (fork release)
 
-Deze 3.1.30 patchrelease zet de hoofd-UI terug naar de stabiele standaardweergave en behoudt tegelijk de previewvenster-instellingen.
+Deze 3.1.31 patchrelease maakt de optische-audio tiptekst onder de sliders ultra-kort en direct leesbaar.
 
-## Nieuw in 3.1.30
+## Nieuw in 3.1.31
+- Ultra-korte push/pull tuningtip onder Frame Pitch / Search Size voor sneller afregelen.
+
+## Eerder toegevoegd in 3.1.30
 - Adaptieve hoofd-UI-schaal is teruggezet naar de vaste standaardlayout om leesproblemen te vermijden.
 - Previewvenster-layoutinstellingen (single/dual monitor gedrag) blijven behouden.
 - Vensterstatus (positie/grootte/maximized/fullscreen) blijft bewaard na herstart.
