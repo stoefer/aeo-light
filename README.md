@@ -1,8 +1,13 @@
-# AEO-Light 3.1.28 (fork release)
+# AEO-Light 3.1.29 (fork release)
 
-Deze 3.1.28 patchrelease lost een regressie op waarbij tekst in normaal venstermodus te groot kon worden en overlap veroorzaakte.
+Deze 3.1.29 patchrelease verbetert de vensterrespons van de UI: inhoud schaalt nu bruikbaarder mee met beschikbare ruimte, zonder agressieve tekstgroei.
 
-## Nieuw in 3.1.28
+## Nieuw in 3.1.29
+- UI-inhoud schaalt nu mee met de effectieve vensterruimte (ook buiten fullscreen), zodat lege ruimte beter benut wordt.
+- Tekstgroei werd veiliger gemaakt (sub-lineair, met limiet) om overlap te voorkomen.
+- Schaal activeert pas bij zinvolle venstergroei boven de basismaten.
+
+## Eerder toegevoegd in 3.1.28
 - Grote UI-schaal wordt nu alleen toegepast in fullscreen-achtige layout-situaties.
 - In normale venstermodus blijft de UI op standaardgrootte om overlap van tekst/controls te vermijden.
 - Vensterstatus (positie/grootte/maximized/fullscreen) wordt nu bewaard en hersteld na herstart.
