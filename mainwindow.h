@@ -367,6 +367,7 @@ private:
 	void UpdateVideoCropLabels();
 	void UpdateVideoStabilizationControls();
 	void UpdateExtractOutputControls();
+	void UpdateAudioHelpTextVisibility(bool visible, bool persistSetting);
 	void LoadExtractOutputSettings();
 	void SaveExtractOutputSettings() const;
 	void ApplyVideoContainerExtensionToOutputFilename();

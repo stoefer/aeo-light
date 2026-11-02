@@ -1901,6 +1901,9 @@
             <property name="text">
              <string>WAV: sample rate + bit depth. MP4/MOV/MKV: ook audio-bitrate.</string>
             </property>
+            <property name="styleSheet">
+             <string notr="true">color: #9a9a9a; font-size: 10px;</string>
+            </property>
             <property name="wordWrap">
              <bool>true</bool>
             </property>
@@ -1964,12 +1967,25 @@
             <property name="text">
              <string>Audio only preset: alleen WAV (sample rate + bit depth).</string>
             </property>
+            <property name="styleSheet">
+             <string notr="true">color: #9a9a9a; font-size: 10px;</string>
+            </property>
             <property name="wordWrap">
              <bool>true</bool>
             </property>
            </widget>
           </item>
          </layout>
+        </item>
+        <item row="7" column="2">
+         <widget class="QCheckBox" name="audioHelpTextCheckBox">
+          <property name="text">
+           <string>Toon helptekst</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
         </item>
         <item row="7" column="1">
          <widget class="QComboBox" name="xmlSidecarComboBox">
@@ -3176,6 +3192,7 @@ QPushButton:disabled {
   <tabstop>bitDepthComboBox</tabstop>
   <tabstop>audioQualityPresetComboBox</tabstop>
   <tabstop>audioOnlyQualityPresetComboBox</tabstop>
+  <tabstop>audioHelpTextCheckBox</tabstop>
   <tabstop>advance_CB</tabstop>
   <tabstop>xmlSidecarComboBox</tabstop>
   <tabstop>extractDefaultsButton</tabstop>

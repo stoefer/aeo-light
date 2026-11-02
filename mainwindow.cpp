@@ -913,6 +913,11 @@ MainWindow::MainWindow(QWidget *parent) :
 
     connect(ui->queueImportVFBClipsButton, &QPushButton::clicked,
             this, &MainWindow::QueueImportVFB);
+	connect(ui->audioHelpTextCheckBox, &QCheckBox::toggled,
+			this, [this](bool checked)
+	{
+		UpdateAudioHelpTextVisibility(checked, true);
+	});
 
 	UpdateVideoStabilizationControls();
 }
@@ -2738,6 +2743,20 @@ void MainWindow::UpdateExtractOutputControls()
 	ui->outputVideoOrientationPresetButton->setEnabled(outputVideo);
 }
 
+void MainWindow::UpdateAudioHelpTextVisibility(bool visible, bool persistSetting)
+{
+	ui->audioQualityPresetHelpLabel->setVisible(visible);
+	ui->audioOnlyQualityPresetHelpLabel->setVisible(visible);
+
+	if(!persistSetting)
+		return;
+
+	QSettings settings;
+	settings.beginGroup("extraction");
+	settings.setValue("show-audio-help-text", visible);
+	settings.endGroup();
+}
+
 void MainWindow::ApplyVideoContainerExtensionToOutputFilename()
 {
 	QString current = ui->videoOutputFilenameEdit->text().trimmed();
@@ -2767,6 +2786,10 @@ void MainWindow::LoadExtractOutputSettings()
 			settings.value("video-flip-v", false).toBool());
 	ui->outputRotationComboBox->setCurrentIndex(ClampRangeInt(
 			settings.value("video-rotation-index", 0).toInt(), 0, 3));
+	const bool showAudioHelpText =
+			settings.value("show-audio-help-text", true).toBool();
+	ui->audioHelpTextCheckBox->setChecked(showAudioHelpText);
+	UpdateAudioHelpTextVisibility(showAudioHelpText, false);
 	settings.endGroup();
 	UpdateExtractOutputControls();
 	ApplyVideoContainerExtensionToOutputFilename();
@@ -2783,6 +2806,7 @@ void MainWindow::SaveExtractOutputSettings() const
 	settings.setValue("video-flip-h", ui->outputFlipHorizontalCheckBox->isChecked());
 	settings.setValue("video-flip-v", ui->outputFlipVerticalCheckBox->isChecked());
 	settings.setValue("video-rotation-index", ui->outputRotationComboBox->currentIndex());
+	settings.setValue("show-audio-help-text", ui->audioHelpTextCheckBox->isChecked());
 	settings.endGroup();
 }
 
