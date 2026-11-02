@@ -1,8 +1,13 @@
-# AEO-Light 3.1.25 (fork release)
+# AEO-Light 3.1.26 (fork release)
 
-Deze 3.1.25 patchrelease verfijnt de 1-monitor maximum-venstermodus voor betere leesbaarheid en stabielere schermverdeling.
+Deze 3.1.26 patchrelease maakt de fullscreen monitor-layouts beter schaalbaar zodat het UI-venster visueel beter gevuld wordt.
 
-## Nieuw in 3.1.25
+## Nieuw in 3.1.26
+- In fullscreen monitor-layouts schalen hoofdpanelen in het UI-venster proportioneel mee zodat de beschikbare ruimte beter benut wordt.
+- Tekst en slider-controls schalen nu mee in grote vensters voor betere leesbaarheid.
+- Schaal wordt direct opnieuw toegepast na aanpassen van vensterlayout-instellingen in Preferences.
+
+## Eerder toegevoegd in 3.1.25
 - 1-monitor split gebruikt nu de schermruimte slimmer zodat UI en preview zo veel mogelijk **even hoog** blijven, met behoud van de film-beeldverhouding.
 - In 1-monitor split kan de breedte van het UI-venster dynamisch variëren om de preview-verhouding correct te houden.
 - Adaptieve UI-schaal toegevoegd: bij groter UI-venster schalen tekst en sliders mee op.
