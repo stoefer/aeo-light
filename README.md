@@ -1,8 +1,13 @@
-# AEO-Light 3.1.29 (fork release)
+# AEO-Light 3.1.30 (fork release)
 
-Deze 3.1.29 patchrelease verbetert de vensterrespons van de UI: inhoud schaalt nu bruikbaarder mee met beschikbare ruimte, zonder agressieve tekstgroei.
+Deze 3.1.30 patchrelease zet de hoofd-UI terug naar de stabiele standaardweergave en behoudt tegelijk de previewvenster-instellingen.
 
-## Nieuw in 3.1.29
+## Nieuw in 3.1.30
+- Adaptieve hoofd-UI-schaal is teruggezet naar de vaste standaardlayout om leesproblemen te vermijden.
+- Previewvenster-layoutinstellingen (single/dual monitor gedrag) blijven behouden.
+- Vensterstatus (positie/grootte/maximized/fullscreen) blijft bewaard na herstart.
+
+## Eerder toegevoegd in 3.1.29
 - UI-inhoud schaalt nu mee met de effectieve vensterruimte (ook buiten fullscreen), zodat lege ruimte beter benut wordt.
 - Tekstgroei werd veiliger gemaakt (sub-lineair, met limiet) om overlap te voorkomen.
 - Schaal activeert pas bij zinvolle venstergroei boven de basismaten.
