@@ -1845,7 +1845,51 @@
           </property>
          </widget>
         </item>
+        <item row="5" column="0">
+         <widget class="QLabel" name="audioQualityPresetLabel">
+          <property name="text">
+           <string>Audio kwaliteit</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+          </property>
+         </widget>
+        </item>
         <item row="5" column="1">
+         <widget class="QComboBox" name="audioQualityPresetComboBox">
+          <item>
+           <property name="text">
+            <string>Compact (48kHz, 16-bit, 128 kbps video-audio)</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Standaard (48kHz, 24-bit, 192 kbps video-audio)</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Hoog (96kHz, 24-bit, 320 kbps video-audio)</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Aangepast (handmatig)</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="5" column="2">
+         <widget class="QLabel" name="audioQualityPresetHelpLabel">
+          <property name="text">
+           <string>WAV gebruikt vooral sampling rate + bit depth; voor mp4/mov/mkv geldt ook de video-audio bitrate.</string>
+          </property>
+          <property name="wordWrap">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item row="6" column="1">
          <widget class="QComboBox" name="xmlSidecarComboBox">
           <item>
            <property name="text">
@@ -1864,7 +1908,7 @@
           </item>
          </widget>
         </item>
-        <item row="5" column="0">
+        <item row="6" column="0">
          <widget class="QLabel" name="xmlSidecarLabel">
           <property name="text">
            <string>XML Sidecar File</string>
@@ -3043,6 +3087,7 @@ QPushButton:disabled {
   <tabstop>frameOutSpinBox</tabstop>
   <tabstop>filerate_PD</tabstop>
   <tabstop>bitDepthComboBox</tabstop>
+  <tabstop>audioQualityPresetComboBox</tabstop>
   <tabstop>advance_CB</tabstop>
   <tabstop>xmlSidecarComboBox</tabstop>
   <tabstop>extractDefaultsButton</tabstop>

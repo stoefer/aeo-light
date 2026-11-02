@@ -317,6 +317,9 @@ private slots:
 	void on_videoExportPresetComboBox_currentIndexChanged(int index);
 	void on_videoExportQualitySlider_valueChanged(int value);
 	void on_videoExportAudioBitrateSpinBox_valueChanged(int arg1);
+	void on_audioQualityPresetComboBox_currentIndexChanged(int index);
+	void on_filerate_PD_currentIndexChanged(int index);
+	void on_bitDepthComboBox_currentIndexChanged(int index);
 
 private:
 	QString startingProjectFilename;
@@ -348,6 +351,7 @@ private:
 	bool videoCropControlSyncLock;
 	bool skipCloseConfirmation;
 	bool applyingWindowLayout;
+	bool audioQualityPresetSyncLock;
 
 	void NormalizePitchControls(bool startChanged);
 	void NormalizeVideoCropControls(bool topChanged);
@@ -360,6 +364,7 @@ private:
 	void LoadVideoExportSettings();
 	void SaveVideoExportSettings() const;
 	void UpdateVideoExportControls();
+	void UpdateAudioQualityPresetFromControls();
 	void ApplyThemeFromSettings();
 	void PositionPreviewWindowBesideMainWindow();
 

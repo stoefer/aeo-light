@@ -207,6 +207,14 @@ static QString VideoResolutionLabelForMode(int mode)
 	}
 }
 
+enum AudioQualityPresetMode
+{
+	AUDIO_QUALITY_PRESET_COMPACT = 0,
+	AUDIO_QUALITY_PRESET_STANDARD = 1,
+	AUDIO_QUALITY_PRESET_HIGH = 2,
+	AUDIO_QUALITY_PRESET_CUSTOM = 3
+};
+
 static QString ReadLastExportDirMain(const QString &key, const QString &fallback)
 {
 	QSettings settings;
@@ -853,6 +861,7 @@ MainWindow::MainWindow(QWidget *parent) :
 	videoCropControlSyncLock = false;
 	skipCloseConfirmation = false;
 	applyingWindowLayout = false;
+	audioQualityPresetSyncLock = false;
 	LoadVideoExportSettings();
 	LoadExtractOutputSettings();
 
@@ -1169,6 +1178,8 @@ void MainWindow::SaveDefaultsAudio()
 	QSettings settings;
 
 	settings.beginGroup("extraction");
+	settings.setValue("audio-quality-preset",
+			ui->audioQualityPresetComboBox->currentIndex());
 	settings.setValue("sampling-rate", ui->filerate_PD->currentText());
 	settings.setValue("bit-depth", ui->bitDepthComboBox->currentText());
 	settings.setValue("time-code-advance", ui->advance_CB->currentText());
@@ -1308,6 +1319,20 @@ void MainWindow::LoadDefaults()
 			settings.value("video-flip-v", false).toBool());
 	ui->outputRotationComboBox->setCurrentIndex(ClampRangeInt(
 			settings.value("video-rotation-index", 0).toInt(), 0, 3));
+
+	if(settings.contains("audio-quality-preset"))
+	{
+		intv = ClampRangeInt(
+				settings.value("audio-quality-preset",
+						AUDIO_QUALITY_PRESET_CUSTOM).toInt(),
+				AUDIO_QUALITY_PRESET_COMPACT,
+				AUDIO_QUALITY_PRESET_CUSTOM);
+		ui->audioQualityPresetComboBox->setCurrentIndex(intv);
+	}
+	else
+	{
+		UpdateAudioQualityPresetFromControls();
+	}
 
 	settings.endGroup();
 	UpdateExtractOutputControls();
@@ -2657,6 +2682,29 @@ void MainWindow::UpdateVideoExportControls()
 			.arg(presetNames[ClampRangeInt(videoPresetMode, 0, 2)])
 			.arg(videoQualityPercent)
 			.arg(videoAudioBitrateKbps));
+}
+
+void MainWindow::UpdateAudioQualityPresetFromControls()
+{
+	if(audioQualityPresetSyncLock) return;
+	audioQualityPresetSyncLock = true;
+
+	int targetPreset = AUDIO_QUALITY_PRESET_CUSTOM;
+	const int samplerateIndex = ui->filerate_PD->currentIndex();
+	const int bitDepthIndex = ui->bitDepthComboBox->currentIndex();
+	const int bitrateKbps = videoAudioBitrateKbps;
+
+	if(samplerateIndex == 0 && bitDepthIndex == 0 && bitrateKbps == 128)
+		targetPreset = AUDIO_QUALITY_PRESET_COMPACT;
+	else if(samplerateIndex == 0 && bitDepthIndex == 1 && bitrateKbps == 192)
+		targetPreset = AUDIO_QUALITY_PRESET_STANDARD;
+	else if(samplerateIndex == 1 && bitDepthIndex == 1 && bitrateKbps == 320)
+		targetPreset = AUDIO_QUALITY_PRESET_HIGH;
+
+	if(ui->audioQualityPresetComboBox->currentIndex() != targetPreset)
+		ui->audioQualityPresetComboBox->setCurrentIndex(targetPreset);
+
+	audioQualityPresetSyncLock = false;
 }
 
 void MainWindow::ApplyThemeFromSettings()
@@ -6070,6 +6118,49 @@ void MainWindow::on_outputFlipVerticalCheckBox_toggled(bool checked)
 	SaveExtractOutputSettings();
 }
 
+void MainWindow::on_audioQualityPresetComboBox_currentIndexChanged(int index)
+{
+	if(audioQualityPresetSyncLock) return;
+
+	audioQualityPresetSyncLock = true;
+	switch(index)
+	{
+	case AUDIO_QUALITY_PRESET_COMPACT:
+		ui->filerate_PD->setCurrentIndex(0); // 48khz
+		ui->bitDepthComboBox->setCurrentIndex(0); // 16 bit
+		ui->videoExportAudioBitrateSpinBox->setValue(128);
+		break;
+	case AUDIO_QUALITY_PRESET_STANDARD:
+		ui->filerate_PD->setCurrentIndex(0); // 48khz
+		ui->bitDepthComboBox->setCurrentIndex(1); // 24 bit
+		ui->videoExportAudioBitrateSpinBox->setValue(192);
+		break;
+	case AUDIO_QUALITY_PRESET_HIGH:
+		ui->filerate_PD->setCurrentIndex(1); // 96khz
+		ui->bitDepthComboBox->setCurrentIndex(1); // 24 bit
+		ui->videoExportAudioBitrateSpinBox->setValue(320);
+		break;
+	case AUDIO_QUALITY_PRESET_CUSTOM:
+	default:
+		break;
+	}
+	audioQualityPresetSyncLock = false;
+
+	SaveDefaultsAudio();
+}
+
+void MainWindow::on_filerate_PD_currentIndexChanged(int index)
+{
+	Q_UNUSED(index);
+	UpdateAudioQualityPresetFromControls();
+}
+
+void MainWindow::on_bitDepthComboBox_currentIndexChanged(int index)
+{
+	Q_UNUSED(index);
+	UpdateAudioQualityPresetFromControls();
+}
+
 void MainWindow::on_videoAvOffsetCheckBox_toggled(bool checked)
 {
 	Q_UNUSED(checked);
@@ -6132,5 +6223,6 @@ void MainWindow::on_videoExportAudioBitrateSpinBox_valueChanged(int arg1)
 	videoAudioBitrateKbps = ClampRangeInt(arg1, 96, 512);
 	SaveVideoExportSettings();
 	UpdateVideoExportControls();
+	UpdateAudioQualityPresetFromControls();
 }
 
