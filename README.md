@@ -1,8 +1,13 @@
-# AEO-Light 3.1.24 (fork release)
+# AEO-Light 3.1.25 (fork release)
 
-Deze 3.1.24 patchrelease maakt vensterbeheer op multi-monitor systemen flexibeler en voegt een duidelijke Exit-optie toe.
+Deze 3.1.25 patchrelease verfijnt de 1-monitor maximum-venstermodus voor betere leesbaarheid en stabielere schermverdeling.
 
-## Nieuw in 3.1.24
+## Nieuw in 3.1.25
+- 1-monitor split gebruikt nu de schermruimte slimmer zodat UI en preview zo veel mogelijk **even hoog** blijven, met behoud van de film-beeldverhouding.
+- In 1-monitor split kan de breedte van het UI-venster dynamisch variëren om de preview-verhouding correct te houden.
+- Adaptieve UI-schaal toegevoegd: bij groter UI-venster schalen tekst en sliders mee op.
+
+## Eerder toegevoegd in 3.1.24
 - **Exit** toegevoegd in het **File** menu (met **Ctrl+Q**).
 - Nieuwe **Vensterlayout**-modus in Preferences:
   - **Standaard (monitor-onafhankelijk)**
