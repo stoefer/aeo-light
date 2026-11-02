@@ -872,6 +872,8 @@ MainWindow::MainWindow(QWidget *parent) :
 	LoadExtractOutputSettings();
 
 	CaptureUiScaleBaseGeometry();
+	RestoreUiWindowSettings();
+	UpdateAdaptiveUiScale();
 
 	#ifdef USE_MUX_HACK
 	encStartFrame = 0;
@@ -930,6 +932,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
 
 	if(skipCloseConfirmation)
 	{
+		SaveUiWindowSettings();
 		closePreviewWindow();
 		event->accept();
 		return;
@@ -942,6 +945,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
 	settings.endGroup();
 	if(skipConfirmByPreference)
 	{
+		SaveUiWindowSettings();
 		closePreviewWindow();
 		event->accept();
 		return;
@@ -955,6 +959,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
 			QMessageBox::No);
 	if(answer == QMessageBox::Yes)
 	{
+		SaveUiWindowSettings();
 		closePreviewWindow();
 		event->accept();
 	}
@@ -1120,6 +1125,34 @@ void MainWindow::UpdateAdaptiveUiScale()
 		if(!slider) continue;
 		slider->setStyleSheet(sliderStyle);
 	}
+}
+
+void MainWindow::RestoreUiWindowSettings()
+{
+	QSettings settings;
+	settings.beginGroup("ui");
+	const QByteArray geometry = settings.value("main-window-geometry").toByteArray();
+	const bool wasMaximized = settings.value("main-window-maximized", false).toBool();
+	const bool wasFullscreen = settings.value("main-window-fullscreen", false).toBool();
+	settings.endGroup();
+
+	if(!geometry.isEmpty())
+		restoreGeometry(geometry);
+
+	if(wasFullscreen)
+		setWindowState(windowState() | Qt::WindowFullScreen);
+	else if(wasMaximized)
+		setWindowState(windowState() | Qt::WindowMaximized);
+}
+
+void MainWindow::SaveUiWindowSettings() const
+{
+	QSettings settings;
+	settings.beginGroup("ui");
+	settings.setValue("main-window-geometry", saveGeometry());
+	settings.setValue("main-window-maximized", isMaximized());
+	settings.setValue("main-window-fullscreen", isFullScreen());
+	settings.endGroup();
 }
 
 void MainWindow::PositionPreviewWindowBesideMainWindow()

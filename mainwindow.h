@@ -377,6 +377,8 @@ private:
 	void UpdateAudioOnlyQualityPresetFromControls();
 	void CaptureUiScaleBaseGeometry();
 	void UpdateAdaptiveUiScale();
+	void RestoreUiWindowSettings();
+	void SaveUiWindowSettings() const;
 	void ApplyThemeFromSettings();
 	void PositionPreviewWindowBesideMainWindow();
 
