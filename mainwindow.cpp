@@ -1195,7 +1195,9 @@ void MainWindow::PositionPreviewWindowBesideMainWindow()
 				0, std::min(targetMonitorIndex, screens.size() - 1));
 		const QRect available = screens.at(monitorIndex)->availableGeometry();
 		const int splitGap = 10;
-		const int minMainWidth = std::min(360, std::max(220, available.width() / 3));
+		// Keep the UI readable on large displays: reserve a meaningful
+		// fraction of the monitor width for controls in split mode.
+		const int minMainWidth = std::max(560, available.width() / 3);
 		const int minFrameHeight = std::min(240, available.height());
 
 		auto previewFrameWidthForHeight = [&](int frameHeight)
