@@ -1,8 +1,16 @@
-# AEO-Light 3.1.23 (fork release)
+# AEO-Light 3.1.24 (fork release)
 
-Deze 3.1.23 patchrelease voegt extra gebruiksgemak toe voor audio-export en vensterindeling.
+Deze 3.1.24 patchrelease maakt vensterbeheer op multi-monitor systemen flexibeler en voegt een duidelijke Exit-optie toe.
 
-## Nieuw in 3.1.23
+## Nieuw in 3.1.24
+- **Exit** toegevoegd in het **File** menu (met **Ctrl+Q**).
+- Nieuwe **Vensterlayout**-modus in Preferences:
+  - **Standaard (monitor-onafhankelijk)**
+  - **1 monitor split (UI + preview)**, ook bruikbaar op systemen met 2 monitoren via **Doelmonitor**
+  - **2 monitoren (gescheiden)** met **Swap vensters tussen monitor 1 en 2**
+- Eenvoudig terugkeren naar de standaard vrije layout via Preferences.
+
+## Eerder toegevoegd in 3.1.23
 - Nieuwe **Resolutie**-keuze in Video instellingen tot en met **4K UHD**.
 - Nieuwe vensterindeling-opties in Preferences:
   - bij 2 monitoren: hoofdvenster op scherm 1, preview op scherm 2
