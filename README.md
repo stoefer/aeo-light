@@ -1,8 +1,17 @@
-# AEO-Light 3.1.22 (fork release)
+# AEO-Light 3.1.23 (fork release)
 
-Deze 3.1.22 patchrelease verbetert de exportfeedback en maakt de acties in Extract visueel duidelijker.
+Deze 3.1.23 patchrelease voegt extra gebruiksgemak toe voor audio-export en vensterindeling.
 
-## Nieuw in 3.1.22
+## Nieuw in 3.1.23
+- Nieuwe **Resolutie**-keuze in Video instellingen tot en met **4K UHD**.
+- Nieuwe vensterindeling-opties in Preferences:
+  - bij 2 monitoren: hoofdvenster op scherm 1, preview op scherm 2
+  - bij 1 monitor: split-layout die het volledige HD/UHD-scherm benut
+- Nieuwe presets voor audiokwaliteit:
+  - **Audio kwaliteit** (met video-audio bitrate)
+  - **Audio only kwaliteit** (enkel sampling rate + bit depth, los van video)
+
+## Eerder toegevoegd in 3.1.22
 - Progress pop-up toont nu **verstreken tijd**, **verwacht totaal** en **resterende tijd** tijdens wegschrijven van WAV en/of MP4.
 - Knoppen **Test Run** en **Extract** hebben nu een verschillende kleur zodat de acties direct duidelijk zijn.
 
