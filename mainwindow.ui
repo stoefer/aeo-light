@@ -640,7 +640,7 @@
               <item row="2" column="1" colspan="4">
                <widget class="QLabel" name="overlapHelpLabel">
                 <property name="text">
-                 <string>Kort: Start met midden-Search Size. Push = Search Size klein omhoog voor rust. Pull = Frame Pitch Start/End fijner voor precisie. Test 100/300 frames. Onrustig: Search Size iets omhoog. Foute lock: Search Size omlaag + Pitch bijsturen.</string>
+                 <string>Push: Search Size + voor rust. Pull: Pitch Start/End fijn voor precisie. Test kort; bij foute lock Search Size -.</string>
                 </property>
                 <property name="wordWrap">
                  <bool>true</bool>
