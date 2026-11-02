@@ -1022,59 +1022,31 @@ void MainWindow::UpdateAdaptiveUiScale()
 	if(!uiScaleGeometryCaptured)
 		return;
 
-	QSettings settings;
-	settings.beginGroup("ui");
-	QString layoutMode = settings.value("window-layout-mode", "").toString().toLower().trimmed();
-	if(layoutMode.isEmpty())
-	{
-		const bool legacyDual =
-				settings.value("window-layout-dual-screen", false).toBool();
-		const bool legacySingle =
-				settings.value("window-layout-single-fill", false).toBool();
-		if(legacyDual)
-			layoutMode = "dual";
-		else if(legacySingle)
-			layoutMode = "single";
-		else
-			layoutMode = "standard";
-	}
-	settings.endGroup();
-
-	const bool layoutScaledMode = (layoutMode == "single" || layoutMode == "dual");
-	bool fullscreenLike = false;
-	if(layoutScaledMode)
-	{
-		if(this->isFullScreen() || this->isMaximized())
-		{
-			fullscreenLike = true;
-		}
-		else
-		{
-			QScreen *activeScreen = this->screen();
-			if(!activeScreen) activeScreen = QGuiApplication::primaryScreen();
-			if(activeScreen)
-			{
-				const QRect avail = activeScreen->availableGeometry();
-				const QRect win = this->frameGeometry();
-				const double wRatio = static_cast<double>(win.width()) /
-						std::max(1, avail.width());
-				const double hRatio = static_cast<double>(win.height()) /
-						std::max(1, avail.height());
-				fullscreenLike = (wRatio >= 0.92 && hRatio >= 0.90);
-			}
-		}
-	}
-
-	const bool applyLargeUiScale = (layoutScaledMode && fullscreenLike);
+	bool applyLargeUiScale = false;
 	double sx = 1.0;
 	double sy = 1.0;
 	double fontScale = 1.0;
 
-	if(applyLargeUiScale && uiScaleBaseSize.width() > 0 && uiScaleBaseSize.height() > 0)
+	if(uiScaleBaseSize.width() > 0 && uiScaleBaseSize.height() > 0)
 	{
-		sx = std::max(1.0, static_cast<double>(cw->width()) / uiScaleBaseSize.width());
-		sy = std::max(1.0, static_cast<double>(cw->height()) / uiScaleBaseSize.height());
-		fontScale = std::min(2.0, std::min(sx, sy));
+		const double widthRatio = static_cast<double>(cw->width()) /
+				std::max(1, uiScaleBaseSize.width());
+		const double heightRatio = static_cast<double>(cw->height()) /
+				std::max(1, uiScaleBaseSize.height());
+		sx = std::max(1.0, widthRatio);
+		sy = std::max(1.0, heightRatio);
+		applyLargeUiScale = (sx > 1.08 || sy > 1.08);
+
+		const double rawScale = std::min(1.8, (sx + sy) / 2.0);
+		fontScale = 1.0 + (rawScale - 1.0) * 0.45;
+		fontScale = std::min(1.35, std::max(1.0, fontScale));
+	}
+
+	if(!applyLargeUiScale)
+	{
+		sx = 1.0;
+		sy = 1.0;
+		fontScale = 1.0;
 	}
 
 	const int newPercent = static_cast<int>(std::lround(fontScale * 100.0));
