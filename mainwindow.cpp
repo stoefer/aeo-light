@@ -852,6 +852,7 @@ MainWindow::MainWindow(QWidget *parent) :
 	pitchControlSyncLock = false;
 	videoCropControlSyncLock = false;
 	skipCloseConfirmation = false;
+	applyingWindowLayout = false;
 	LoadVideoExportSettings();
 	LoadExtractOutputSettings();
 
@@ -960,9 +961,10 @@ void MainWindow::PositionPreviewWindowBesideMainWindow()
 {
 	if(!frame_window) return;
 	if(!frame_window->isVisible()) return;
+	if(applyingWindowLayout) return;
 
-	const int gap = 12;
-	const QRect mainRect = this->frameGeometry();
+	applyingWindowLayout = true;
+
 	const QMargins previewMargins = frame_window->frameMargins();
 	QSize previewContentSize = frame_window->size();
 	if(previewContentSize.width() <= 0 || previewContentSize.height() <= 0)
@@ -970,13 +972,95 @@ void MainWindow::PositionPreviewWindowBesideMainWindow()
 	const double aspectRatio = std::max(0.1,
 			static_cast<double>(previewContentSize.width()) /
 			static_cast<double>(previewContentSize.height()));
+	const int frameMarginsW = previewMargins.left() + previewMargins.right();
+	const int frameMarginsH = previewMargins.top() + previewMargins.bottom();
+
+	auto placePreviewInArea = [&](const QRect &area)
+	{
+		if(area.width() < 160 || area.height() < 160)
+			return;
+
+		int maxContentW = std::max(120, area.width() - frameMarginsW);
+		int maxContentH = std::max(120, area.height() - frameMarginsH);
+		int targetContentW = maxContentW;
+		int targetContentH = std::max(120,
+				static_cast<int>(std::lround(targetContentW / aspectRatio)));
+		if(targetContentH > maxContentH)
+		{
+			targetContentH = maxContentH;
+			targetContentW = std::max(120,
+					static_cast<int>(std::lround(targetContentH * aspectRatio)));
+		}
+		targetContentW = std::min(targetContentW, maxContentW);
+		targetContentH = std::min(targetContentH, maxContentH);
+
+		if(frame_window->size() != QSize(targetContentW, targetContentH))
+			frame_window->resize(targetContentW, targetContentH);
+
+		const int targetFrameW = targetContentW + frameMarginsW;
+		const int targetFrameH = targetContentH + frameMarginsH;
+		int frameX = area.left() + (area.width() - targetFrameW) / 2;
+		int frameY = area.top() + (area.height() - targetFrameH) / 2;
+
+		const int contentX = frameX + previewMargins.left();
+		const int contentY = frameY + previewMargins.top();
+		frame_window->setPosition(contentX, contentY);
+	};
+
+	QSettings settings;
+	settings.beginGroup("ui");
+	const bool preferDualScreenLayout =
+			settings.value("window-layout-dual-screen", false).toBool();
+	const bool preferSingleScreenFill =
+			settings.value("window-layout-single-fill", false).toBool();
+	settings.endGroup();
+
+	const QList<QScreen*> screens = QGuiApplication::screens();
+	if(preferDualScreenLayout && screens.size() >= 2)
+	{
+		const QRect mainArea = screens.at(0)->availableGeometry();
+		const QRect previewArea = screens.at(1)->availableGeometry();
+		if(this->geometry() != mainArea)
+			this->setGeometry(mainArea);
+		placePreviewInArea(previewArea);
+		applyingWindowLayout = false;
+		return;
+	}
+
+	if(preferSingleScreenFill && screens.size() == 1)
+	{
+		const QRect available = screens.at(0)->availableGeometry();
+		const int splitGap = 10;
+		int leftWidth = std::max(360, (available.width() - splitGap) / 2);
+		leftWidth = std::min(leftWidth, available.width() - 220);
+		const QRect mainArea(
+				available.left(),
+				available.top(),
+				leftWidth,
+				available.height());
+		const QRect previewArea(
+				mainArea.right() + 1 + splitGap,
+				available.top(),
+				available.width() - leftWidth - splitGap,
+				available.height());
+		if(this->geometry() != mainArea)
+			this->setGeometry(mainArea);
+		placePreviewInArea(previewArea);
+		applyingWindowLayout = false;
+		return;
+	}
+
+	const int gap = 12;
+	const QRect mainRect = this->frameGeometry();
 
 	QScreen *screen = this->screen();
 	if(!screen) screen = QGuiApplication::primaryScreen();
-	if(!screen) return;
+	if(!screen)
+	{
+		applyingWindowLayout = false;
+		return;
+	}
 	const QRect available = screen->availableGeometry();
-	const int frameMarginsW = previewMargins.left() + previewMargins.right();
-	const int frameMarginsH = previewMargins.top() + previewMargins.bottom();
 
 	const int topAlignedFrameY = std::max(available.top(),
 			std::min(mainRect.top(), available.bottom()));
@@ -1033,6 +1117,7 @@ void MainWindow::PositionPreviewWindowBesideMainWindow()
 	const int contentX = frameX + previewMargins.left();
 	const int contentY = frameY + previewMargins.top();
 	frame_window->setPosition(contentX, contentY);
+	applyingWindowLayout = false;
 }
 
 void MainWindow::SaveDefaultsSoundtrack()
@@ -5860,7 +5945,10 @@ void MainWindow::on_actionPreferences_triggered()
 	// the dialog itself modifies the app's preferences if accepted,
 	// so we only need to re-apply live UI preferences after save.
 	if(result == QDialog::Accepted)
+	{
 		ApplyThemeFromSettings();
+		PositionPreviewWindowBesideMainWindow();
+	}
 
 	delete pref;
 }

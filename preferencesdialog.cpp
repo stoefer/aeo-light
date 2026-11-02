@@ -59,6 +59,10 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 			settings->value("skip-close-confirmation", false).toBool());
 	QString theme = settings->value("theme", "light").toString().toLower();
 	ui->themeComboBox->setCurrentIndex(theme == "dark" ? 1 : 0);
+	ui->dualScreenLayoutCheckBox->setChecked(
+			settings->value("window-layout-dual-screen", false).toBool());
+	ui->singleScreenFillCheckBox->setChecked(
+			settings->value("window-layout-single-fill", false).toBool());
 	settings->endGroup();
 
 	ui->sourceText->setPlaceholderText(sysRead);
@@ -222,6 +226,12 @@ void preferencesdialog::Save()
 	settings->setValue(
 			"theme",
 			ui->themeComboBox->currentIndex() == 1 ? "dark" : "light");
+	settings->setValue(
+			"window-layout-dual-screen",
+			ui->dualScreenLayoutCheckBox->isChecked());
+	settings->setValue(
+			"window-layout-single-fill",
+			ui->singleScreenFillCheckBox->isChecked());
 	settings->endGroup();
 
 	accept();

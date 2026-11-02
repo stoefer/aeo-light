@@ -347,6 +347,7 @@ private:
 	bool pitchControlSyncLock;
 	bool videoCropControlSyncLock;
 	bool skipCloseConfirmation;
+	bool applyingWindowLayout;
 
 	void NormalizePitchControls(bool startChanged);
 	void NormalizeVideoCropControls(bool topChanged);
