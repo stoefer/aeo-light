@@ -1,8 +1,13 @@
-# AEO-Light 3.1.27 (fork release)
+# AEO-Light 3.1.28 (fork release)
 
-Deze 3.1.27 patchrelease verbetert de leesbaarheid van de UI in split/fullscreen op grote (4K) schermen.
+Deze 3.1.28 patchrelease lost een regressie op waarbij tekst in normaal venstermodus te groot kon worden en overlap veroorzaakte.
 
-## Nieuw in 3.1.27
+## Nieuw in 3.1.28
+- Grote UI-schaal wordt nu alleen toegepast in fullscreen-achtige layout-situaties.
+- In normale venstermodus blijft de UI op standaardgrootte om overlap van tekst/controls te vermijden.
+- Vensterstatus (positie/grootte/maximized/fullscreen) wordt nu bewaard en hersteld na herstart.
+
+## Eerder toegevoegd in 3.1.27
 - In split/fullscreen monitor-layouts werd de minimale UI-breedte verhoogd zodat het UI-venster op 4K niet te smal wordt.
 - Hierdoor wordt de bestaande tekst- en sliderschaal in de praktijk beter zichtbaar en bruikbaar.
 
