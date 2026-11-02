@@ -311,6 +311,7 @@ private slots:
 	void on_videoAvOffsetCheckBox_toggled(bool checked);
 	void on_outputRotationComboBox_currentIndexChanged(int index);
 	void on_videoExportModeComboBox_currentIndexChanged(int index);
+	void on_videoExportResolutionComboBox_currentIndexChanged(int index);
 	void on_videoExportContainerComboBox_currentIndexChanged(int index);
 	void on_videoExportCodecComboBox_currentIndexChanged(int index);
 	void on_videoExportPresetComboBox_currentIndexChanged(int index);
@@ -333,6 +334,7 @@ private:
 	int videoExportMode;
 	int videoContainerMode;
 	int videoCodecMode;
+	int videoResolutionMode;
 	int videoQualityPercent;
 	int videoAudioBitrateKbps;
 	int videoPresetMode;

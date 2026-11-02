@@ -167,6 +167,46 @@ static QString VideoContainerExtensionForMode(int mode)
 	}
 }
 
+enum VideoResolutionMode
+{
+	VIDEO_RESOLUTION_SOURCE = 0,
+	VIDEO_RESOLUTION_640X480 = 1,
+	VIDEO_RESOLUTION_1280X720 = 2,
+	VIDEO_RESOLUTION_1920X1080 = 3,
+	VIDEO_RESOLUTION_2560X1440 = 4,
+	VIDEO_RESOLUTION_3840X2160 = 5
+};
+
+static QSize VideoResolutionSizeForMode(int mode)
+{
+	switch(mode)
+	{
+	case VIDEO_RESOLUTION_640X480: return QSize(640, 480);
+	case VIDEO_RESOLUTION_1280X720: return QSize(1280, 720);
+	case VIDEO_RESOLUTION_1920X1080: return QSize(1920, 1080);
+	case VIDEO_RESOLUTION_2560X1440: return QSize(2560, 1440);
+	case VIDEO_RESOLUTION_3840X2160: return QSize(3840, 2160);
+	case VIDEO_RESOLUTION_SOURCE:
+	default:
+		return QSize();
+	}
+}
+
+static QString VideoResolutionLabelForMode(int mode)
+{
+	switch(mode)
+	{
+	case VIDEO_RESOLUTION_640X480: return "640x480 (SD)";
+	case VIDEO_RESOLUTION_1280X720: return "1280x720 (HD)";
+	case VIDEO_RESOLUTION_1920X1080: return "1920x1080 (Full HD)";
+	case VIDEO_RESOLUTION_2560X1440: return "2560x1440 (QHD)";
+	case VIDEO_RESOLUTION_3840X2160: return "3840x2160 (4K UHD)";
+	case VIDEO_RESOLUTION_SOURCE:
+	default:
+		return QObject::tr("Bronresolutie (crop)");
+	}
+}
+
 static QString ReadLastExportDirMain(const QString &key, const QString &fallback)
 {
 	QSettings settings;
@@ -396,6 +436,7 @@ static void EncodeVideoWithExternalFfmpeg(const QString &frameDir,
 		int exportMode,
 		int containerMode,
 		int codecMode,
+		int resolutionMode,
 		int qualityPercent,
 		int audioBitrateKbps,
 		int presetMode,
@@ -468,6 +509,17 @@ static void EncodeVideoWithExternalFfmpeg(const QString &frameDir,
 	     << "-i" << pattern
 	     << "-i" << audioWav
 	     << "-f" << containerArg;
+
+	QSize targetSize = VideoResolutionSizeForMode(resolutionMode);
+	if(targetSize.width() > 0 && targetSize.height() > 0)
+	{
+		QString vf = QString(
+				"scale=w=%1:h=%2:force_original_aspect_ratio=decrease:flags=lanczos,"
+				"pad=%1:%2:(ow-iw)/2:(oh-ih)/2:black")
+				.arg(targetSize.width())
+				.arg(targetSize.height());
+		args << "-vf" << vf;
+	}
 
 	if(codecArg == "mpeg4")
 	{
@@ -787,6 +839,7 @@ MainWindow::MainWindow(QWidget *parent) :
 	videoExportMode = SIMPLE_EXPORT_STANDARD;
 	videoContainerMode = VIDEO_CONTAINER_MP4;
 	videoCodecMode = VIDEO_CODEC_H264;
+	videoResolutionMode = VIDEO_RESOLUTION_SOURCE;
 	videoQualityPercent = 85;
 	videoAudioBitrateKbps = 192;
 	videoPresetMode = 1;
@@ -2442,6 +2495,9 @@ void MainWindow::LoadVideoExportSettings()
 	videoCodecMode = ClampRangeInt(
 			settings.value("codec", VIDEO_CODEC_H264).toInt(),
 			VIDEO_CODEC_H264, VIDEO_CODEC_MPEG4);
+	videoResolutionMode = ClampRangeInt(
+			settings.value("resolution-mode", VIDEO_RESOLUTION_SOURCE).toInt(),
+			VIDEO_RESOLUTION_SOURCE, VIDEO_RESOLUTION_3840X2160);
 	videoQualityPercent = ClampRangeInt(
 			settings.value("quality-percent", 85).toInt(), 1, 100);
 	videoAudioBitrateKbps = ClampRangeInt(
@@ -2459,6 +2515,7 @@ void MainWindow::SaveVideoExportSettings() const
 	settings.setValue("simple-mode", videoExportMode);
 	settings.setValue("container", videoContainerMode);
 	settings.setValue("codec", videoCodecMode);
+	settings.setValue("resolution-mode", videoResolutionMode);
 	settings.setValue("quality-percent", videoQualityPercent);
 	settings.setValue("audio-bitrate-kbps", videoAudioBitrateKbps);
 	settings.setValue("preset-mode", videoPresetMode);
@@ -2470,6 +2527,7 @@ void MainWindow::UpdateVideoExportControls()
 	QSignalBlocker blockMode(ui->videoExportModeComboBox);
 	QSignalBlocker blockContainer(ui->videoExportContainerComboBox);
 	QSignalBlocker blockCodec(ui->videoExportCodecComboBox);
+	QSignalBlocker blockResolution(ui->videoExportResolutionComboBox);
 	QSignalBlocker blockPreset(ui->videoExportPresetComboBox);
 	QSignalBlocker blockQuality(ui->videoExportQualitySlider);
 	QSignalBlocker blockAudio(ui->videoExportAudioBitrateSpinBox);
@@ -2480,6 +2538,9 @@ void MainWindow::UpdateVideoExportControls()
 			ClampRangeInt(videoContainerMode, VIDEO_CONTAINER_MP4, VIDEO_CONTAINER_MKV));
 	ui->videoExportCodecComboBox->setCurrentIndex(
 			ClampRangeInt(videoCodecMode, VIDEO_CODEC_H264, VIDEO_CODEC_MPEG4));
+	ui->videoExportResolutionComboBox->setCurrentIndex(
+			ClampRangeInt(videoResolutionMode,
+					VIDEO_RESOLUTION_SOURCE, VIDEO_RESOLUTION_3840X2160));
 	ui->videoExportPresetComboBox->setCurrentIndex(
 			ClampRangeInt(videoPresetMode, 0, 2));
 	ui->videoExportQualitySlider->setValue(
@@ -2503,10 +2564,11 @@ void MainWindow::UpdateVideoExportControls()
 	ui->videoExportQualityValueLabel->setText(
 			QString("%1%").arg(videoQualityPercent));
 	ui->videoExportSummaryLabel->setText(
-			tr("Actief: %1, %2, preset %3, kwaliteit %4%, audio %5 kbps.")
+			tr("Actief: %1, %2, %3, %4, preset %5, kwaliteit %6%, audio %7 kbps.")
 			.arg(modeNames[ClampRangeInt(videoExportMode, 0, 3)])
 			.arg(containerNames[ClampRangeInt(videoContainerMode, 0, 2)])
 			.arg(codecNames[ClampRangeInt(videoCodecMode, 0, 2)])
+			.arg(VideoResolutionLabelForMode(videoResolutionMode))
 			.arg(presetNames[ClampRangeInt(videoPresetMode, 0, 2)])
 			.arg(videoQualityPercent)
 			.arg(videoAudioBitrateKbps));
@@ -4830,6 +4892,7 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 					videoExportMode,
 					videoContainerMode,
 					videoCodecMode,
+					videoResolutionMode,
 					videoQualityPercent,
 					videoAudioBitrateKbps,
 					videoPresetMode,
@@ -5934,6 +5997,14 @@ void MainWindow::on_outputRotationComboBox_currentIndexChanged(int index)
 void MainWindow::on_videoExportModeComboBox_currentIndexChanged(int index)
 {
 	videoExportMode = ClampRangeInt(index, SIMPLE_EXPORT_FAST, SIMPLE_EXPORT_ULTRA);
+	SaveVideoExportSettings();
+	UpdateVideoExportControls();
+}
+
+void MainWindow::on_videoExportResolutionComboBox_currentIndexChanged(int index)
+{
+	videoResolutionMode = ClampRangeInt(
+			index, VIDEO_RESOLUTION_SOURCE, VIDEO_RESOLUTION_3840X2160);
 	SaveVideoExportSettings();
 	UpdateVideoExportControls();
 }
