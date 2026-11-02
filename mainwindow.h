@@ -354,6 +354,7 @@ private:
 	bool applyingWindowLayout;
 	bool audioQualityPresetSyncLock;
 	bool audioOnlyQualityPresetSyncLock;
+	int uiScalePercent;
 
 	void NormalizePitchControls(bool startChanged);
 	void NormalizeVideoCropControls(bool topChanged);
@@ -368,6 +369,7 @@ private:
 	void UpdateVideoExportControls();
 	void UpdateAudioQualityPresetFromControls();
 	void UpdateAudioOnlyQualityPresetFromControls();
+	void UpdateAdaptiveUiScale();
 	void ApplyThemeFromSettings();
 	void PositionPreviewWindowBesideMainWindow();
 

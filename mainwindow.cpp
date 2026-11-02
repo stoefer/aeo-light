@@ -863,6 +863,7 @@ MainWindow::MainWindow(QWidget *parent) :
 	applyingWindowLayout = false;
 	audioQualityPresetSyncLock = false;
 	audioOnlyQualityPresetSyncLock = false;
+	uiScalePercent = -1;
 	LoadVideoExportSettings();
 	LoadExtractOutputSettings();
 
@@ -964,7 +965,51 @@ void MainWindow::moveEvent(QMoveEvent *event)
 void MainWindow::resizeEvent(QResizeEvent *event)
 {
 	QMainWindow::resizeEvent(event);
+	UpdateAdaptiveUiScale();
 	PositionPreviewWindowBesideMainWindow();
+}
+
+void MainWindow::UpdateAdaptiveUiScale()
+{
+	const double baseWidth = 760.0;
+	const double baseHeight = 640.0;
+	const double widthScale = std::max(1.0, static_cast<double>(this->width()) / baseWidth);
+	const double heightScale = std::max(1.0, static_cast<double>(this->height()) / baseHeight);
+	const double scale = std::min(1.8, std::min(widthScale, heightScale));
+	int newPercent = static_cast<int>(std::lround(scale * 100.0));
+
+	if(newPercent <= 102)
+		newPercent = 100;
+
+	if(newPercent == uiScalePercent)
+		return;
+	uiScalePercent = newPercent;
+
+	if(newPercent <= 100)
+	{
+		this->setStyleSheet(QString());
+		return;
+	}
+
+	const double scaleFactor = newPercent / 100.0;
+	const int fontPt = std::max(9, static_cast<int>(std::lround(9.0 * scaleFactor)));
+	const int sliderGroove = std::max(6, static_cast<int>(std::lround(6.0 * scaleFactor)));
+	const int sliderHandle = std::max(14, static_cast<int>(std::lround(14.0 * scaleFactor)));
+	const int sliderMargin = std::max(2, static_cast<int>(std::lround(sliderHandle / 3.0)));
+
+	const QString style = QString(
+			"QLabel, QCheckBox, QRadioButton, QGroupBox, QPushButton, "
+			"QComboBox, QSpinBox, QDoubleSpinBox, QLineEdit, QTextEdit { "
+			"font-size: %1pt; }"
+			"QSlider::groove:horizontal { height: %2px; }"
+			"QSlider::handle:horizontal { width: %3px; margin: -%4px 0; }"
+			"QSlider::groove:vertical { width: %2px; }"
+			"QSlider::handle:vertical { height: %3px; margin: 0 -%4px; }")
+			.arg(fontPt)
+			.arg(sliderGroove)
+			.arg(sliderHandle)
+			.arg(sliderMargin);
+	this->setStyleSheet(style);
 }
 
 void MainWindow::PositionPreviewWindowBesideMainWindow()
@@ -1065,18 +1110,51 @@ void MainWindow::PositionPreviewWindowBesideMainWindow()
 				0, std::min(targetMonitorIndex, screens.size() - 1));
 		const QRect available = screens.at(monitorIndex)->availableGeometry();
 		const int splitGap = 10;
-		int leftWidth = std::max(360, (available.width() - splitGap) / 2);
-		leftWidth = std::min(leftWidth, available.width() - 220);
-		const QRect mainArea(
-				available.left(),
-				available.top(),
-				leftWidth,
-				available.height());
+		const int minMainWidth = std::min(360, std::max(220, available.width() / 3));
+		const int minFrameHeight = std::min(240, available.height());
+
+		auto previewFrameWidthForHeight = [&](int frameHeight)
+		{
+			int contentHeight = std::max(120, frameHeight - frameMarginsH);
+			int contentWidth = std::max(120,
+					static_cast<int>(std::lround(contentHeight * aspectRatio)));
+			return contentWidth + frameMarginsW;
+		};
+
+		int commonFrameHeight = available.height();
+		int previewFrameWidth = previewFrameWidthForHeight(commonFrameHeight);
+		int mainWidth = available.width() - splitGap - previewFrameWidth;
+
+		if(mainWidth < minMainWidth)
+		{
+			double maxContentHeightByWidth =
+					(static_cast<double>(available.width() - splitGap - minMainWidth - frameMarginsW) /
+					std::max(0.1, aspectRatio));
+			int maxFrameHeightByWidth = static_cast<int>(std::floor(maxContentHeightByWidth)) + frameMarginsH;
+			commonFrameHeight = std::max(minFrameHeight,
+					std::min(commonFrameHeight, maxFrameHeightByWidth));
+			previewFrameWidth = previewFrameWidthForHeight(commonFrameHeight);
+			mainWidth = available.width() - splitGap - previewFrameWidth;
+		}
+
+		if(mainWidth < 280)
+			mainWidth = 280;
+
+		int totalWidth = mainWidth + splitGap + previewFrameWidth;
+		if(totalWidth > available.width())
+		{
+			mainWidth = std::max(280, available.width() - splitGap - previewFrameWidth);
+			totalWidth = mainWidth + splitGap + previewFrameWidth;
+		}
+
+		const int startX = available.left() + std::max(0, (available.width() - totalWidth) / 2);
+		const int startY = available.top() + std::max(0, (available.height() - commonFrameHeight) / 2);
+		const QRect mainArea(startX, startY, mainWidth, commonFrameHeight);
 		const QRect previewArea(
 				mainArea.right() + 1 + splitGap,
-				available.top(),
-				available.width() - leftWidth - splitGap,
-				available.height());
+				startY,
+				previewFrameWidth,
+				commonFrameHeight);
 		if(this->geometry() != mainArea)
 			this->setGeometry(mainArea);
 		placePreviewInArea(previewArea);
