@@ -1022,81 +1022,33 @@ void MainWindow::UpdateAdaptiveUiScale()
 	if(!uiScaleGeometryCaptured)
 		return;
 
-	bool applyLargeUiScale = false;
-	double sx = 1.0;
-	double sy = 1.0;
-	double fontScale = 1.0;
-
-	if(uiScaleBaseSize.width() > 0 && uiScaleBaseSize.height() > 0)
-	{
-		const double widthRatio = static_cast<double>(cw->width()) /
-				std::max(1, uiScaleBaseSize.width());
-		const double heightRatio = static_cast<double>(cw->height()) /
-				std::max(1, uiScaleBaseSize.height());
-		sx = std::max(1.0, widthRatio);
-		sy = std::max(1.0, heightRatio);
-		applyLargeUiScale = (sx > 1.08 || sy > 1.08);
-
-		const double rawScale = std::min(1.8, (sx + sy) / 2.0);
-		fontScale = 1.0 + (rawScale - 1.0) * 0.45;
-		fontScale = std::min(1.35, std::max(1.0, fontScale));
-	}
-
-	if(!applyLargeUiScale)
-	{
-		sx = 1.0;
-		sy = 1.0;
-		fontScale = 1.0;
-	}
-
-	const int newPercent = static_cast<int>(std::lround(fontScale * 100.0));
-	if(newPercent == uiScalePercent && applyLargeUiScale == uiScaleLayoutActive)
-		return;
-
-	uiScalePercent = newPercent;
-	uiScaleLayoutActive = applyLargeUiScale;
-
+	// Requested fallback: keep the legacy fixed "standard" UI layout.
+	// We reset geometry/fonts/styles to the baseline captured from .ui.
 	for(auto it = uiScaleBaseGeometry.constBegin(); it != uiScaleBaseGeometry.constEnd(); ++it)
 	{
 		QWidget *w = it.key();
 		if(!w) continue;
-		const QRect base = it.value();
-		QRect scaled(
-				static_cast<int>(std::lround(base.x() * sx)),
-				static_cast<int>(std::lround(base.y() * sy)),
-				static_cast<int>(std::lround(base.width() * sx)),
-				static_cast<int>(std::lround(base.height() * sy)));
-		w->setGeometry(scaled);
+		w->setGeometry(it.value());
 	}
 
 	for(auto it = uiScaleBaseFontPt.constBegin(); it != uiScaleBaseFontPt.constEnd(); ++it)
 	{
 		QWidget *w = it.key();
 		if(!w) continue;
-		int basePt = it.value();
-		int targetPt = std::max(8, static_cast<int>(std::lround(basePt * fontScale)));
 		QFont f = w->font();
-		f.setPointSize(targetPt);
+		f.setPointSize(it.value());
 		w->setFont(f);
 	}
 
-	const int sliderGroove = std::max(6, static_cast<int>(std::lround(6.0 * fontScale)));
-	const int sliderHandle = std::max(14, static_cast<int>(std::lround(14.0 * fontScale)));
-	const int sliderMargin = std::max(2, static_cast<int>(std::lround(sliderHandle / 3.0)));
-	const QString sliderStyle = QString(
-			"QSlider::groove:horizontal { height: %1px; }"
-			"QSlider::handle:horizontal { width: %2px; margin: -%3px 0; }"
-			"QSlider::groove:vertical { width: %1px; }"
-			"QSlider::handle:vertical { height: %2px; margin: 0 -%3px; }")
-			.arg(sliderGroove)
-			.arg(sliderHandle)
-			.arg(sliderMargin);
 	const QList<QSlider*> sliders = cw->findChildren<QSlider*>();
 	for(QSlider *slider : sliders)
 	{
 		if(!slider) continue;
-		slider->setStyleSheet(sliderStyle);
+		slider->setStyleSheet(QString());
 	}
+
+	uiScalePercent = 100;
+	uiScaleLayoutActive = false;
 }
 
 void MainWindow::RestoreUiWindowSettings()
