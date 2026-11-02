@@ -44,8 +44,11 @@ private slots:
     void BrowseForFolder(QLineEdit *lineEdit, QString title, QString dflt);
     void ValidateFolder(QString dflt);
     void Save();
+    void UpdateWindowLayoutControls();
 
 private:
+	void PopulateMonitorChoices();
+	QString CurrentWindowLayoutModeKey() const;
 	Ui::preferencesdialog *ui;
 	QString sysRead;
 	QString sysWrite;

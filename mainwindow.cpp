@@ -1019,17 +1019,39 @@ void MainWindow::PositionPreviewWindowBesideMainWindow()
 
 	QSettings settings;
 	settings.beginGroup("ui");
-	const bool preferDualScreenLayout =
-			settings.value("window-layout-dual-screen", false).toBool();
-	const bool preferSingleScreenFill =
-			settings.value("window-layout-single-fill", false).toBool();
+	QString layoutMode =
+			settings.value("window-layout-mode", "").toString().toLower().trimmed();
+	if(layoutMode.isEmpty())
+	{
+		const bool legacyDual =
+				settings.value("window-layout-dual-screen", false).toBool();
+		const bool legacySingle =
+				settings.value("window-layout-single-fill", false).toBool();
+		if(legacyDual)
+			layoutMode = "dual";
+		else if(legacySingle)
+			layoutMode = "single";
+		else
+			layoutMode = "standard";
+	}
+	const bool dualSwap =
+			settings.value("window-layout-dual-swap", false).toBool();
+	const int targetMonitorIndex =
+			settings.value("window-layout-target-monitor", 0).toInt();
 	settings.endGroup();
 
 	const QList<QScreen*> screens = QGuiApplication::screens();
-	if(preferDualScreenLayout && screens.size() >= 2)
+	if(layoutMode == "dual" && screens.size() >= 2)
 	{
-		const QRect mainArea = screens.at(0)->availableGeometry();
-		const QRect previewArea = screens.at(1)->availableGeometry();
+		int mainScreenIndex = dualSwap ? 1 : 0;
+		int previewScreenIndex = dualSwap ? 0 : 1;
+		mainScreenIndex = std::max(0, std::min(mainScreenIndex, screens.size() - 1));
+		previewScreenIndex = std::max(0, std::min(previewScreenIndex, screens.size() - 1));
+		if(mainScreenIndex == previewScreenIndex)
+			previewScreenIndex = (mainScreenIndex + 1) % screens.size();
+
+		const QRect mainArea = screens.at(mainScreenIndex)->availableGeometry();
+		const QRect previewArea = screens.at(previewScreenIndex)->availableGeometry();
 		if(this->geometry() != mainArea)
 			this->setGeometry(mainArea);
 		placePreviewInArea(previewArea);
@@ -1037,9 +1059,11 @@ void MainWindow::PositionPreviewWindowBesideMainWindow()
 		return;
 	}
 
-	if(preferSingleScreenFill && screens.size() == 1)
+	if(layoutMode == "single" && !screens.isEmpty())
 	{
-		const QRect available = screens.at(0)->availableGeometry();
+		const int monitorIndex = std::max(
+				0, std::min(targetMonitorIndex, screens.size() - 1));
+		const QRect available = screens.at(monitorIndex)->availableGeometry();
 		const int splitGap = 10;
 		int leftWidth = std::max(360, (available.width() - splitGap) / 2);
 		leftWidth = std::min(leftWidth, available.width() - 220);

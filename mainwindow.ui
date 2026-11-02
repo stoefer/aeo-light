@@ -2958,6 +2958,8 @@ QPushButton:disabled {
     <addaction name="actionSave_Settings"/>
     <addaction name="separator"/>
     <addaction name="actionPreferences"/>
+   <addaction name="separator"/>
+   <addaction name="actionQuit"/>
    </widget>
    <widget class="QMenu" name="menuView">
     <property name="title">
@@ -3019,7 +3021,10 @@ QPushButton:disabled {
   </action>
   <action name="actionQuit">
    <property name="text">
-    <string>Quit</string>
+    <string>Exit</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Q</string>
    </property>
   </action>
   <action name="actionWaveform_Zoom">

@@ -28,6 +28,9 @@
 #include <QSettings>
 #include <QDebug>
 #include <QMessageBox>
+#include <QGuiApplication>
+#include <QScreen>
+#include <QComboBox>
 
 preferencesdialog::preferencesdialog(QWidget *parent) :
 	QDialog(parent),
@@ -59,11 +62,36 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 			settings->value("skip-close-confirmation", false).toBool());
 	QString theme = settings->value("theme", "light").toString().toLower();
 	ui->themeComboBox->setCurrentIndex(theme == "dark" ? 1 : 0);
-	ui->dualScreenLayoutCheckBox->setChecked(
-			settings->value("window-layout-dual-screen", false).toBool());
-	ui->singleScreenFillCheckBox->setChecked(
-			settings->value("window-layout-single-fill", false).toBool());
+	QString mode = settings->value("window-layout-mode", "").toString().toLower();
+	if(mode.isEmpty())
+	{
+		bool legacyDual = settings->value("window-layout-dual-screen", false).toBool();
+		bool legacySingle = settings->value("window-layout-single-fill", false).toBool();
+		if(legacyDual)
+			mode = "dual";
+		else if(legacySingle)
+			mode = "single";
+		else
+			mode = "standard";
+	}
+	if(mode == "single")
+		ui->windowLayoutModeComboBox->setCurrentIndex(1);
+	else if(mode == "dual")
+		ui->windowLayoutModeComboBox->setCurrentIndex(2);
+	else
+		ui->windowLayoutModeComboBox->setCurrentIndex(0);
+	ui->windowLayoutSwapCheckBox->setChecked(
+			settings->value("window-layout-dual-swap", false).toBool());
 	settings->endGroup();
+
+	PopulateMonitorChoices();
+	settings->beginGroup("ui");
+	int targetMonitor = settings->value("window-layout-target-monitor", 0).toInt();
+	settings->endGroup();
+	int monitorComboIndex = ui->windowLayoutMonitorComboBox->findData(targetMonitor);
+	if(monitorComboIndex < 0) monitorComboIndex = 0;
+	ui->windowLayoutMonitorComboBox->setCurrentIndex(monitorComboIndex);
+	UpdateWindowLayoutControls();
 
 	ui->sourceText->setPlaceholderText(sysRead);
 	ui->projectText->setPlaceholderText(sysWrite);
@@ -127,6 +155,10 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
     connect(
         ui->saveButton, &QPushButton::clicked,
         this, &preferencesdialog::Save);
+	connect(
+		ui->windowLayoutModeComboBox,
+		static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+		this, &preferencesdialog::UpdateWindowLayoutControls);
 }
 
 preferencesdialog::~preferencesdialog()
@@ -226,14 +258,59 @@ void preferencesdialog::Save()
 	settings->setValue(
 			"theme",
 			ui->themeComboBox->currentIndex() == 1 ? "dark" : "light");
+	const QString layoutMode = CurrentWindowLayoutModeKey();
+	settings->setValue("window-layout-mode", layoutMode);
+	settings->setValue(
+			"window-layout-dual-swap",
+			ui->windowLayoutSwapCheckBox->isChecked());
+	settings->setValue(
+			"window-layout-target-monitor",
+			ui->windowLayoutMonitorComboBox->currentData().toInt());
+
+	// Keep legacy keys aligned for backwards compatibility.
 	settings->setValue(
 			"window-layout-dual-screen",
-			ui->dualScreenLayoutCheckBox->isChecked());
+			layoutMode == "dual");
 	settings->setValue(
 			"window-layout-single-fill",
-			ui->singleScreenFillCheckBox->isChecked());
+			layoutMode == "single");
 	settings->endGroup();
 
 	accept();
 	//done(Accepted);
+}
+
+void preferencesdialog::PopulateMonitorChoices()
+{
+	ui->windowLayoutMonitorComboBox->clear();
+	const QList<QScreen*> screens = QGuiApplication::screens();
+	for(int i = 0; i < screens.size(); ++i)
+	{
+		QScreen *screen = screens.at(i);
+		QString label = QString("Monitor %1").arg(i + 1);
+		QString screenName = screen ? screen->name().trimmed() : QString();
+		if(!screenName.isEmpty())
+			label += QString(" - %1").arg(screenName);
+		ui->windowLayoutMonitorComboBox->addItem(label, i);
+	}
+	if(ui->windowLayoutMonitorComboBox->count() == 0)
+		ui->windowLayoutMonitorComboBox->addItem("Monitor 1", 0);
+}
+
+QString preferencesdialog::CurrentWindowLayoutModeKey() const
+{
+	switch(ui->windowLayoutModeComboBox->currentIndex())
+	{
+	case 1: return "single";
+	case 2: return "dual";
+	default: return "standard";
+	}
+}
+
+void preferencesdialog::UpdateWindowLayoutControls()
+{
+	const QString mode = CurrentWindowLayoutModeKey();
+	ui->windowLayoutMonitorLabel->setEnabled(mode == "single");
+	ui->windowLayoutMonitorComboBox->setEnabled(mode == "single");
+	ui->windowLayoutSwapCheckBox->setEnabled(mode == "dual");
 }

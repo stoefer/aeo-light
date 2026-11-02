@@ -390,23 +390,60 @@
        </widget>
       </item>
       <item>
-       <widget class="QCheckBox" name="dualScreenLayoutCheckBox">
-        <property name="text">
-         <string>Bij 2 monitoren: hoofdvenster op scherm 1, preview op scherm 2</string>
-        </property>
-       </widget>
+       <layout class="QHBoxLayout" name="windowLayoutModeLayout">
+        <item>
+         <widget class="QLabel" name="windowLayoutModeLabel">
+          <property name="text">
+           <string>Vensterlayout</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="windowLayoutModeComboBox">
+          <item>
+           <property name="text">
+            <string>Standaard (monitor-onafhankelijk)</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>1 monitor split (UI + preview)</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>2 monitoren (gescheiden)</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+       </layout>
       </item>
       <item>
-       <widget class="QCheckBox" name="singleScreenFillCheckBox">
+       <layout class="QHBoxLayout" name="windowLayoutMonitorLayout">
+        <item>
+         <widget class="QLabel" name="windowLayoutMonitorLabel">
+          <property name="text">
+           <string>Doelmonitor</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="windowLayoutMonitorComboBox"/>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="windowLayoutSwapCheckBox">
         <property name="text">
-         <string>Bij 1 monitor: gebruik volledig HD/UHD scherm (UI links, preview rechts)</string>
+         <string>Swap vensters tussen monitor 1 en 2</string>
         </property>
        </widget>
       </item>
       <item>
        <widget class="QLabel" name="windowLayoutHelpLabel">
         <property name="text">
-         <string>Tip: met 2 schermen zet je de preview op monitor 2. Met 1 scherm wordt de ruimte gesplitst zodat beide vensters maximaal zichtbaar zijn.</string>
+         <string>Standaard: vrij verschuiven zoals vroeger. 1 monitor split werkt ook als je 2 monitoren hebt (via doelmonitor). 2 monitoren: gebruik Swap om hoofdvenster en preview om te wisselen.</string>
         </property>
         <property name="wordWrap">
          <bool>true</bool>
@@ -441,8 +478,9 @@
   <tabstop>browseForExportButton</tabstop>
   <tabstop>themeComboBox</tabstop>
   <tabstop>skipCloseConfirmCheckBox</tabstop>
-  <tabstop>dualScreenLayoutCheckBox</tabstop>
-  <tabstop>singleScreenFillCheckBox</tabstop>
+  <tabstop>windowLayoutModeComboBox</tabstop>
+  <tabstop>windowLayoutMonitorComboBox</tabstop>
+  <tabstop>windowLayoutSwapCheckBox</tabstop>
   <tabstop>originatorText</tabstop>
   <tabstop>archiveLocationText</tabstop>
   <tabstop>copyrightText</tabstop>
