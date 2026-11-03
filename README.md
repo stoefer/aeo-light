@@ -1,8 +1,13 @@
-# AEO-Light 3.1.32 (fork release)
+# AEO-Light 3.1.33 (fork release)
 
-Deze 3.1.32 patchrelease maakt de audio-helptekst subtieler en voegt een schakelaar toe om die tekst te tonen of te verbergen.
+Deze 3.1.33 patchrelease centraliseert helptekst-zichtbaarheid, hernoemt de hoofdtab en maakt de actieve tab visueel opvallender.
 
-## Nieuw in 3.1.32
+## Nieuw in 3.1.33
+- Nieuwe voorkeur in **Preferences**: **Toon helptekst in de app** (geldt app-breed).
+- Tabnaam aangepast naar **Audio- & Video-track Settings**.
+- Actieve tab heeft nu een duidelijkere highlight-kleur (licht en donker thema).
+
+## Eerder toegevoegd in 3.1.32
 - Helptekst bij Audio kwaliteit is subtieler gemaakt (kleiner + grijzer).
 - Nieuwe checkbox **Toon helptekst** om de audio-helpregels te verbergen/tonen.
 - Voorkeur voor helptekst-zichtbaarheid blijft bewaard na herstart.
