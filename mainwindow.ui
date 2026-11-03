@@ -108,7 +108,7 @@
      </property>
      <widget class="QWidget" name="tab">
       <attribute name="title">
-       <string>Soundtrack Settings</string>
+       <string>Audio- &amp; Video-track Settings</string>
       </attribute>
       <widget class="QWidget" name="gridLayoutWidget">
        <property name="geometry">
