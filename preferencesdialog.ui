@@ -373,6 +373,16 @@
        </widget>
       </item>
       <item>
+       <widget class="QCheckBox" name="showHelpTextCheckBox">
+        <property name="text">
+         <string>Toon helptekst in de app</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QCheckBox" name="skipCloseConfirmCheckBox">
         <property name="text">
          <string>Bevestiging afsluiten niet meer tonen</string>
@@ -477,6 +487,7 @@
   <tabstop>exportText</tabstop>
   <tabstop>browseForExportButton</tabstop>
   <tabstop>themeComboBox</tabstop>
+  <tabstop>showHelpTextCheckBox</tabstop>
   <tabstop>skipCloseConfirmCheckBox</tabstop>
   <tabstop>windowLayoutModeComboBox</tabstop>
   <tabstop>windowLayoutMonitorComboBox</tabstop>

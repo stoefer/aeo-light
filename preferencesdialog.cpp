@@ -31,6 +31,25 @@
 #include <QGuiApplication>
 #include <QScreen>
 #include <QComboBox>
+#include <QLabel>
+
+static bool ReadShowHelpTextPreference(QSettings &settings, bool defaultValue = true)
+{
+	settings.beginGroup("ui");
+	const bool hasUiSetting = settings.contains("show-help-text");
+	bool showHelpText = settings.value("show-help-text", defaultValue).toBool();
+	settings.endGroup();
+
+	if(!hasUiSetting)
+	{
+		settings.beginGroup("extraction");
+		if(settings.contains("show-audio-help-text"))
+			showHelpText = settings.value("show-audio-help-text", defaultValue).toBool();
+		settings.endGroup();
+	}
+
+	return showHelpText;
+}
 
 preferencesdialog::preferencesdialog(QWidget *parent) :
 	QDialog(parent),
@@ -57,9 +76,11 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
     ui->importText->setText(settings->value("import", sysRead).toString());
     settings->endGroup();
 
+	const bool showHelpText = ReadShowHelpTextPreference(*settings, true);
 	settings->beginGroup("ui");
 	ui->skipCloseConfirmCheckBox->setChecked(
 			settings->value("skip-close-confirmation", false).toBool());
+	ui->showHelpTextCheckBox->setChecked(showHelpText);
 	QString theme = settings->value("theme", "light").toString().toLower();
 	ui->themeComboBox->setCurrentIndex(theme == "dark" ? 1 : 0);
 	QString mode = settings->value("window-layout-mode", "").toString().toLower();
@@ -92,6 +113,7 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 	if(monitorComboIndex < 0) monitorComboIndex = 0;
 	ui->windowLayoutMonitorComboBox->setCurrentIndex(monitorComboIndex);
 	UpdateWindowLayoutControls();
+	ApplyHelpTextVisibility(showHelpText);
 
 	ui->sourceText->setPlaceholderText(sysRead);
 	ui->projectText->setPlaceholderText(sysWrite);
@@ -159,6 +181,8 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 		ui->windowLayoutModeComboBox,
 		static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
 		this, &preferencesdialog::UpdateWindowLayoutControls);
+	connect(ui->showHelpTextCheckBox, &QCheckBox::toggled,
+			this, &preferencesdialog::ApplyHelpTextVisibility);
 }
 
 preferencesdialog::~preferencesdialog()
@@ -256,6 +280,9 @@ void preferencesdialog::Save()
 			"skip-close-confirmation",
 			ui->skipCloseConfirmCheckBox->isChecked());
 	settings->setValue(
+			"show-help-text",
+			ui->showHelpTextCheckBox->isChecked());
+	settings->setValue(
 			"theme",
 			ui->themeComboBox->currentIndex() == 1 ? "dark" : "light");
 	const QString layoutMode = CurrentWindowLayoutModeKey();
@@ -313,4 +340,15 @@ void preferencesdialog::UpdateWindowLayoutControls()
 	ui->windowLayoutMonitorLabel->setEnabled(mode == "single");
 	ui->windowLayoutMonitorComboBox->setEnabled(mode == "single");
 	ui->windowLayoutSwapCheckBox->setEnabled(mode == "dual");
+}
+
+void preferencesdialog::ApplyHelpTextVisibility(bool visible)
+{
+	const QList<QLabel*> labels = findChildren<QLabel*>();
+	for(QLabel *label : labels)
+	{
+		if(!label) continue;
+		if(label->objectName().contains("HelpLabel"))
+			label->setVisible(visible);
+	}
 }

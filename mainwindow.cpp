@@ -237,6 +237,31 @@ static void WriteLastExportDirMain(const QString &key, const QString &dir)
 	settings.endGroup();
 }
 
+static bool ReadShowHelpTextSetting(bool *usedLegacyKey = nullptr)
+{
+	bool legacyUsed = false;
+	QSettings settings;
+	settings.beginGroup("ui");
+	const bool hasUiSetting = settings.contains("show-help-text");
+	bool showHelpText = settings.value("show-help-text", true).toBool();
+	settings.endGroup();
+
+	if(!hasUiSetting)
+	{
+		settings.beginGroup("extraction");
+		if(settings.contains("show-audio-help-text"))
+		{
+			showHelpText = settings.value("show-audio-help-text", true).toBool();
+			legacyUsed = true;
+		}
+		settings.endGroup();
+	}
+
+	if(usedLegacyKey)
+		*usedLegacyKey = legacyUsed;
+	return showHelpText;
+}
+
 static QString EnsureNonOverwritingPath(const QString &requestedPath)
 {
 	if(requestedPath.isEmpty()) return requestedPath;
@@ -870,6 +895,9 @@ MainWindow::MainWindow(QWidget *parent) :
 	uiScaleBaseSize = QSize();
 	LoadVideoExportSettings();
 	LoadExtractOutputSettings();
+	bool usedLegacyShowHelpKey = false;
+	const bool showHelpText = ReadShowHelpTextSetting(&usedLegacyShowHelpKey);
+	UpdateHelpTextVisibility(showHelpText, usedLegacyShowHelpKey);
 
 	CaptureUiScaleBaseGeometry();
 	RestoreUiWindowSettings();
@@ -913,12 +941,6 @@ MainWindow::MainWindow(QWidget *parent) :
 
     connect(ui->queueImportVFBClipsButton, &QPushButton::clicked,
             this, &MainWindow::QueueImportVFB);
-	connect(ui->audioHelpTextCheckBox, &QCheckBox::toggled,
-			this, [this](bool checked)
-	{
-		UpdateAudioHelpTextVisibility(checked, true);
-	});
-
 	UpdateVideoStabilizationControls();
 }
 
@@ -2743,17 +2765,22 @@ void MainWindow::UpdateExtractOutputControls()
 	ui->outputVideoOrientationPresetButton->setEnabled(outputVideo);
 }
 
-void MainWindow::UpdateAudioHelpTextVisibility(bool visible, bool persistSetting)
+void MainWindow::UpdateHelpTextVisibility(bool visible, bool persistSetting)
 {
-	ui->audioQualityPresetHelpLabel->setVisible(visible);
-	ui->audioOnlyQualityPresetHelpLabel->setVisible(visible);
+	const QList<QLabel*> labels = findChildren<QLabel*>();
+	for(QLabel *label : labels)
+	{
+		if(!label) continue;
+		if(label->objectName().contains("HelpLabel"))
+			label->setVisible(visible);
+	}
 
 	if(!persistSetting)
 		return;
 
 	QSettings settings;
-	settings.beginGroup("extraction");
-	settings.setValue("show-audio-help-text", visible);
+	settings.beginGroup("ui");
+	settings.setValue("show-help-text", visible);
 	settings.endGroup();
 }
 
@@ -2786,10 +2813,6 @@ void MainWindow::LoadExtractOutputSettings()
 			settings.value("video-flip-v", false).toBool());
 	ui->outputRotationComboBox->setCurrentIndex(ClampRangeInt(
 			settings.value("video-rotation-index", 0).toInt(), 0, 3));
-	const bool showAudioHelpText =
-			settings.value("show-audio-help-text", true).toBool();
-	ui->audioHelpTextCheckBox->setChecked(showAudioHelpText);
-	UpdateAudioHelpTextVisibility(showAudioHelpText, false);
 	settings.endGroup();
 	UpdateExtractOutputControls();
 	ApplyVideoContainerExtensionToOutputFilename();
@@ -2806,7 +2829,6 @@ void MainWindow::SaveExtractOutputSettings() const
 	settings.setValue("video-flip-h", ui->outputFlipHorizontalCheckBox->isChecked());
 	settings.setValue("video-flip-v", ui->outputFlipVerticalCheckBox->isChecked());
 	settings.setValue("video-rotation-index", ui->outputRotationComboBox->currentIndex());
-	settings.setValue("show-audio-help-text", ui->audioHelpTextCheckBox->isChecked());
 	settings.endGroup();
 }
 
@@ -6235,6 +6257,7 @@ void MainWindow::on_actionPreferences_triggered()
 	if(result == QDialog::Accepted)
 	{
 		ApplyThemeFromSettings();
+		UpdateHelpTextVisibility(ReadShowHelpTextSetting(), false);
 		UpdateAdaptiveUiScale();
 		PositionPreviewWindowBesideMainWindow();
 	}

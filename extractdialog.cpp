@@ -67,6 +67,25 @@ static void WriteLastExportDir(const QString &key, const QString &dir)
 	settings.endGroup();
 }
 
+static bool ReadGlobalShowHelpTextSetting(bool defaultValue = true)
+{
+	QSettings settings;
+	settings.beginGroup("ui");
+	const bool hasUiSetting = settings.contains("show-help-text");
+	bool showHelpText = settings.value("show-help-text", defaultValue).toBool();
+	settings.endGroup();
+
+	if(!hasUiSetting)
+	{
+		settings.beginGroup("extraction");
+		if(settings.contains("show-audio-help-text"))
+			showHelpText = settings.value("show-audio-help-text", defaultValue).toBool();
+		settings.endGroup();
+	}
+
+	return showHelpText;
+}
+
 ExtractDialog::ExtractDialog(QWidget *parent, MetaData &metadata,
 			const QString &dir) :
 	QDialog(parent),
@@ -99,6 +118,14 @@ ExtractDialog::ExtractDialog(QWidget *parent, MetaData &metadata,
 
 	ui->datetimeDisplay->setText(
 			QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss"));
+	const bool showHelpText = ReadGlobalShowHelpTextSetting(true);
+	const QList<QLabel*> labels = findChildren<QLabel*>();
+	for(QLabel *label : labels)
+	{
+		if(!label) continue;
+		if(label->objectName().contains("HelpLabel"))
+			label->setVisible(showHelpText);
+	}
 	UpdateVideoAdvancedSummary();
 
 }

@@ -1977,16 +1977,6 @@
           </item>
          </layout>
         </item>
-        <item row="7" column="2">
-         <widget class="QCheckBox" name="audioHelpTextCheckBox">
-          <property name="text">
-           <string>Toon helptekst</string>
-          </property>
-          <property name="checked">
-           <bool>true</bool>
-          </property>
-         </widget>
-        </item>
         <item row="7" column="1">
          <widget class="QComboBox" name="xmlSidecarComboBox">
           <item>
@@ -3192,7 +3182,6 @@ QPushButton:disabled {
   <tabstop>bitDepthComboBox</tabstop>
   <tabstop>audioQualityPresetComboBox</tabstop>
   <tabstop>audioOnlyQualityPresetComboBox</tabstop>
-  <tabstop>audioHelpTextCheckBox</tabstop>
   <tabstop>advance_CB</tabstop>
   <tabstop>xmlSidecarComboBox</tabstop>
   <tabstop>extractDefaultsButton</tabstop>

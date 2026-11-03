@@ -49,6 +49,7 @@ private slots:
 private:
 	void PopulateMonitorChoices();
 	QString CurrentWindowLayoutModeKey() const;
+	void ApplyHelpTextVisibility(bool visible);
 	Ui::preferencesdialog *ui;
 	QString sysRead;
 	QString sysWrite;
