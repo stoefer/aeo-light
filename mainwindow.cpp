@@ -296,7 +296,8 @@ static QString BuildDarkThemeStyleSheet()
 			"QTabWidget::pane { border: 1px solid #555555; }"
 			"QTabBar::tab { background-color: #363636; color: #e8e8e8; "
 				"padding: 6px; border: 1px solid #555555; border-bottom: none; }"
-			"QTabBar::tab:selected { background-color: #2b2b2b; }"
+			"QTabBar::tab:selected { background-color: #4f8cc9; color: #ffffff; "
+				"font-weight: 700; border-color: #74a6d8; }"
 			"QStatusBar { background-color: #323232; color: #e8e8e8; }"
 			"QToolTip { color: #ffffff; background-color: #444444; border: 1px solid #777777; }"
 			"QProgressBar { border: 1px solid #555555; text-align: center; "
@@ -307,7 +308,12 @@ static QString BuildDarkThemeStyleSheet()
 
 static QString BuildLightThemeStyleSheet()
 {
-	return QString("QGroupBox::title { font-weight: 700; }");
+	return QString(
+			"QTabBar::tab { background-color: #e6e6e6; color: #202020; "
+				"padding: 6px; border: 1px solid #b8b8b8; border-bottom: none; }"
+			"QTabBar::tab:selected { background-color: #2f5f9f; color: #ffffff; "
+				"font-weight: 700; border-color: #4f78b4; }"
+			"QGroupBox::title { font-weight: 700; }");
 }
 
 static int ClampRangeInt(int value, int minValue, int maxValue)
