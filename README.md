@@ -1,8 +1,13 @@
-# AEO-Light 3.1.31 (fork release)
+# AEO-Light 3.1.32 (fork release)
 
-Deze 3.1.31 patchrelease maakt de optische-audio tiptekst onder de sliders ultra-kort en direct leesbaar.
+Deze 3.1.32 patchrelease maakt de audio-helptekst subtieler en voegt een schakelaar toe om die tekst te tonen of te verbergen.
 
-## Nieuw in 3.1.31
+## Nieuw in 3.1.32
+- Helptekst bij Audio kwaliteit is subtieler gemaakt (kleiner + grijzer).
+- Nieuwe checkbox **Toon helptekst** om de audio-helpregels te verbergen/tonen.
+- Voorkeur voor helptekst-zichtbaarheid blijft bewaard na herstart.
+
+## Eerder toegevoegd in 3.1.31
 - Ultra-korte push/pull tuningtip onder Frame Pitch / Search Size voor sneller afregelen.
 
 ## Eerder toegevoegd in 3.1.30

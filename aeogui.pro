@@ -48,7 +48,7 @@ TEMPLATE = app
 
 # The version of AEO-Light
 APP_NAME = AEO-Light
-VERSION = 3.1.31
+VERSION = 3.1.32
 
 # nb: when updating the version number, be sure to update LICENSE.txt too
 
