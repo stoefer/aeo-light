@@ -8505,9 +8505,11 @@ void MainWindow::on_queueExtractButton_clicked()
 		const double itemElapsedSec = std::max(0.0, itemTimer.elapsed() / 1000.0);
 
 		++processedCount;
-		QString itemLine = QString("%1 | %2 | %3 | %4s")
+		QString itemLine = QString("%1 | %2 | frames %3-%4 | %5 | %6s")
 				.arg(outcome)
 				.arg(QFileInfo(task.source).fileName())
+				.arg(task.params.frameIn)
+				.arg(task.params.frameOut)
 				.arg(QDir::toNativeSeparators(task.output))
 				.arg(QString::number(itemElapsedSec, 'f', 2));
 		if(!failureReason.isEmpty())
@@ -8522,8 +8524,10 @@ void MainWindow::on_queueExtractButton_clicked()
 		{
 			++failedCount;
 			failedQueueItems.push_back(task);
-			QString failLine = QString("%1 | %2")
+			QString failLine = QString("%1 | frames %2-%3 | %4")
 					.arg(QFileInfo(task.source).fileName())
+					.arg(task.params.frameIn)
+					.arg(task.params.frameOut)
 					.arg(QDir::toNativeSeparators(task.output));
 			failLine += QString(" | %1s").arg(QString::number(itemElapsedSec, 'f', 2));
 			if(!failureReason.isEmpty())
