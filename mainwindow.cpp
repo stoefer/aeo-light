@@ -60,6 +60,7 @@
 #include <QScreen>
 #include <QSpinBox>
 #include <QCheckBox>
+#include <QShortcut>
 #include <QRegularExpression>
 #include <QHBoxLayout>
 #include <QPushButton>
@@ -1235,6 +1236,41 @@ MainWindow::MainWindow(QWidget *parent) :
 
     connect(ui->queueImportVFBClipsButton, &QPushButton::clicked,
             this, &MainWindow::QueueImportVFB);
+
+	// Quick-access shortcuts for the most-used extraction actions.
+	QShortcut *extractShortcut = new QShortcut(QKeySequence("Ctrl+E"), this);
+	connect(extractShortcut, &QShortcut::activated, this, [this]()
+	{
+		if(ui->extractGLButton->isEnabled())
+			ui->extractGLButton->click();
+	});
+	QShortcut *testRunShortcut = new QShortcut(QKeySequence("Ctrl+T"), this);
+	connect(testRunShortcut, &QShortcut::activated, this, [this]()
+	{
+		if(ui->testRunExportButton->isEnabled())
+			ui->testRunExportButton->click();
+	});
+	QShortcut *enqueueShortcut = new QShortcut(QKeySequence("Ctrl+Shift+A"), this);
+	connect(enqueueShortcut, &QShortcut::activated, this, [this]()
+	{
+		if(ui->enqueueButton->isEnabled())
+			ui->enqueueButton->click();
+	});
+	QShortcut *lastSettingsShortcut = new QShortcut(QKeySequence("Ctrl+L"), this);
+	connect(lastSettingsShortcut, &QShortcut::activated, this, [this]()
+	{
+		if(ui->loadLastSettingsButton->isEnabled())
+			ui->loadLastSettingsButton->click();
+	});
+
+	ui->extractGLButton->setToolTip(
+			tr("Start extractie (Ctrl+E)"));
+	ui->testRunExportButton->setToolTip(
+			tr("Korte test-export (Ctrl+T)"));
+	ui->enqueueButton->setToolTip(
+			tr("Voeg huidige instellingen toe aan queue (Ctrl+Shift+A)"));
+	ui->loadLastSettingsButton->setToolTip(
+			tr("Laad laatst gebruikte instellingen (Ctrl+L)"));
 	UpdateVideoStabilizationControls();
 }
 
@@ -3526,15 +3562,36 @@ void MainWindow::UpdateVideoExportControls()
 
 	ui->videoExportQualityValueLabel->setText(
 			QString("%1%").arg(videoQualityPercent));
-	ui->videoExportSummaryLabel->setText(
-			tr("Actief: %1, %2, %3, %4, preset %5, kwaliteit %6%, audio %7 kbps.")
+	QString summaryText = tr("Actief: %1, %2, %3, %4, preset %5, kwaliteit %6%, audio %7 kbps.")
 			.arg(modeNames[ClampRangeInt(videoExportMode, 0, 3)])
 			.arg(containerNames[ClampRangeInt(videoContainerMode, 0, 2)])
 			.arg(codecNames[ClampRangeInt(videoCodecMode, 0, 2)])
 			.arg(VideoResolutionLabelForMode(videoResolutionMode))
 			.arg(presetNames[ClampRangeInt(videoPresetMode, 0, 2)])
 			.arg(videoQualityPercent)
-			.arg(videoAudioBitrateKbps));
+			.arg(videoAudioBitrateKbps);
+	QStringList warnings;
+	if(videoExportMode == SIMPLE_EXPORT_FAST && videoQualityPercent < 35)
+	{
+		warnings << tr("Fast + lage kwaliteit kan zichtbare compressie-artefacten geven.");
+	}
+	if(videoCodecMode == VIDEO_CODEC_MPEG4 &&
+			videoResolutionMode >= VIDEO_RESOLUTION_1920X1080)
+	{
+		warnings << tr("MPEG-4 op HD/4K geeft vaak grotere bestanden met lagere kwaliteit.");
+	}
+	if(videoAudioBitrateKbps < 128)
+	{
+		warnings << tr("Audio bitrate < 128 kbps kan hoorbaar kwaliteitsverlies geven.");
+	}
+	if(!warnings.isEmpty())
+	{
+		summaryText += tr("\nWaarschuwing: %1").arg(warnings.join(" "));
+	}
+	ui->videoExportSummaryLabel->setText(summaryText);
+	ui->videoExportSummaryLabel->setStyleSheet(warnings.isEmpty() ?
+			QString() :
+			"QLabel { color: #b86b00; font-weight: 600; }");
 #ifdef USELIBAV
 	ui->videoExportFfmpegStatusLabel->setText(
 			tr("Encoder: ingebouwde LibAV (externe FFmpeg niet vereist)."));
