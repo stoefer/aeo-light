@@ -8439,6 +8439,7 @@ void MainWindow::on_queueExtractButton_clicked()
 	size_t failedCount = 0;
 	size_t processedCount = 0;
 	QStringList batchItemLines;
+	QStringList failedDetailLines;
 
 	while(!this->extractQueue.empty())
 	{
@@ -8498,6 +8499,12 @@ void MainWindow::on_queueExtractButton_clicked()
 		{
 			++failedCount;
 			failedQueueItems.push_back(task);
+			QString failLine = QString("%1 | %2")
+					.arg(QFileInfo(task.source).fileName())
+					.arg(QDir::toNativeSeparators(task.output));
+			if(!failureReason.isEmpty())
+				failLine += QString(" | %1").arg(failureReason);
+			failedDetailLines << failLine;
 			// If the user explicitly canceled, stop the current batch loop.
 			if(this->requestCancel)
 				break;
@@ -8517,6 +8524,21 @@ void MainWindow::on_queueExtractButton_clicked()
 			.arg(queueBatchReportMode == QUEUE_BATCH_REPORT_OFF ?
 					QString() :
 					tr(" Rapport opgeslagen.")));
+	if(!failedDetailLines.isEmpty())
+	{
+		QMessageBox batchWarn(this);
+		batchWarn.setIcon(this->requestCancel ?
+				QMessageBox::Information :
+				QMessageBox::Warning);
+		batchWarn.setWindowTitle(this->requestCancel ?
+				tr("Batch onderbroken") :
+				tr("Batch voltooid met fouten"));
+		batchWarn.setText(tr("%1 item(s) gefaald. Open Details voor foutredenen.")
+				.arg(failedDetailLines.size()));
+		batchWarn.setDetailedText(failedDetailLines.join("\n"));
+		batchWarn.setStandardButtons(QMessageBox::Ok);
+		batchWarn.exec();
+	}
 	UpdateQueueWidgets();
 }
 
