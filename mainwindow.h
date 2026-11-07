@@ -288,6 +288,9 @@ private slots:
 
     void QueueLoadSettings(size_t idx);
     void QueueUpdateSettings(size_t idx);
+    void QueueDuplicateSettings(size_t idx);
+    void QueueMoveSettingsUp(size_t idx);
+    void QueueMoveSettingsDown(size_t idx);
     void QueueImportVFB();
 
 	void on_loadSettingsButton_clicked();

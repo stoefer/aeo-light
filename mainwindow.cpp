@@ -1195,6 +1195,39 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->queueUpdate5Button, &QPushButton::clicked,
             this, [this](){ this->QueueUpdateSettings(4); });
 
+	connect(ui->queueDuplicate1Button, &QPushButton::clicked,
+			this, [this](){ this->QueueDuplicateSettings(0); });
+	connect(ui->queueDuplicate2Button, &QPushButton::clicked,
+			this, [this](){ this->QueueDuplicateSettings(1); });
+	connect(ui->queueDuplicate3Button, &QPushButton::clicked,
+			this, [this](){ this->QueueDuplicateSettings(2); });
+	connect(ui->queueDuplicate4Button, &QPushButton::clicked,
+			this, [this](){ this->QueueDuplicateSettings(3); });
+	connect(ui->queueDuplicate5Button, &QPushButton::clicked,
+			this, [this](){ this->QueueDuplicateSettings(4); });
+
+	connect(ui->queueUp1Button, &QPushButton::clicked,
+			this, [this](){ this->QueueMoveSettingsUp(0); });
+	connect(ui->queueUp2Button, &QPushButton::clicked,
+			this, [this](){ this->QueueMoveSettingsUp(1); });
+	connect(ui->queueUp3Button, &QPushButton::clicked,
+			this, [this](){ this->QueueMoveSettingsUp(2); });
+	connect(ui->queueUp4Button, &QPushButton::clicked,
+			this, [this](){ this->QueueMoveSettingsUp(3); });
+	connect(ui->queueUp5Button, &QPushButton::clicked,
+			this, [this](){ this->QueueMoveSettingsUp(4); });
+
+	connect(ui->queueDown1Button, &QPushButton::clicked,
+			this, [this](){ this->QueueMoveSettingsDown(0); });
+	connect(ui->queueDown2Button, &QPushButton::clicked,
+			this, [this](){ this->QueueMoveSettingsDown(1); });
+	connect(ui->queueDown3Button, &QPushButton::clicked,
+			this, [this](){ this->QueueMoveSettingsDown(2); });
+	connect(ui->queueDown4Button, &QPushButton::clicked,
+			this, [this](){ this->QueueMoveSettingsDown(3); });
+	connect(ui->queueDown5Button, &QPushButton::clicked,
+			this, [this](){ this->QueueMoveSettingsDown(4); });
+
     connect(ui->queueImportVFBClipsButton, &QPushButton::clicked,
             this, &MainWindow::QueueImportVFB);
 	UpdateVideoStabilizationControls();
@@ -7081,7 +7114,7 @@ void MainWindow::on_enqueueButton_clicked()
 
 void MainWindow::UpdateQueueWidgets(void)
 {
-	int i;
+	size_t i;
 
 	QLabel *label[5];
 	label[0] = ui->queue1Label;
@@ -7111,6 +7144,27 @@ void MainWindow::UpdateQueueWidgets(void)
     updateBtn[3] = ui->queueUpdate4Button;
     updateBtn[4] = ui->queueUpdate5Button;
 
+	QPushButton *duplicateBtn[5];
+	duplicateBtn[0] = ui->queueDuplicate1Button;
+	duplicateBtn[1] = ui->queueDuplicate2Button;
+	duplicateBtn[2] = ui->queueDuplicate3Button;
+	duplicateBtn[3] = ui->queueDuplicate4Button;
+	duplicateBtn[4] = ui->queueDuplicate5Button;
+
+	QPushButton *upBtn[5];
+	upBtn[0] = ui->queueUp1Button;
+	upBtn[1] = ui->queueUp2Button;
+	upBtn[2] = ui->queueUp3Button;
+	upBtn[3] = ui->queueUp4Button;
+	upBtn[4] = ui->queueUp5Button;
+
+	QPushButton *downBtn[5];
+	downBtn[0] = ui->queueDown1Button;
+	downBtn[1] = ui->queueDown2Button;
+	downBtn[2] = ui->queueDown3Button;
+	downBtn[3] = ui->queueDown4Button;
+	downBtn[4] = ui->queueDown5Button;
+
     for(i=0; i<this->extractQueue.size(); ++i)
 	{
 		label[i]->setText(
@@ -7122,8 +7176,11 @@ void MainWindow::UpdateQueueWidgets(void)
 		btn[i]->setEnabled(true);
         loadBtn[i]->setEnabled(true);
         updateBtn[i]->setEnabled(true);
+		duplicateBtn[i]->setEnabled(this->extractQueue.size() < 5);
+		upBtn[i]->setEnabled(i > 0);
+		downBtn[i]->setEnabled(i + 1 < this->extractQueue.size());
 	}
-	ui->queueExtractButton->setEnabled(i>0);
+	ui->queueExtractButton->setEnabled(i > 0);
 	for(i=this->extractQueue.size(); i<5; ++i)
 	{
 		label[i]->setText("Not Set");
@@ -7131,7 +7188,11 @@ void MainWindow::UpdateQueueWidgets(void)
 		btn[i]->setEnabled(false);
         loadBtn[i]->setEnabled(false);
         updateBtn[i]->setEnabled(false);
+		duplicateBtn[i]->setEnabled(false);
+		upBtn[i]->setEnabled(false);
+		downBtn[i]->setEnabled(false);
     }
+	ui->queueStopAfterCurrentCheckBox->setEnabled(!this->extractQueue.empty());
 }
 
 
@@ -7204,6 +7265,35 @@ void MainWindow::QueueUpdateSettings(size_t idx)
     ExtractTask task = extractQueue.at(idx);
     task.params = params;
     extractQueue.at(idx) = task;
+}
+
+void MainWindow::QueueDuplicateSettings(size_t idx)
+{
+	if(extractQueue.size() <= idx) return;
+	if(extractQueue.size() >= 5)
+	{
+		QMessageBox::information(
+				this,
+				tr("Queue vol"),
+				tr("De queue bevat al 5 items. Verwijder eerst een item om te dupliceren."));
+		return;
+	}
+	extractQueue.insert(extractQueue.begin() + idx + 1, extractQueue.at(idx));
+	UpdateQueueWidgets();
+}
+
+void MainWindow::QueueMoveSettingsUp(size_t idx)
+{
+	if(idx == 0 || extractQueue.size() <= idx) return;
+	std::swap(extractQueue[idx - 1], extractQueue[idx]);
+	UpdateQueueWidgets();
+}
+
+void MainWindow::QueueMoveSettingsDown(size_t idx)
+{
+	if(extractQueue.size() <= idx + 1) return;
+	std::swap(extractQueue[idx], extractQueue[idx + 1]);
+	UpdateQueueWidgets();
 }
 
 void MainWindow::QueueImportVFB()
@@ -7497,6 +7587,7 @@ void MainWindow::QueueImportVFB()
 void MainWindow::on_queueExtractButton_clicked()
 {
 	bool success;
+	const bool stopAfterCurrent = ui->queueStopAfterCurrentCheckBox->isChecked();
 
 	while(this->extractQueue.size()>0)
 	{
@@ -7513,6 +7604,8 @@ void MainWindow::on_queueExtractButton_clicked()
 		{
 			this->extractQueue.erase(extractQueue.begin());
 			UpdateQueueWidgets();
+			if(stopAfterCurrent)
+				break;
 		}
 		else
 			break;
