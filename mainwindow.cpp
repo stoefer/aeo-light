@@ -8573,6 +8573,11 @@ void MainWindow::on_queueExtractButton_clicked()
 		const QString reasonSummary = reasonLines.isEmpty() ?
 				QString() :
 				tr("Fouttypes:\n- %1").arg(reasonLines.join("\n- "));
+		QString copyText = tr("Batch fouten (%1)")
+				.arg(failedDetailLines.size());
+		if(!reasonSummary.isEmpty())
+			copyText += QString("\n%1").arg(reasonSummary);
+		copyText += QString("\n\n%1").arg(failureDetailsText);
 		QMessageBox batchWarn(this);
 		batchWarn.setIcon(this->requestCancel ?
 				QMessageBox::Information :
@@ -8588,6 +8593,9 @@ void MainWindow::on_queueExtractButton_clicked()
 		QPushButton *retryFailedButton = batchWarn.addButton(
 				tr("Retry gefaalde items"),
 				QMessageBox::AcceptRole);
+		QPushButton *saveDetailsButton = batchWarn.addButton(
+				tr("Bewaar details..."),
+				QMessageBox::ActionRole);
 		QPushButton *copyDetailsButton = batchWarn.addButton(
 				tr("Kopieer details"),
 				QMessageBox::ActionRole);
@@ -8597,13 +8605,49 @@ void MainWindow::on_queueExtractButton_clicked()
 		{
 			RetryFailedQueueItems();
 		}
+		else if(batchWarn.clickedButton() == saveDetailsButton)
+		{
+			QString baseDir = prevExportDir;
+			if(baseDir.isEmpty())
+			{
+				baseDir = ReadLastExportDirMain(
+						"last-audio-export",
+						QStandardPaths::writableLocation(
+								QStandardPaths::DocumentsLocation));
+			}
+			const QString suggestName = QString("aeo-batch-failures-%1.txt")
+					.arg(QDateTime::currentDateTime().toString("yyyyMMdd-HHmmss"));
+			const QString savePath = QFileDialog::getSaveFileName(
+					this,
+					tr("Bewaar batch-foutdetails"),
+					QDir(baseDir).filePath(suggestName),
+					tr("Text files (*.txt)"));
+			if(!savePath.isEmpty())
+			{
+				QFile outFile(savePath);
+				if(outFile.open(QIODevice::WriteOnly | QIODevice::Text))
+				{
+					QTextStream out(&outFile);
+					out << copyText << "\n";
+					outFile.close();
+					QMessageBox::information(
+							this,
+							tr("Details bewaard"),
+							tr("Batch-foutdetails opgeslagen naar:\n%1")
+									.arg(QDir::toNativeSeparators(savePath)));
+				}
+				else
+				{
+					QMessageBox::warning(
+							this,
+							tr("Opslaan mislukt"),
+							tr("Kon batch-foutdetails niet opslaan naar:\n%1")
+									.arg(QDir::toNativeSeparators(savePath)));
+				}
+			}
+		}
 		else if(batchWarn.clickedButton() == copyDetailsButton)
 		{
-			QString copyText = tr("Batch fouten (%1)")
-					.arg(failedDetailLines.size());
-			if(!reasonSummary.isEmpty())
-				copyText += QString("\n%1").arg(reasonSummary);
-			copyText += QString("\n\n%1").arg(failureDetailsText);
 			QApplication::clipboard()->setText(
 					copyText);
 			QMessageBox::information(
