@@ -68,6 +68,7 @@
 #include <QRegularExpression>
 #include <QHBoxLayout>
 #include <QPushButton>
+#include <QMap>
 #include <QVBoxLayout>
 #include <QSlider>
 #include <QVariantMap>
@@ -8443,6 +8444,7 @@ void MainWindow::on_queueExtractButton_clicked()
 	size_t processedCount = 0;
 	QStringList batchItemLines;
 	QStringList failedDetailLines;
+	QMap<QString, int> failureReasonCounts;
 	QElapsedTimer batchTimer;
 	batchTimer.start();
 
@@ -8524,14 +8526,18 @@ void MainWindow::on_queueExtractButton_clicked()
 		{
 			++failedCount;
 			failedQueueItems.push_back(task);
+			QString groupedReason = failureReason.trimmed();
+			if(groupedReason.isEmpty())
+				groupedReason = tr("Onbekende fout tijdens extractie.");
+			failureReasonCounts[groupedReason] =
+					failureReasonCounts.value(groupedReason, 0) + 1;
 			QString failLine = QString("%1 | frames %2-%3 | %4")
 					.arg(QFileInfo(task.source).fileName())
 					.arg(task.params.frameIn)
 					.arg(task.params.frameOut)
 					.arg(QDir::toNativeSeparators(task.output));
 			failLine += QString(" | %1s").arg(QString::number(itemElapsedSec, 'f', 2));
-			if(!failureReason.isEmpty())
-				failLine += QString(" | %1").arg(failureReason);
+			failLine += QString(" | %1").arg(groupedReason);
 			failedDetailLines << failLine;
 			// If the user explicitly canceled, stop the current batch loop.
 			if(this->requestCancel)
@@ -8558,6 +8564,15 @@ void MainWindow::on_queueExtractButton_clicked()
 	if(!failedDetailLines.isEmpty())
 	{
 		const QString failureDetailsText = failedDetailLines.join("\n");
+		QStringList reasonLines;
+		for(auto it = failureReasonCounts.constBegin();
+				it != failureReasonCounts.constEnd(); ++it)
+		{
+			reasonLines << QString("%1 (%2x)").arg(it.key()).arg(it.value());
+		}
+		const QString reasonSummary = reasonLines.isEmpty() ?
+				QString() :
+				tr("Fouttypes:\n- %1").arg(reasonLines.join("\n- "));
 		QMessageBox batchWarn(this);
 		batchWarn.setIcon(this->requestCancel ?
 				QMessageBox::Information :
@@ -8567,6 +8582,8 @@ void MainWindow::on_queueExtractButton_clicked()
 				tr("Batch voltooid met fouten"));
 		batchWarn.setText(tr("%1 item(s) gefaald. Open Details voor foutredenen.")
 				.arg(failedDetailLines.size()));
+		if(!reasonSummary.isEmpty())
+			batchWarn.setInformativeText(reasonSummary);
 		batchWarn.setDetailedText(failureDetailsText);
 		QPushButton *retryFailedButton = batchWarn.addButton(
 				tr("Retry gefaalde items"),
@@ -8582,10 +8599,13 @@ void MainWindow::on_queueExtractButton_clicked()
 		}
 		else if(batchWarn.clickedButton() == copyDetailsButton)
 		{
+			QString copyText = tr("Batch fouten (%1)")
+					.arg(failedDetailLines.size());
+			if(!reasonSummary.isEmpty())
+				copyText += QString("\n%1").arg(reasonSummary);
+			copyText += QString("\n\n%1").arg(failureDetailsText);
 			QApplication::clipboard()->setText(
-					tr("Batch fouten (%1):\n%2")
-							.arg(failedDetailLines.size())
-							.arg(failureDetailsText));
+					copyText);
 			QMessageBox::information(
 					this,
 					tr("Details gekopieerd"),
