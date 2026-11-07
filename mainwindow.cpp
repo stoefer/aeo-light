@@ -1259,6 +1259,7 @@ MainWindow::MainWindow(QWidget *parent) :
 	applyingWindowLayout = false;
 	audioQualityPresetSyncLock = false;
 	audioOnlyQualityPresetSyncLock = false;
+	lastExtractFailureReason.clear();
 	autoOptimizeFramesEnabled = false;
 	autoOptimizeVideoEnabled = false;
 	autoOptimizeColorEnabled = true;
@@ -5121,6 +5122,7 @@ bool MainWindow::extractGL(QString filename, bool doTimer,
 		bool suppressResultDialog, bool skipSidecarWrite)
 {
 	SaveLastUsedSettingsSnapshot();
+	lastExtractFailureReason.clear();
 	bool batch = true;
 	MetaData meta;
 	QString videoFilename;
@@ -5191,7 +5193,11 @@ bool MainWindow::extractGL(QString filename, bool doTimer,
 			filename = QFileDialog::getSaveFileName(
 					this, tr("Export audio to"),
 					QDir(expDir).filePath(suggestedAudio), "*.wav");
-			if(filename.isEmpty()) return false;
+			if(filename.isEmpty())
+			{
+				lastExtractFailureReason = tr("Geen audio-outputbestand gekozen.");
+				return false;
+			}
 			ui->audioOutputFilenameEdit->setText(filename);
 		}
 		this->prevExportDir = QFileInfo(filename).absolutePath();
@@ -5226,10 +5232,12 @@ bool MainWindow::extractGL(QString filename, bool doTimer,
 					QStringList args;
 					args << savefile.fileName();
 					QProcess::startDetached(qApp->arguments()[0], args);
+					lastExtractFailureReason = tr("Export afgebroken: herstart aangevraagd.");
 					return false;
 				}
 				else if(answer == QMessageBox::Cancel)
 				{
+					lastExtractFailureReason = tr("Export geannuleerd door gebruiker.");
 					return false;
 				}
 			}
@@ -5249,7 +5257,11 @@ bool MainWindow::extractGL(QString filename, bool doTimer,
 						QDir(expDir).filePath("output" +
 								VideoContainerExtensionForMode(videoContainerMode)),
 						"*.mp4 *.mov *.mkv");
-				if(videoFilename.isEmpty()) return false;
+				if(videoFilename.isEmpty())
+				{
+					lastExtractFailureReason = tr("Geen video-outputbestand gekozen.");
+					return false;
+				}
 				ui->videoOutputFilenameEdit->setText(videoFilename);
 			}
 			WriteLastExportDirMain("last-video-export",
@@ -5300,6 +5312,7 @@ bool MainWindow::extractGL(QString filename, bool doTimer,
 					this,
 					tr("Video-export niet klaar"),
 					tr("FFmpeg-check mislukt:\n%1").arg(ffmpegError));
+			lastExtractFailureReason = tr("FFmpeg-check mislukt: %1").arg(ffmpegError);
 			return false;
 		}
 	}
@@ -5315,7 +5328,10 @@ bool MainWindow::extractGL(QString filename, bool doTimer,
 				QMessageBox::Yes | QMessageBox::No,
 				QMessageBox::No);
 		if(answer != QMessageBox::Yes)
+		{
+			lastExtractFailureReason = tr("Export geannuleerd: onvoldoende schijfruimte.");
 			return false;
+		}
 	}
 
 	QElapsedTimer timer;
@@ -5337,6 +5353,7 @@ bool MainWindow::extractGL(QString filename, bool doTimer,
 
 	if(success)
 	{
+		lastExtractFailureReason.clear();
 		processMsg = tr("Sound Extraction Complete");
 		if(doTimer)
 		{
@@ -5393,11 +5410,13 @@ bool MainWindow::extractGL(QString filename, bool doTimer,
 		{
 			processMsg = tr("Extraction Stopped (Partial Output Saved)");
 			timingMsg = tr("Extraction was stopped early. A short preview file was saved for quality review.");
+			lastExtractFailureReason = tr("Geannuleerd door gebruiker (gedeeltelijke output opgeslagen).");
 		}
 		else
 		{
 			processMsg = tr("Sound Extraction Canceled");
 			timingMsg = tr("Sound extraction canceled before finishing.");
+			lastExtractFailureReason = tr("Extractie mislukt of geannuleerd.");
 		}
 	}
 
@@ -8408,6 +8427,7 @@ void MainWindow::on_queueExtractButton_clicked()
 		bool sourceReady = this->NewSource(task.source, task.srcFormat);
 		bool success = false;
 		QString outcome = tr("Mislukt");
+		QString failureReason;
 		if(sourceReady)
 		{
 			this->ExtractionParametersToGUI(task.params);
@@ -8416,17 +8436,32 @@ void MainWindow::on_queueExtractButton_clicked()
 				outcome = tr("Gelukt");
 			else if(this->requestCancel)
 				outcome = tr("Geannuleerd");
+			if(!success)
+			{
+				failureReason = this->lastExtractFailureReason.trimmed();
+				if(failureReason.isEmpty())
+				{
+					failureReason = this->requestCancel ?
+							tr("Geannuleerd door gebruiker.") :
+							tr("Onbekende fout tijdens extractie.");
+				}
+			}
 		}
 		else
 		{
 			outcome = tr("Bron niet geladen");
+			failureReason = tr("Bron kon niet geladen worden.");
 		}
 
 		++processedCount;
-		batchItemLines << QString("%1 | %2 | %3")
+		QString itemLine = QString("%1 | %2 | %3")
 				.arg(outcome)
 				.arg(QFileInfo(task.source).fileName())
 				.arg(QDir::toNativeSeparators(task.output));
+		if(!failureReason.isEmpty())
+			itemLine += QString(" | %1").arg(failureReason);
+		batchItemLines << itemLine;
+		Log() << "Batch item: " << itemLine << "\n";
 		if(success)
 		{
 			++successCount;

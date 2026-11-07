@@ -392,6 +392,7 @@ private:
 	bool audioQualityPresetSyncLock;
 	bool audioOnlyQualityPresetSyncLock;
 	std::vector<ExtractTask> failedQueueItems;
+	QString lastExtractFailureReason;
 	bool autoOptimizeFramesEnabled;
 	bool autoOptimizeVideoEnabled;
 	bool autoOptimizeColorEnabled;
