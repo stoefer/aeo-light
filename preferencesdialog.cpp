@@ -23,6 +23,7 @@
 #include "preferencesdialog.h"
 #include "ui_preferencesdialog.h"
 
+#include <algorithm>
 #include <QFileDialog>
 #include <QStandardPaths>
 #include <QSettings>
@@ -32,6 +33,7 @@
 #include <QScreen>
 #include <QComboBox>
 #include <QLabel>
+#include <QTabWidget>
 
 static bool ReadShowHelpTextPreference(QSettings &settings, bool defaultValue = true)
 {
@@ -53,11 +55,25 @@ static bool ReadShowHelpTextPreference(QSettings &settings, bool defaultValue = 
 
 preferencesdialog::preferencesdialog(QWidget *parent) :
 	QDialog(parent),
-	ui(new Ui::preferencesdialog)
+	ui(new Ui::preferencesdialog),
+	settingsSearchEdit(NULL),
+	compactModeCheckBox(NULL)
 {
 	ui->setupUi(this);
 
 	settings = new QSettings;
+
+	// Add a simple searchable filter so users can quickly jump to options.
+	QLabel *searchLabel = new QLabel("Zoeken:", this);
+	searchLabel->setGeometry(16, 44, 64, 24);
+	settingsSearchEdit = new QLineEdit(this);
+	settingsSearchEdit->setGeometry(80, 42, 330, 28);
+	settingsSearchEdit->setPlaceholderText("Filter op optie-naam...");
+	settingsSearchEdit->setClearButtonEnabled(true);
+	QRect tabRect = ui->tabWidget->geometry();
+	ui->tabWidget->setGeometry(
+			tabRect.x(), tabRect.y() + 32,
+			tabRect.width(), std::max(120, tabRect.height() - 32));
 
 	QStringList l;
 
@@ -81,6 +97,8 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 	ui->skipCloseConfirmCheckBox->setChecked(
 			settings->value("skip-close-confirmation", false).toBool());
 	ui->showHelpTextCheckBox->setChecked(showHelpText);
+	const bool compactModeEnabled =
+			settings->value("compact-mode", false).toBool();
 	QString theme = settings->value("theme", "light").toString().toLower();
 	ui->themeComboBox->setCurrentIndex(theme == "dark" ? 1 : 0);
 	QString mode = settings->value("window-layout-mode", "").toString().toLower();
@@ -105,6 +123,11 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 			settings->value("window-layout-dual-swap", false).toBool());
 	settings->endGroup();
 
+	compactModeCheckBox = new QCheckBox(
+			"Compact mode (minder tekst, compactere weergave)", this);
+	compactModeCheckBox->setChecked(compactModeEnabled);
+	ui->verticalLayout->insertWidget(3, compactModeCheckBox);
+
 	PopulateMonitorChoices();
 	settings->beginGroup("ui");
 	int targetMonitor = settings->value("window-layout-target-monitor", 0).toInt();
@@ -113,6 +136,7 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 	if(monitorComboIndex < 0) monitorComboIndex = 0;
 	ui->windowLayoutMonitorComboBox->setCurrentIndex(monitorComboIndex);
 	UpdateWindowLayoutControls();
+	InstallInlineHelpIcons();
 	ApplyHelpTextVisibility(showHelpText);
 
 	ui->sourceText->setPlaceholderText(sysRead);
@@ -183,6 +207,8 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 		this, &preferencesdialog::UpdateWindowLayoutControls);
 	connect(ui->showHelpTextCheckBox, &QCheckBox::toggled,
 			this, &preferencesdialog::ApplyHelpTextVisibility);
+	connect(settingsSearchEdit, &QLineEdit::textChanged,
+			this, &preferencesdialog::ApplySettingsSearchFilter);
 }
 
 preferencesdialog::~preferencesdialog()
@@ -283,6 +309,9 @@ void preferencesdialog::Save()
 			"show-help-text",
 			ui->showHelpTextCheckBox->isChecked());
 	settings->setValue(
+			"compact-mode",
+			compactModeCheckBox ? compactModeCheckBox->isChecked() : false);
+	settings->setValue(
 			"theme",
 			ui->themeComboBox->currentIndex() == 1 ? "dark" : "light");
 	const QString layoutMode = CurrentWindowLayoutModeKey();
@@ -350,5 +379,110 @@ void preferencesdialog::ApplyHelpTextVisibility(bool visible)
 		if(!label) continue;
 		if(label->objectName().contains("HelpLabel"))
 			label->setVisible(visible);
+	}
+}
+
+void preferencesdialog::ApplySettingsSearchFilter(const QString &term)
+{
+	const QString needle = term.trimmed().toLower();
+	if(needle.isEmpty())
+	{
+		for(int i = 0; i < ui->tabWidget->count(); ++i)
+			ui->tabWidget->setTabEnabled(i, true);
+		if(settingsSearchEdit)
+			settingsSearchEdit->setStyleSheet(QString());
+		return;
+	}
+
+	auto tabMatches = [&](QWidget *tab) -> bool
+	{
+		if(!tab) return false;
+		const QList<QWidget*> widgets = tab->findChildren<QWidget*>();
+		for(QWidget *widget : widgets)
+		{
+			if(!widget) continue;
+			QStringList haystacks;
+			haystacks << widget->toolTip() << widget->whatsThis() <<
+					widget->objectName();
+			if(QLabel *label = qobject_cast<QLabel*>(widget))
+				haystacks << label->text();
+			if(QAbstractButton *button = qobject_cast<QAbstractButton*>(widget))
+				haystacks << button->text();
+			if(QLineEdit *lineEdit = qobject_cast<QLineEdit*>(widget))
+			{
+				haystacks << lineEdit->placeholderText()
+						<< lineEdit->text();
+			}
+			if(QComboBox *combo = qobject_cast<QComboBox*>(widget))
+			{
+				for(int i = 0; i < combo->count(); ++i)
+					haystacks << combo->itemText(i);
+			}
+			for(const QString &candidate : haystacks)
+			{
+				if(candidate.toLower().contains(needle))
+					return true;
+			}
+		}
+		return false;
+	};
+
+	int firstMatchingTab = -1;
+	bool anyMatch = false;
+	for(int i = 0; i < ui->tabWidget->count(); ++i)
+	{
+		QWidget *tab = ui->tabWidget->widget(i);
+		const bool match = tabMatches(tab);
+		ui->tabWidget->setTabEnabled(i, match);
+		if(match)
+		{
+			anyMatch = true;
+			if(firstMatchingTab < 0)
+				firstMatchingTab = i;
+		}
+	}
+
+	if(anyMatch && firstMatchingTab >= 0)
+	{
+		ui->tabWidget->setCurrentIndex(firstMatchingTab);
+		if(settingsSearchEdit)
+			settingsSearchEdit->setStyleSheet(QString());
+		return;
+	}
+
+	// Keep tabs accessible when no result is found.
+	for(int i = 0; i < ui->tabWidget->count(); ++i)
+		ui->tabWidget->setTabEnabled(i, true);
+	if(settingsSearchEdit)
+		settingsSearchEdit->setStyleSheet(
+				"QLineEdit { border: 1px solid #c85c5c; }");
+}
+
+void preferencesdialog::InstallInlineHelpIcons()
+{
+	const QList<QLabel*> labels = findChildren<QLabel*>();
+	for(QLabel *label : labels)
+	{
+		if(!label) continue;
+		if(!label->objectName().contains("HelpLabel"))
+			continue;
+		const QString helpText = label->text().trimmed();
+		if(helpText.isEmpty())
+			continue;
+		label->setToolTip(helpText);
+		label->setWhatsThis(helpText);
+		label->setText("i");
+		label->setWordWrap(false);
+		label->setMinimumWidth(16);
+		label->setMaximumWidth(16);
+		label->setAlignment(Qt::AlignCenter);
+		label->setStyleSheet(
+				"QLabel {"
+				" color: #6f7f93;"
+				" border: 1px solid #9fb0c5;"
+				" border-radius: 8px;"
+				" font-weight: 700;"
+				" padding: 0px;"
+				"}");
 	}
 }

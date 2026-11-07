@@ -26,6 +26,7 @@
 #include <QAbstractButton>
 #include <QDialog>
 #include <QLineEdit>
+#include <QCheckBox>
 #include <QSettings>
 
 namespace Ui {
@@ -50,10 +51,14 @@ private:
 	void PopulateMonitorChoices();
 	QString CurrentWindowLayoutModeKey() const;
 	void ApplyHelpTextVisibility(bool visible);
+	void ApplySettingsSearchFilter(const QString &term);
+	void InstallInlineHelpIcons();
 	Ui::preferencesdialog *ui;
 	QString sysRead;
 	QString sysWrite;
 	QSettings *settings;
+	QLineEdit *settingsSearchEdit;
+	QCheckBox *compactModeCheckBox;
 };
 
 #endif // PREFERENCESDIALOG_H

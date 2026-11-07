@@ -380,6 +380,7 @@ private:
 	bool autoOptimizeVideoEnabled;
 	bool autoOptimizeColorEnabled;
 	int autoOptimizeProfileMode;
+	bool compactModeEnabled;
 	bool autoOptimizeFrameApplyLock;
 	bool suppressFrameAutoOptimizeDuringExtraction;
 	int uiScalePercent;
@@ -395,6 +396,8 @@ private:
 	void UpdateVideoStabilizationControls();
 	void UpdateExtractOutputControls();
 	void UpdateHelpTextVisibility(bool visible, bool persistSetting);
+	void InstallInlineHelpIcons();
+	void ApplyCompactModePreference();
 	void LoadExtractOutputSettings();
 	void SaveExtractOutputSettings() const;
 	void ApplyVideoContainerExtensionToOutputFilename();

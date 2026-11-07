@@ -265,6 +265,15 @@ static bool ReadShowHelpTextSetting(bool *usedLegacyKey = nullptr)
 	return showHelpText;
 }
 
+static bool ReadCompactModeSetting()
+{
+	QSettings settings;
+	settings.beginGroup("ui");
+	const bool compactMode = settings.value("compact-mode", false).toBool();
+	settings.endGroup();
+	return compactMode;
+}
+
 static QString EnsureNonOverwritingPath(const QString &requestedPath)
 {
 	if(requestedPath.isEmpty()) return requestedPath;
@@ -1102,6 +1111,7 @@ MainWindow::MainWindow(QWidget *parent) :
 	autoOptimizeVideoEnabled = false;
 	autoOptimizeColorEnabled = true;
 	autoOptimizeProfileMode = 1;
+	compactModeEnabled = false;
 	autoOptimizeFrameApplyLock = false;
 	suppressFrameAutoOptimizeDuringExtraction = false;
 	uiScalePercent = -1;
@@ -1110,9 +1120,11 @@ MainWindow::MainWindow(QWidget *parent) :
 	uiScaleBaseSize = QSize();
 	LoadVideoExportSettings();
 	LoadExtractOutputSettings();
+	InstallInlineHelpIcons();
 	bool usedLegacyShowHelpKey = false;
 	const bool showHelpText = ReadShowHelpTextSetting(&usedLegacyShowHelpKey);
 	UpdateHelpTextVisibility(showHelpText, usedLegacyShowHelpKey);
+	ApplyCompactModePreference();
 
 	CaptureUiScaleBaseGeometry();
 	RestoreUiWindowSettings();
@@ -3208,6 +3220,35 @@ void MainWindow::UpdateExtractOutputControls()
 	ui->outputVideoOrientationPresetButton->setEnabled(outputVideo);
 }
 
+void MainWindow::InstallInlineHelpIcons()
+{
+	const QList<QLabel*> labels = findChildren<QLabel*>();
+	for(QLabel *label : labels)
+	{
+		if(!label) continue;
+		if(!label->objectName().contains("HelpLabel"))
+			continue;
+		const QString helpText = label->text().trimmed();
+		if(helpText.isEmpty())
+			continue;
+		label->setToolTip(helpText);
+		label->setWhatsThis(helpText);
+		label->setText("i");
+		label->setWordWrap(false);
+		label->setMinimumWidth(16);
+		label->setMaximumWidth(16);
+		label->setAlignment(Qt::AlignCenter);
+		label->setStyleSheet(
+				"QLabel {"
+				" color: #6f7f93;"
+				" border: 1px solid #9fb0c5;"
+				" border-radius: 8px;"
+				" font-weight: 700;"
+				" padding: 0px;"
+				"}");
+	}
+}
+
 void MainWindow::UpdateHelpTextVisibility(bool visible, bool persistSetting)
 {
 	const QList<QLabel*> labels = findChildren<QLabel*>();
@@ -3225,6 +3266,33 @@ void MainWindow::UpdateHelpTextVisibility(bool visible, bool persistSetting)
 	settings.beginGroup("ui");
 	settings.setValue("show-help-text", visible);
 	settings.endGroup();
+}
+
+void MainWindow::ApplyCompactModePreference()
+{
+	compactModeEnabled = ReadCompactModeSetting();
+	QWidget *cw = centralWidget();
+	if(cw)
+	{
+		if(compactModeEnabled)
+		{
+			cw->setStyleSheet(
+					"QLabel { margin: 0px; }"
+					"QPushButton, QComboBox, QSpinBox, QDoubleSpinBox, QLineEdit {"
+					" min-height: 20px;"
+					" padding-top: 0px;"
+					" padding-bottom: 0px;"
+					"}"
+					"QGroupBox { margin-top: 6px; }");
+		}
+		else
+		{
+			cw->setStyleSheet(QString());
+		}
+	}
+
+	const bool showHelpText = ReadShowHelpTextSetting();
+	UpdateHelpTextVisibility(compactModeEnabled ? false : showHelpText, false);
 }
 
 void MainWindow::ApplyVideoContainerExtensionToOutputFilename()
@@ -7233,7 +7301,7 @@ void MainWindow::on_actionPreferences_triggered()
 	if(result == QDialog::Accepted)
 	{
 		ApplyThemeFromSettings();
-		UpdateHelpTextVisibility(ReadShowHelpTextSetting(), false);
+		ApplyCompactModePreference();
 		UpdateAdaptiveUiScale();
 		PositionPreviewWindowBesideMainWindow();
 	}
