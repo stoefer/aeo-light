@@ -25,6 +25,7 @@
 #include <array>
 
 #include <QApplication>
+#include <QClipboard>
 #include <QByteArray>
 #include <QProcess>
 #include <QDebug>
@@ -8526,6 +8527,7 @@ void MainWindow::on_queueExtractButton_clicked()
 					tr(" Rapport opgeslagen.")));
 	if(!failedDetailLines.isEmpty())
 	{
+		const QString failureDetailsText = failedDetailLines.join("\n");
 		QMessageBox batchWarn(this);
 		batchWarn.setIcon(this->requestCancel ?
 				QMessageBox::Information :
@@ -8535,9 +8537,23 @@ void MainWindow::on_queueExtractButton_clicked()
 				tr("Batch voltooid met fouten"));
 		batchWarn.setText(tr("%1 item(s) gefaald. Open Details voor foutredenen.")
 				.arg(failedDetailLines.size()));
-		batchWarn.setDetailedText(failedDetailLines.join("\n"));
-		batchWarn.setStandardButtons(QMessageBox::Ok);
+		batchWarn.setDetailedText(failureDetailsText);
+		QPushButton *copyDetailsButton = batchWarn.addButton(
+				tr("Kopieer details"),
+				QMessageBox::ActionRole);
+		batchWarn.addButton(QMessageBox::Ok);
 		batchWarn.exec();
+		if(batchWarn.clickedButton() == copyDetailsButton)
+		{
+			QApplication::clipboard()->setText(
+					tr("Batch fouten (%1):\n%2")
+							.arg(failedDetailLines.size())
+							.arg(failureDetailsText));
+			QMessageBox::information(
+					this,
+					tr("Details gekopieerd"),
+					tr("Foutdetails zijn naar het klembord gekopieerd."));
+		}
 	}
 	UpdateQueueWidgets();
 }
