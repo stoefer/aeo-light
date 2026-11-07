@@ -8448,6 +8448,8 @@ void MainWindow::on_queueExtractButton_clicked()
 
 	while(!this->extractQueue.empty())
 	{
+		QElapsedTimer itemTimer;
+		itemTimer.start();
 		ExtractTask task = this->extractQueue.front();
 		this->extractQueue.erase(this->extractQueue.begin());
 		UpdateQueueWidgets();
@@ -8500,12 +8502,14 @@ void MainWindow::on_queueExtractButton_clicked()
 			outcome = tr("Bron niet geladen");
 			failureReason = tr("Bron kon niet geladen worden.");
 		}
+		const double itemElapsedSec = std::max(0.0, itemTimer.elapsed() / 1000.0);
 
 		++processedCount;
-		QString itemLine = QString("%1 | %2 | %3")
+		QString itemLine = QString("%1 | %2 | %3 | %4s")
 				.arg(outcome)
 				.arg(QFileInfo(task.source).fileName())
-				.arg(QDir::toNativeSeparators(task.output));
+				.arg(QDir::toNativeSeparators(task.output))
+				.arg(QString::number(itemElapsedSec, 'f', 2));
 		if(!failureReason.isEmpty())
 			itemLine += QString(" | %1").arg(failureReason);
 		batchItemLines << itemLine;
@@ -8521,6 +8525,7 @@ void MainWindow::on_queueExtractButton_clicked()
 			QString failLine = QString("%1 | %2")
 					.arg(QFileInfo(task.source).fileName())
 					.arg(QDir::toNativeSeparators(task.output));
+			failLine += QString(" | %1s").arg(QString::number(itemElapsedSec, 'f', 2));
 			if(!failureReason.isEmpty())
 				failLine += QString(" | %1").arg(failureReason);
 			failedDetailLines << failLine;
