@@ -2189,13 +2189,6 @@
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="extractResetButton">
-          <property name="text">
-           <string>Reset Section</string>
-          </property>
-         </widget>
-        </item>
-        <item>
          <spacer name="horizontalSpacer_8">
           <property name="orientation">
            <enum>Qt::Horizontal</enum>
@@ -2286,9 +2279,9 @@ QPushButton:disabled {
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>280</y>
+         <y>276</y>
          <width>631</width>
-         <height>200</height>
+         <height>226</height>
         </rect>
        </property>
        <property name="title">
@@ -2460,6 +2453,64 @@ QPushButton:disabled {
            </widget>
           </item>
          </layout>
+        </item>
+        <item row="5" column="2">
+         <widget class="QPushButton" name="extractResetButton">
+          <property name="text">
+           <string>Reset Section</string>
+          </property>
+         </widget>
+        </item>
+        <item row="5" column="0">
+         <widget class="QLabel" name="outputFilenameTemplateLabel">
+          <property name="text">
+           <string>Naam-template</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="5" column="1">
+         <widget class="QLineEdit" name="outputFilenameTemplateEdit">
+          <property name="toolTip">
+           <string>Ondersteunde tokens: {source}, {date}, {time}, {datetime}, {frames}, {size}</string>
+          </property>
+          <property name="placeholderText">
+           <string>{source}_{datetime}</string>
+          </property>
+         </widget>
+        </item>
+        <item row="6" column="0">
+         <widget class="QLabel" name="outputConflictModeLabel">
+          <property name="text">
+           <string>Bestaand bestand</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="6" column="1">
+         <widget class="QComboBox" name="outputConflictModeComboBox">
+          <item>
+           <property name="text">
+            <string>Automatisch nummeren</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Overschrijven</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="6" column="2">
+         <widget class="QCheckBox" name="outputOpenFolderCheckBox">
+          <property name="text">
+           <string>Open map na export</string>
+          </property>
+         </widget>
         </item>
        </layout>
       </widget>
@@ -3370,6 +3421,9 @@ QPushButton:disabled {
   <tabstop>videoOutputFilenameEdit</tabstop>
   <tabstop>videoOutputBrowseButton</tabstop>
   <tabstop>outputVideoSizeComboBox</tabstop>
+  <tabstop>outputFilenameTemplateEdit</tabstop>
+  <tabstop>outputConflictModeComboBox</tabstop>
+  <tabstop>outputOpenFolderCheckBox</tabstop>
   <tabstop>videoAvOffsetCheckBox</tabstop>
   <tabstop>outputFlipHorizontalCheckBox</tabstop>
   <tabstop>outputFlipVerticalCheckBox</tabstop>

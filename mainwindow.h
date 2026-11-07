@@ -314,6 +314,9 @@ private slots:
 	void on_videoOutputBrowseButton_clicked();
 	void on_outputVideoSizeComboBox_currentIndexChanged(int index);
 	void on_outputVideoCheckBox_toggled(bool checked);
+	void on_outputFilenameTemplateEdit_editingFinished();
+	void on_outputConflictModeComboBox_currentIndexChanged(int index);
+	void on_outputOpenFolderCheckBox_toggled(bool checked);
 	void on_outputVideoOrientationPresetButton_clicked();
 	void on_outputFlipHorizontalCheckBox_toggled(bool checked);
 	void on_outputFlipVerticalCheckBox_toggled(bool checked);
@@ -356,6 +359,8 @@ private:
 	int videoQualityPercent;
 	int videoAudioBitrateKbps;
 	int videoPresetMode;
+	int outputConflictMode;
+	bool outputOpenFolderAfterExport;
 	bool videoAudioOffsetCorrectionEnabled;
 	bool videoUseStableFrameCrop;
 	float videoDriftSensitivityFactor;
@@ -401,6 +406,7 @@ private:
 			double &saturation, QString *summary = nullptr) const;
 	void UpdateAudioQualityPresetFromControls();
 	void UpdateAudioOnlyQualityPresetFromControls();
+	QString BuildOutputNameFromTemplate(const QString &ext) const;
 	void CaptureUiScaleBaseGeometry();
 	void UpdateAdaptiveUiScale();
 	void RestoreUiWindowSettings();

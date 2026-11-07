@@ -279,6 +279,19 @@ static QString EnsureNonOverwritingPath(const QString &requestedPath)
 	return candidate;
 }
 
+static QString SanitizeFilenamePart(QString value)
+{
+	value = value.trimmed();
+	value.replace(QRegularExpression("[\\\\/:*?\"<>|]"), "_");
+	value.replace(QRegularExpression("\\s+"), "_");
+	while(value.contains("__"))
+		value.replace("__", "_");
+	value = value.trimmed();
+	if(value.isEmpty())
+		value = "output";
+	return value;
+}
+
 struct AutoFrameStats
 {
 	double meanLuma = 0.0;
@@ -1070,6 +1083,8 @@ MainWindow::MainWindow(QWidget *parent) :
 	videoQualityPercent = 85;
 	videoAudioBitrateKbps = 192;
 	videoPresetMode = 1;
+	outputConflictMode = 0;
+	outputOpenFolderAfterExport = false;
 	videoAudioOffsetCorrectionEnabled = false;
 	videoUseStableFrameCrop = true;
 	videoDriftSensitivityFactor = 1.0f;
@@ -1587,6 +1602,9 @@ void MainWindow::SaveDefaultsAudio()
 	settings.setValue("output-audio-file", ui->audioOutputFilenameEdit->text());
 	settings.setValue("output-video-enabled", ui->outputVideoCheckBox->isChecked());
 	settings.setValue("output-video-file", ui->videoOutputFilenameEdit->text());
+	settings.setValue("output-name-template", ui->outputFilenameTemplateEdit->text());
+	settings.setValue("output-conflict-mode", ui->outputConflictModeComboBox->currentIndex());
+	settings.setValue("output-open-folder", ui->outputOpenFolderCheckBox->isChecked());
 	settings.setValue("video-av-offset", ui->videoAvOffsetCheckBox->isChecked());
 	settings.setValue("video-flip-h", ui->outputFlipHorizontalCheckBox->isChecked());
 	settings.setValue("video-flip-v", ui->outputFlipVerticalCheckBox->isChecked());
@@ -1711,6 +1729,13 @@ void MainWindow::LoadDefaults()
 			settings.value("output-video-enabled", false).toBool());
 	ui->videoOutputFilenameEdit->setText(
 			settings.value("output-video-file", "").toString());
+	ui->outputFilenameTemplateEdit->setText(
+			settings.value("output-name-template", "{source}_{datetime}").toString());
+	outputConflictMode = ClampRangeInt(
+			settings.value("output-conflict-mode", 0).toInt(), 0, 1);
+	ui->outputConflictModeComboBox->setCurrentIndex(outputConflictMode);
+	outputOpenFolderAfterExport = settings.value("output-open-folder", false).toBool();
+	ui->outputOpenFolderCheckBox->setChecked(outputOpenFolderAfterExport);
 	ui->videoAvOffsetCheckBox->setChecked(
 			settings.value("video-av-offset", true).toBool());
 	ui->outputFlipHorizontalCheckBox->setChecked(
@@ -2423,6 +2448,12 @@ bool MainWindow::saveproject(QTextStream &out)
 	// This is probably more of a source setting than an export setting:
 	out<<"Timecode Advance = "<<ui->advance_CB->currentIndex()<<"\n";
 	out<<"Export XML Sidecar = "<<ui->xmlSidecarComboBox->currentText()<<"\n";
+	out<<"Output Filename Template = "
+			<<ui->outputFilenameTemplateEdit->text()<<"\n";
+	out<<"Output Conflict Mode = "
+			<<ui->outputConflictModeComboBox->currentIndex()<<"\n";
+	out<<"Output Open Folder = "
+			<<ui->outputOpenFolderCheckBox->isChecked()<<"\n";
 
 	// View Settings
 	out<<"View Zoom = "<<ui->waveformZoomCheckBox->isChecked()<<"\n";
@@ -2507,6 +2538,15 @@ QStringList MainWindow::SavedPresetNames() const
 
 void MainWindow::SaveCurrentSettingsPreset()
 {
+	if(!this->scan.inFile.IsReady())
+	{
+		QMessageBox::information(
+				this,
+				tr("Save Settings Preset"),
+				tr("Open eerst een project/bron voordat je een preset bewaart."));
+		return;
+	}
+
 	QString presetName = QInputDialog::getText(
 			this,
 			tr("Save Settings Preset"),
@@ -2798,6 +2838,13 @@ bool MainWindow::LoadProjectSettings(QString fn)
 					findText(value,Qt::MatchExactly);
 			if(idx != -1) ui->xmlSidecarComboBox->setCurrentIndex(idx);
 		}
+		if (key.contains("Output Filename Template"))
+			ui->outputFilenameTemplateEdit->setText(value);
+		if (key.contains("Output Conflict Mode"))
+			ui->outputConflictModeComboBox->setCurrentIndex(
+					ClampRangeInt(value.toInt(), 0, 1));
+		if (key.contains("Output Open Folder"))
+			ui->outputOpenFolderCheckBox->setChecked(value.toInt());
 
 		// View Settings
 		if (key.contains("View Zoom"))
@@ -2825,6 +2872,9 @@ bool MainWindow::LoadProjectSettings(QString fn)
 	NormalizeVideoCropControls(true);
 	UpdateVideoCropLabels();
 	UpdateVideoStabilizationControls();
+	outputConflictMode = ClampRangeInt(
+			ui->outputConflictModeComboBox->currentIndex(), 0, 1);
+	outputOpenFolderAfterExport = ui->outputOpenFolderCheckBox->isChecked();
 
 	return true;
 }
@@ -3197,6 +3247,13 @@ void MainWindow::LoadExtractOutputSettings()
 			settings.value("output-video-enabled", false).toBool());
 	ui->videoOutputFilenameEdit->setText(
 			settings.value("output-video-file", "").toString());
+	ui->outputFilenameTemplateEdit->setText(
+			settings.value("output-name-template", "{source}_{datetime}").toString());
+	outputConflictMode = ClampRangeInt(
+			settings.value("output-conflict-mode", 0).toInt(), 0, 1);
+	ui->outputConflictModeComboBox->setCurrentIndex(outputConflictMode);
+	outputOpenFolderAfterExport = settings.value("output-open-folder", false).toBool();
+	ui->outputOpenFolderCheckBox->setChecked(outputOpenFolderAfterExport);
 	ui->videoAvOffsetCheckBox->setChecked(
 			settings.value("video-av-offset", true).toBool());
 	ui->outputFlipHorizontalCheckBox->setChecked(
@@ -3217,6 +3274,9 @@ void MainWindow::SaveExtractOutputSettings() const
 	settings.setValue("output-audio-file", ui->audioOutputFilenameEdit->text());
 	settings.setValue("output-video-enabled", ui->outputVideoCheckBox->isChecked());
 	settings.setValue("output-video-file", ui->videoOutputFilenameEdit->text());
+	settings.setValue("output-name-template", ui->outputFilenameTemplateEdit->text());
+	settings.setValue("output-conflict-mode", ui->outputConflictModeComboBox->currentIndex());
+	settings.setValue("output-open-folder", ui->outputOpenFolderCheckBox->isChecked());
 	settings.setValue("video-av-offset", ui->videoAvOffsetCheckBox->isChecked());
 	settings.setValue("video-flip-h", ui->outputFlipHorizontalCheckBox->isChecked());
 	settings.setValue("video-flip-v", ui->outputFlipVerticalCheckBox->isChecked());
@@ -3535,6 +3595,45 @@ void MainWindow::UpdateAudioOnlyQualityPresetFromControls()
 	audioOnlyQualityPresetSyncLock = false;
 }
 
+QString MainWindow::BuildOutputNameFromTemplate(const QString &ext) const
+{
+	QString templ = ui->outputFilenameTemplateEdit->text().trimmed();
+	if(templ.isEmpty())
+		templ = "{source}_{datetime}";
+
+	QString sourceName = "aeo-light";
+	if(this->scan.inFile.IsReady())
+	{
+		QFileInfo fi(QString::fromStdString(this->scan.inFile.GetFileName()));
+		QString base = fi.completeBaseName().trimmed();
+		if(!base.isEmpty())
+			sourceName = base;
+	}
+
+	const QDateTime now = QDateTime::currentDateTime();
+	const QString sizeToken = VideoResolutionLabelForMode(videoResolutionMode);
+	const QString framesToken = QString("%1-%2")
+			.arg(ui->frameInSpinBox->value())
+			.arg(ui->frameOutSpinBox->value());
+
+	QString baseName = templ;
+	baseName.replace("{source}", sourceName, Qt::CaseInsensitive);
+	baseName.replace("{project}", sourceName, Qt::CaseInsensitive);
+	baseName.replace("{date}", now.toString("yyyyMMdd"), Qt::CaseInsensitive);
+	baseName.replace("{time}", now.toString("HHmmss"), Qt::CaseInsensitive);
+	baseName.replace("{datetime}", now.toString("yyyyMMdd_HHmmss"), Qt::CaseInsensitive);
+	baseName.replace("{frames}", framesToken, Qt::CaseInsensitive);
+	baseName.replace("{size}", sizeToken, Qt::CaseInsensitive);
+	baseName = SanitizeFilenamePart(baseName);
+
+	QString safeExt = ext;
+	if(!safeExt.isEmpty() && !safeExt.startsWith("."))
+		safeExt.prepend(".");
+	if(!safeExt.isEmpty() && baseName.endsWith(safeExt, Qt::CaseInsensitive))
+		return baseName;
+	return baseName + safeExt;
+}
+
 void MainWindow::ApplyThemeFromSettings()
 {
 	QSettings settings;
@@ -3597,7 +3696,6 @@ void MainWindow::on_HeightCalculateBtn_clicked()
 
 void MainWindow::on_extractGLButton_clicked()
 {
-	SaveLastUsedSettingsSnapshot();
 	if(QApplication::keyboardModifiers() & Qt::ShiftModifier)
 		extractGL(false);
 	else
@@ -3717,9 +3815,14 @@ void MainWindow::on_testRunExportButton_clicked()
 
 bool MainWindow::extractGL(QString filename=QString(), bool doTimer=false)
 {
+	SaveLastUsedSettingsSnapshot();
 	bool batch = true;
 	MetaData meta;
 	QString videoFilename;
+	outputConflictMode = ClampRangeInt(
+			ui->outputConflictModeComboBox->currentIndex(), 0, 1);
+	outputOpenFolderAfterExport = ui->outputOpenFolderCheckBox->isChecked();
+	const bool autoNumberOutputs = (outputConflictMode == 0);
 	videoExportMode = ClampRangeInt(
 			ui->videoExportModeComboBox->currentIndex(),
 			SIMPLE_EXPORT_FAST, SIMPLE_EXPORT_ULTRA);
@@ -3772,9 +3875,10 @@ bool MainWindow::extractGL(QString filename=QString(), bool doTimer=false)
 		filename = ui->audioOutputFilenameEdit->text().trimmed();
 		if(filename.isEmpty())
 		{
+			const QString suggestedAudio = BuildOutputNameFromTemplate(".wav");
 			filename = QFileDialog::getSaveFileName(
 					this, tr("Export audio to"),
-					expDir, "*.wav");
+					QDir(expDir).filePath(suggestedAudio), "*.wav");
 			if(filename.isEmpty()) return false;
 			ui->audioOutputFilenameEdit->setText(filename);
 		}
@@ -3821,9 +3925,9 @@ bool MainWindow::extractGL(QString filename=QString(), bool doTimer=false)
 			videoFilename = ui->videoOutputFilenameEdit->text().trimmed();
 			if(videoFilename.isEmpty())
 			{
-				QFileInfo fi(filename);
-				videoFilename = fi.path() + "/" + fi.completeBaseName() +
-						VideoContainerExtensionForMode(videoContainerMode);
+				videoFilename = QDir(expDir).filePath(
+						BuildOutputNameFromTemplate(
+								VideoContainerExtensionForMode(videoContainerMode)));
 				ui->videoOutputFilenameEdit->setText(videoFilename);
 			}
 			if(videoFilename.isEmpty())
@@ -3867,9 +3971,12 @@ bool MainWindow::extractGL(QString filename=QString(), bool doTimer=false)
 		batch = false;
 	}
 
-	filename = EnsureNonOverwritingPath(filename);
-	if(!videoFilename.isEmpty())
-		videoFilename = EnsureNonOverwritingPath(videoFilename);
+	if(autoNumberOutputs)
+	{
+		filename = EnsureNonOverwritingPath(filename);
+		if(!videoFilename.isEmpty())
+			videoFilename = EnsureNonOverwritingPath(videoFilename);
+	}
 
 	QElapsedTimer timer;
 	if(doTimer) timer.start();
@@ -3941,6 +4048,14 @@ bool MainWindow::extractGL(QString filename=QString(), bool doTimer=false)
 
 	Log() << timingMsg << "\n";
 	Log() << QDateTime::currentDateTime().toString() << "\n";
+	if(success && !batch && outputOpenFolderAfterExport)
+	{
+		const QString preferredPath =
+				!videoFilename.isEmpty() ? videoFilename : filename;
+		const QString outDir = QFileInfo(preferredPath).absolutePath();
+		if(!outDir.isEmpty())
+			QDesktopServices::openUrl(QUrl::fromLocalFile(outDir));
+	}
 
 	if(!batch)
 	{
@@ -6941,6 +7056,9 @@ void MainWindow::on_extractResetButton_clicked()
 	ui->outputFlipVerticalCheckBox->setChecked(false);
 	ui->outputRotationComboBox->setCurrentIndex(0);
 	ui->outputVideoSizeComboBox->setCurrentIndex(VIDEO_RESOLUTION_SOURCE);
+	ui->outputFilenameTemplateEdit->setText("{source}_{datetime}");
+	ui->outputConflictModeComboBox->setCurrentIndex(0);
+	ui->outputOpenFolderCheckBox->setChecked(false);
 	videoResolutionMode = VIDEO_RESOLUTION_SOURCE;
 	SaveExtractOutputSettings();
 	SaveVideoExportSettings();
@@ -7053,6 +7171,23 @@ void MainWindow::on_outputVideoSizeComboBox_currentIndexChanged(int index)
 			index, VIDEO_RESOLUTION_SOURCE, VIDEO_RESOLUTION_3840X2160);
 	SaveVideoExportSettings();
 	UpdateVideoExportControls();
+}
+
+void MainWindow::on_outputFilenameTemplateEdit_editingFinished()
+{
+	SaveExtractOutputSettings();
+}
+
+void MainWindow::on_outputConflictModeComboBox_currentIndexChanged(int index)
+{
+	outputConflictMode = ClampRangeInt(index, 0, 1);
+	SaveExtractOutputSettings();
+}
+
+void MainWindow::on_outputOpenFolderCheckBox_toggled(bool checked)
+{
+	outputOpenFolderAfterExport = checked;
+	SaveExtractOutputSettings();
 }
 
 void MainWindow::on_outputVideoCheckBox_toggled(bool checked)
