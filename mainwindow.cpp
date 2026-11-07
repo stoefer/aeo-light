@@ -2960,6 +2960,8 @@ void MainWindow::UpdateExtractOutputControls()
 	const bool outputVideo = ui->outputVideoCheckBox->isChecked();
 	ui->videoOutputFilenameEdit->setEnabled(outputVideo);
 	ui->videoOutputBrowseButton->setEnabled(outputVideo);
+	ui->outputVideoSizeLabel->setEnabled(outputVideo);
+	ui->outputVideoSizeComboBox->setEnabled(outputVideo);
 	ui->videoAvOffsetCheckBox->setEnabled(outputVideo);
 	ui->outputFlipHorizontalCheckBox->setEnabled(outputVideo);
 	ui->outputFlipVerticalCheckBox->setEnabled(outputVideo);
@@ -3095,6 +3097,7 @@ void MainWindow::UpdateVideoExportControls()
 	QSignalBlocker blockPreset(ui->videoExportPresetComboBox);
 	QSignalBlocker blockQuality(ui->videoExportQualitySlider);
 	QSignalBlocker blockAudio(ui->videoExportAudioBitrateSpinBox);
+	QSignalBlocker blockQuickResolution(ui->outputVideoSizeComboBox);
 	QSignalBlocker blockAutoFrames(ui->autoOptimizeFramesCheckBox);
 	QSignalBlocker blockAutoVideo(ui->autoOptimizeVideoCheckBox);
 	QSignalBlocker blockAutoColor(ui->autoOptimizeColorCheckBox);
@@ -3107,6 +3110,9 @@ void MainWindow::UpdateVideoExportControls()
 	ui->videoExportCodecComboBox->setCurrentIndex(
 			ClampRangeInt(videoCodecMode, VIDEO_CODEC_H264, VIDEO_CODEC_MPEG4));
 	ui->videoExportResolutionComboBox->setCurrentIndex(
+			ClampRangeInt(videoResolutionMode,
+					VIDEO_RESOLUTION_SOURCE, VIDEO_RESOLUTION_3840X2160));
+	ui->outputVideoSizeComboBox->setCurrentIndex(
 			ClampRangeInt(videoResolutionMode,
 					VIDEO_RESOLUTION_SOURCE, VIDEO_RESOLUTION_3840X2160));
 	ui->videoExportPresetComboBox->setCurrentIndex(
@@ -6751,6 +6757,14 @@ void MainWindow::on_videoOutputBrowseButton_clicked()
 	SaveVideoExportSettings();
 	WriteLastExportDirMain("last-video-export", QFileInfo(filename).absolutePath());
 	SaveExtractOutputSettings();
+}
+
+void MainWindow::on_outputVideoSizeComboBox_currentIndexChanged(int index)
+{
+	videoResolutionMode = ClampRangeInt(
+			index, VIDEO_RESOLUTION_SOURCE, VIDEO_RESOLUTION_3840X2160);
+	SaveVideoExportSettings();
+	UpdateVideoExportControls();
 }
 
 void MainWindow::on_outputVideoCheckBox_toggled(bool checked)

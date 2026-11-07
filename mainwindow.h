@@ -305,6 +305,7 @@ private slots:
     void on_rotateCheckbox_stateChanged(int arg1);
 	void on_audioOutputBrowseButton_clicked();
 	void on_videoOutputBrowseButton_clicked();
+	void on_outputVideoSizeComboBox_currentIndexChanged(int index);
 	void on_outputVideoCheckBox_toggled(bool checked);
 	void on_outputVideoOrientationPresetButton_clicked();
 	void on_outputFlipHorizontalCheckBox_toggled(bool checked);
