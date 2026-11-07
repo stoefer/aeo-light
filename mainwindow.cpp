@@ -4271,6 +4271,26 @@ void MainWindow::UpdateVideoExportControls()
 	{
 		warnings << tr("Audio bitrate < 128 kbps kan hoorbaar kwaliteitsverlies geven.");
 	}
+	if(ui->outputVideoCheckBox->isChecked())
+	{
+		const QString videoPath = ui->videoOutputFilenameEdit->text().trimmed();
+		if(videoPath.isEmpty())
+		{
+			warnings << tr("Video-outputpad ontbreekt. Kies een outputbestand voor video-export.");
+		}
+		else
+		{
+			const QString expectedExt =
+					VideoContainerExtensionForMode(videoContainerMode).mid(1).toLower();
+			const QString actualExt = QFileInfo(videoPath).suffix().toLower();
+			if(!actualExt.isEmpty() && actualExt != expectedExt)
+			{
+				warnings << tr("Container (%1) en bestands-extensie (%2) komen niet overeen.")
+						.arg(containerNames[ClampRangeInt(videoContainerMode, 0, 2)])
+						.arg(actualExt.toUpper());
+			}
+		}
+	}
 	if(!warnings.isEmpty())
 	{
 		summaryText += tr("\nWaarschuwing: %1").arg(warnings.join(" "));
@@ -8667,6 +8687,7 @@ void MainWindow::on_audioOutputBrowseButton_clicked()
 				fi.path() + "/" + fi.completeBaseName() +
 				VideoContainerExtensionForMode(videoContainerMode));
 	}
+	UpdateVideoExportControls();
 	SaveExtractOutputSettings();
 }
 
@@ -8693,6 +8714,12 @@ void MainWindow::on_videoOutputBrowseButton_clicked()
 	UpdateVideoExportControls();
 	SaveVideoExportSettings();
 	WriteLastExportDirMain("last-video-export", QFileInfo(filename).absolutePath());
+	SaveExtractOutputSettings();
+}
+
+void MainWindow::on_videoOutputFilenameEdit_editingFinished()
+{
+	UpdateVideoExportControls();
 	SaveExtractOutputSettings();
 }
 
@@ -8747,6 +8774,7 @@ void MainWindow::on_outputVideoCheckBox_toggled(bool checked)
 		}
 	}
 	UpdateExtractOutputControls();
+	UpdateVideoExportControls();
 	SaveExtractOutputSettings();
 }
 
