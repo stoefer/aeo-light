@@ -56,6 +56,9 @@
 #include <QProgressDialog>
 #include <QStandardPaths>
 #include <QSignalBlocker>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QStorageInfo>
 #include <QScreen>
 #include <QSpinBox>
@@ -246,6 +249,14 @@ enum AudioQualityPresetMode
 	AUDIO_QUALITY_PRESET_STANDARD = 1,
 	AUDIO_QUALITY_PRESET_HIGH = 2,
 	AUDIO_QUALITY_PRESET_CUSTOM = 3
+};
+
+enum QueueBatchReportMode
+{
+	QUEUE_BATCH_REPORT_OFF = 0,
+	QUEUE_BATCH_REPORT_TXT = 1,
+	QUEUE_BATCH_REPORT_JSON = 2,
+	QUEUE_BATCH_REPORT_BOTH = 3
 };
 
 static QString ReadLastExportDirMain(const QString &key, const QString &fallback)
@@ -1216,6 +1227,8 @@ MainWindow::MainWindow(QWidget *parent) :
 	videoPresetMode = 1;
 	outputConflictMode = 0;
 	outputOpenFolderAfterExport = false;
+	autoCleanupTempFilesEnabled = true;
+	queueBatchReportMode = QUEUE_BATCH_REPORT_OFF;
 	videoAudioOffsetCorrectionEnabled = false;
 	videoUseStableFrameCrop = true;
 	videoDriftSensitivityFactor = 1.0f;
@@ -1967,6 +1980,13 @@ void MainWindow::LoadDefaults()
 	ui->outputConflictModeComboBox->setCurrentIndex(outputConflictMode);
 	outputOpenFolderAfterExport = settings.value("output-open-folder", false).toBool();
 	ui->outputOpenFolderCheckBox->setChecked(outputOpenFolderAfterExport);
+	autoCleanupTempFilesEnabled =
+			settings.value("output-auto-cleanup-temp", true).toBool();
+	ui->outputAutoCleanupTempCheckBox->setChecked(autoCleanupTempFilesEnabled);
+	queueBatchReportMode = ClampRangeInt(
+			settings.value("queue-batch-report-mode", QUEUE_BATCH_REPORT_OFF).toInt(),
+			QUEUE_BATCH_REPORT_OFF, QUEUE_BATCH_REPORT_BOTH);
+	ui->queueBatchReportModeComboBox->setCurrentIndex(queueBatchReportMode);
 	ui->videoAvOffsetCheckBox->setChecked(
 			settings.value("video-av-offset", true).toBool());
 	ui->outputFlipHorizontalCheckBox->setChecked(
@@ -2685,6 +2705,10 @@ bool MainWindow::saveproject(QTextStream &out)
 			<<ui->outputConflictModeComboBox->currentIndex()<<"\n";
 	out<<"Output Open Folder = "
 			<<ui->outputOpenFolderCheckBox->isChecked()<<"\n";
+	out<<"Output Auto Cleanup Temp = "
+			<<ui->outputAutoCleanupTempCheckBox->isChecked()<<"\n";
+	out<<"Queue Batch Report Mode = "
+			<<ui->queueBatchReportModeComboBox->currentIndex()<<"\n";
 
 	// View Settings
 	out<<"View Zoom = "<<ui->waveformZoomCheckBox->isChecked()<<"\n";
@@ -3056,6 +3080,85 @@ void MainWindow::DeleteQueuePreset()
 	settings.endGroup();
 }
 
+void MainWindow::WriteQueueBatchReport(
+		size_t totalCount,
+		size_t successCount,
+		size_t failedCount,
+		size_t pendingCount,
+		const QStringList &itemLines) const
+{
+	const int mode = ClampRangeInt(
+			queueBatchReportMode,
+			QUEUE_BATCH_REPORT_OFF,
+			QUEUE_BATCH_REPORT_BOTH);
+	if(mode == QUEUE_BATCH_REPORT_OFF)
+		return;
+
+	QString baseDir = prevExportDir;
+	if(baseDir.isEmpty())
+	{
+		baseDir = ReadLastExportDirMain(
+				"last-audio-export",
+				QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
+	}
+	if(baseDir.isEmpty())
+		baseDir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+
+	const QString stamp = QDateTime::currentDateTime().toString("yyyyMMdd-HHmmss");
+	const QString basePath = QDir(baseDir).filePath(QString("aeo-batch-report-%1").arg(stamp));
+	QStringList generatedFiles;
+
+	if(mode == QUEUE_BATCH_REPORT_TXT || mode == QUEUE_BATCH_REPORT_BOTH)
+	{
+		const QString txtPath = basePath + ".txt";
+		QFile txtFile(txtPath);
+		if(txtFile.open(QIODevice::WriteOnly | QIODevice::Text))
+		{
+			QTextStream out(&txtFile);
+			out << "AEO-Light batch report\n";
+			out << "Timestamp = " << QDateTime::currentDateTime().toString(Qt::ISODate) << "\n";
+			out << "Total = " << totalCount << "\n";
+			out << "Success = " << successCount << "\n";
+			out << "Failed = " << failedCount << "\n";
+			out << "Pending = " << pendingCount << "\n";
+			out << "\nItems:\n";
+			for(const QString &line : itemLines)
+				out << " - " << line << "\n";
+			txtFile.close();
+			generatedFiles << txtPath;
+		}
+	}
+
+	if(mode == QUEUE_BATCH_REPORT_JSON || mode == QUEUE_BATCH_REPORT_BOTH)
+	{
+		const QString jsonPath = basePath + ".json";
+		QFile jsonFile(jsonPath);
+		if(jsonFile.open(QIODevice::WriteOnly | QIODevice::Text))
+		{
+			QJsonObject root;
+			root.insert("timestamp", QDateTime::currentDateTime().toString(Qt::ISODate));
+			root.insert("total", static_cast<int>(totalCount));
+			root.insert("success", static_cast<int>(successCount));
+			root.insert("failed", static_cast<int>(failedCount));
+			root.insert("pending", static_cast<int>(pendingCount));
+			QJsonArray items;
+			for(const QString &line : itemLines)
+				items.append(line);
+			root.insert("items", items);
+
+			jsonFile.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
+			jsonFile.close();
+			generatedFiles << jsonPath;
+		}
+	}
+
+	if(generatedFiles.isEmpty())
+		return;
+
+	Log() << "Batch report saved: "
+		  << generatedFiles.join(", ") << "\n";
+}
+
 bool MainWindow::OpenProject(QString fn)
 {
 	if(LoadProjectSource(fn))
@@ -3246,6 +3349,13 @@ bool MainWindow::LoadProjectSettings(QString fn)
 					ClampRangeInt(value.toInt(), 0, 1));
 		if (key.contains("Output Open Folder"))
 			ui->outputOpenFolderCheckBox->setChecked(value.toInt());
+		if (key.contains("Output Auto Cleanup Temp"))
+			ui->outputAutoCleanupTempCheckBox->setChecked(value.toInt());
+		if (key.contains("Queue Batch Report Mode"))
+			ui->queueBatchReportModeComboBox->setCurrentIndex(
+					ClampRangeInt(value.toInt(),
+							QUEUE_BATCH_REPORT_OFF,
+							QUEUE_BATCH_REPORT_BOTH));
 
 		// View Settings
 		if (key.contains("View Zoom"))
@@ -3276,6 +3386,11 @@ bool MainWindow::LoadProjectSettings(QString fn)
 	outputConflictMode = ClampRangeInt(
 			ui->outputConflictModeComboBox->currentIndex(), 0, 1);
 	outputOpenFolderAfterExport = ui->outputOpenFolderCheckBox->isChecked();
+	autoCleanupTempFilesEnabled = ui->outputAutoCleanupTempCheckBox->isChecked();
+	queueBatchReportMode = ClampRangeInt(
+			ui->queueBatchReportModeComboBox->currentIndex(),
+			QUEUE_BATCH_REPORT_OFF,
+			QUEUE_BATCH_REPORT_BOTH);
 
 	return true;
 }
@@ -3726,6 +3841,13 @@ void MainWindow::LoadExtractOutputSettings()
 	ui->outputConflictModeComboBox->setCurrentIndex(outputConflictMode);
 	outputOpenFolderAfterExport = settings.value("output-open-folder", false).toBool();
 	ui->outputOpenFolderCheckBox->setChecked(outputOpenFolderAfterExport);
+	autoCleanupTempFilesEnabled =
+			settings.value("output-auto-cleanup-temp", true).toBool();
+	ui->outputAutoCleanupTempCheckBox->setChecked(autoCleanupTempFilesEnabled);
+	queueBatchReportMode = ClampRangeInt(
+			settings.value("queue-batch-report-mode", QUEUE_BATCH_REPORT_OFF).toInt(),
+			QUEUE_BATCH_REPORT_OFF, QUEUE_BATCH_REPORT_BOTH);
+	ui->queueBatchReportModeComboBox->setCurrentIndex(queueBatchReportMode);
 	ui->videoAvOffsetCheckBox->setChecked(
 			settings.value("video-av-offset", true).toBool());
 	ui->outputFlipHorizontalCheckBox->setChecked(
@@ -3749,6 +3871,12 @@ void MainWindow::SaveExtractOutputSettings() const
 	settings.setValue("output-name-template", ui->outputFilenameTemplateEdit->text());
 	settings.setValue("output-conflict-mode", ui->outputConflictModeComboBox->currentIndex());
 	settings.setValue("output-open-folder", ui->outputOpenFolderCheckBox->isChecked());
+	settings.setValue(
+			"output-auto-cleanup-temp",
+			ui->outputAutoCleanupTempCheckBox->isChecked());
+	settings.setValue(
+			"queue-batch-report-mode",
+			ui->queueBatchReportModeComboBox->currentIndex());
 	settings.setValue("video-av-offset", ui->videoAvOffsetCheckBox->isChecked());
 	settings.setValue("video-flip-h", ui->outputFlipHorizontalCheckBox->isChecked());
 	settings.setValue("video-flip-v", ui->outputFlipVerticalCheckBox->isChecked());
@@ -4620,6 +4748,7 @@ void MainWindow::on_testRunExportButton_clicked()
 	int completedRuns = 0;
 	bool success = true;
 	QString suggestedAudioForLoop = ui->audioOutputFilenameEdit->text().trimmed();
+	QStringList keptTempFiles;
 
 	if(runCount > 1 && !dryRun && suggestedAudioForLoop.isEmpty())
 	{
@@ -4673,9 +4802,18 @@ void MainWindow::on_testRunExportButton_clicked()
 			}
 			ui->audioOutputFilenameEdit->setText(tempAudio);
 			success = extractGL(QString(), true, true, true);
-			QFile::remove(tempAudio);
-			if(!tempVideo.isEmpty())
-				QFile::remove(tempVideo);
+			if(autoCleanupTempFilesEnabled)
+			{
+				QFile::remove(tempAudio);
+				if(!tempVideo.isEmpty())
+					QFile::remove(tempVideo);
+			}
+			else
+			{
+				keptTempFiles << QDir::toNativeSeparators(tempAudio);
+				if(!tempVideo.isEmpty())
+					keptTempFiles << QDir::toNativeSeparators(tempVideo);
+			}
 		}
 		else
 		{
@@ -4711,6 +4849,12 @@ void MainWindow::on_testRunExportButton_clicked()
 				.arg(completedRuns)
 				.arg(runCount)
 				.arg(mode);
+		if(!keptTempFiles.isEmpty())
+		{
+			detail += tr("\nTijdelijke bestanden bewaard (%1): %2")
+					.arg(keptTempFiles.size())
+					.arg(keptTempFiles.join(", "));
+		}
 		QMessageBox::information(this, title, detail);
 	}
 }
@@ -4725,6 +4869,10 @@ bool MainWindow::extractGL(QString filename, bool doTimer,
 	outputConflictMode = ClampRangeInt(
 			ui->outputConflictModeComboBox->currentIndex(), 0, 1);
 	outputOpenFolderAfterExport = ui->outputOpenFolderCheckBox->isChecked();
+	autoCleanupTempFilesEnabled = ui->outputAutoCleanupTempCheckBox->isChecked();
+	queueBatchReportMode = ClampRangeInt(
+			ui->queueBatchReportModeComboBox->currentIndex(),
+			QUEUE_BATCH_REPORT_OFF, QUEUE_BATCH_REPORT_BOTH);
 	const bool autoNumberOutputs = (outputConflictMode == 0);
 	videoExportMode = ClampRangeInt(
 			ui->videoExportModeComboBox->currentIndex(),
@@ -6637,6 +6785,7 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 			vid.reset(new VideoEncoder("a.mov"));
 		#else
 		QTemporaryDir externalVideoFrames;
+		externalVideoFrames.setAutoRemove(autoCleanupTempFilesEnabled);
 		int externalVideoFrameCount = 0;
 		int externalVideoSkipFrames = 0;
 		bool overlapCenterBaseSet = false;
@@ -6968,6 +7117,11 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 				this->requestCancel = true;
 				QFile::remove(QString::fromLocal8Bit(videoFn));
 				throw 2;
+			}
+			if(!autoCleanupTempFilesEnabled)
+			{
+				Log() << "Temp video frames kept at: "
+					  << externalVideoFrames.path() << "\n";
 			}
 			#endif
 		}
@@ -7963,6 +8117,7 @@ void MainWindow::on_queueExtractButton_clicked()
 	size_t successCount = 0;
 	size_t failedCount = 0;
 	size_t processedCount = 0;
+	QStringList batchItemLines;
 
 	while(!this->extractQueue.empty())
 	{
@@ -7978,18 +8133,29 @@ void MainWindow::on_queueExtractButton_clicked()
 
 		bool sourceReady = this->NewSource(task.source, task.srcFormat);
 		bool success = false;
+		QString outcome = tr("Mislukt");
 		if(sourceReady)
 		{
 			this->ExtractionParametersToGUI(task.params);
 			success = this->extractGL(task.output);
+			if(success)
+				outcome = tr("Gelukt");
+			else if(this->requestCancel)
+				outcome = tr("Geannuleerd");
+		}
+		else
+		{
+			outcome = tr("Bron niet geladen");
 		}
 
 		++processedCount;
+		batchItemLines << QString("%1 | %2 | %3")
+				.arg(outcome)
+				.arg(QFileInfo(task.source).fileName())
+				.arg(QDir::toNativeSeparators(task.output));
 		if(success)
 		{
 			++successCount;
-			if(stopAfterCurrent)
-				break;
 		}
 		else
 		{
@@ -7999,14 +8165,21 @@ void MainWindow::on_queueExtractButton_clicked()
 			if(this->requestCancel)
 				break;
 		}
+		if(stopAfterCurrent)
+			break;
 	}
 
 	const size_t pendingCount = this->extractQueue.size();
+	WriteQueueBatchReport(
+			initialTotal, successCount, failedCount, pendingCount, batchItemLines);
 	ui->queueBatchStatusLabel->setText(
-			tr("Batch klaar: %1 gelukt, %2 gefaald, %3 wachtend.")
+			tr("Batch klaar: %1 gelukt, %2 gefaald, %3 wachtend.%4")
 			.arg(successCount)
 			.arg(failedCount)
-			.arg(pendingCount));
+			.arg(pendingCount)
+			.arg(queueBatchReportMode == QUEUE_BATCH_REPORT_OFF ?
+					QString() :
+					tr(" Rapport opgeslagen.")));
 	UpdateQueueWidgets();
 }
 
@@ -8105,6 +8278,8 @@ void MainWindow::on_extractResetButton_clicked()
 	ui->outputFilenameTemplateEdit->setText("{source}_{datetime}");
 	ui->outputConflictModeComboBox->setCurrentIndex(0);
 	ui->outputOpenFolderCheckBox->setChecked(false);
+	ui->outputAutoCleanupTempCheckBox->setChecked(true);
+	ui->queueBatchReportModeComboBox->setCurrentIndex(QUEUE_BATCH_REPORT_OFF);
 	videoResolutionMode = VIDEO_RESOLUTION_SOURCE;
 	SaveExtractOutputSettings();
 	SaveVideoExportSettings();
@@ -8233,6 +8408,12 @@ void MainWindow::on_outputConflictModeComboBox_currentIndexChanged(int index)
 void MainWindow::on_outputOpenFolderCheckBox_toggled(bool checked)
 {
 	outputOpenFolderAfterExport = checked;
+	SaveExtractOutputSettings();
+}
+
+void MainWindow::on_outputAutoCleanupTempCheckBox_toggled(bool checked)
+{
+	autoCleanupTempFilesEnabled = checked;
 	SaveExtractOutputSettings();
 }
 
@@ -8411,6 +8592,13 @@ void MainWindow::on_videoExportAudioBitrateSpinBox_valueChanged(int arg1)
 	SaveVideoExportSettings();
 	UpdateVideoExportControls();
 	UpdateAudioQualityPresetFromControls();
+}
+
+void MainWindow::on_queueBatchReportModeComboBox_currentIndexChanged(int index)
+{
+	queueBatchReportMode = ClampRangeInt(
+			index, QUEUE_BATCH_REPORT_OFF, QUEUE_BATCH_REPORT_BOTH);
+	SaveExtractOutputSettings();
 }
 
 void MainWindow::on_videoExportTestFfmpegButton_clicked()

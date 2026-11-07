@@ -299,6 +299,7 @@ private slots:
 	void on_queueSavePresetButton_clicked();
 	void on_queueLoadPresetButton_clicked();
 	void on_queueDeletePresetButton_clicked();
+	void on_queueBatchReportModeComboBox_currentIndexChanged(int index);
 	void on_queueExtractButton_clicked();
 
 	void on_soundtrackDefaultsButton_clicked();
@@ -326,6 +327,7 @@ private slots:
 	void on_outputFilenameTemplateEdit_editingFinished();
 	void on_outputConflictModeComboBox_currentIndexChanged(int index);
 	void on_outputOpenFolderCheckBox_toggled(bool checked);
+	void on_outputAutoCleanupTempCheckBox_toggled(bool checked);
 	void on_outputVideoOrientationPresetButton_clicked();
 	void on_outputFlipHorizontalCheckBox_toggled(bool checked);
 	void on_outputFlipVerticalCheckBox_toggled(bool checked);
@@ -371,6 +373,8 @@ private:
 	int videoPresetMode;
 	int outputConflictMode;
 	bool outputOpenFolderAfterExport;
+	bool autoCleanupTempFilesEnabled;
+	int queueBatchReportMode;
 	bool videoAudioOffsetCorrectionEnabled;
 	bool videoUseStableFrameCrop;
 	float videoDriftSensitivityFactor;
@@ -442,6 +446,12 @@ private:
 	void SaveQueuePreset();
 	void LoadQueuePreset();
 	void DeleteQueuePreset();
+	void WriteQueueBatchReport(
+			size_t totalCount,
+			size_t successCount,
+			size_t failedCount,
+			size_t pendingCount,
+			const QStringList &itemLines) const;
 	void ApplyThemeFromSettings();
 	void PositionPreviewWindowBesideMainWindow();
 

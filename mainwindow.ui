@@ -2533,6 +2533,16 @@ QPushButton:disabled {
           </property>
          </widget>
         </item>
+        <item row="7" column="1" colspan="2">
+         <widget class="QCheckBox" name="outputAutoCleanupTempCheckBox">
+          <property name="text">
+           <string>Tijdelijke bestanden automatisch opruimen</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
        </layout>
       </widget>
      </widget>
@@ -2970,6 +2980,68 @@ QPushButton:disabled {
        <property name="wordWrap">
         <bool>true</bool>
        </property>
+      </widget>
+      <widget class="QWidget" name="horizontalLayoutWidget_8">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>292</y>
+         <width>631</width>
+         <height>28</height>
+        </rect>
+       </property>
+       <layout class="QHBoxLayout" name="horizontalLayout_8">
+        <property name="contentsMargins">
+         <left>0</left>
+         <top>0</top>
+         <right>0</right>
+         <bottom>0</bottom>
+        </property>
+        <item>
+         <widget class="QLabel" name="queueBatchReportModeLabel">
+          <property name="text">
+           <string>Batch rapport</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="queueBatchReportModeComboBox">
+          <item>
+           <property name="text">
+            <string>Uit</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>TXT</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>JSON</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>TXT + JSON</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item>
+         <spacer name="horizontalSpacer_10">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
       </widget>
      </widget>
     </widget>
@@ -3605,6 +3677,7 @@ QPushButton:disabled {
   <tabstop>outputFilenameTemplateEdit</tabstop>
   <tabstop>outputConflictModeComboBox</tabstop>
   <tabstop>outputOpenFolderCheckBox</tabstop>
+  <tabstop>outputAutoCleanupTempCheckBox</tabstop>
   <tabstop>videoAvOffsetCheckBox</tabstop>
   <tabstop>outputFlipHorizontalCheckBox</tabstop>
   <tabstop>outputFlipVerticalCheckBox</tabstop>
@@ -3625,6 +3698,7 @@ QPushButton:disabled {
   <tabstop>queueSavePresetButton</tabstop>
   <tabstop>queueLoadPresetButton</tabstop>
   <tabstop>queueDeletePresetButton</tabstop>
+  <tabstop>queueBatchReportModeComboBox</tabstop>
   <tabstop>queueRetryFailedButton</tabstop>
   <tabstop>queueExtractButton</tabstop>
   <tabstop>waveformZoomCheckBox</tabstop>
