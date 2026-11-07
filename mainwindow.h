@@ -318,6 +318,11 @@ private slots:
 	void on_videoExportPresetComboBox_currentIndexChanged(int index);
 	void on_videoExportQualitySlider_valueChanged(int value);
 	void on_videoExportAudioBitrateSpinBox_valueChanged(int arg1);
+	void on_autoOptimizeFramesCheckBox_toggled(bool checked);
+	void on_autoOptimizeVideoCheckBox_toggled(bool checked);
+	void on_autoOptimizeColorCheckBox_toggled(bool checked);
+	void on_autoOptimizeProfileComboBox_currentIndexChanged(int index);
+	void on_autoOptimizeAnalyzeButton_clicked();
 	void on_audioQualityPresetComboBox_currentIndexChanged(int index);
 	void on_audioOnlyQualityPresetComboBox_currentIndexChanged(int index);
 	void on_filerate_PD_currentIndexChanged(int index);
@@ -355,6 +360,12 @@ private:
 	bool applyingWindowLayout;
 	bool audioQualityPresetSyncLock;
 	bool audioOnlyQualityPresetSyncLock;
+	bool autoOptimizeFramesEnabled;
+	bool autoOptimizeVideoEnabled;
+	bool autoOptimizeColorEnabled;
+	int autoOptimizeProfileMode;
+	bool autoOptimizeFrameApplyLock;
+	bool suppressFrameAutoOptimizeDuringExtraction;
 	int uiScalePercent;
 	bool uiScaleGeometryCaptured;
 	bool uiScaleLayoutActive;
@@ -374,6 +385,12 @@ private:
 	void LoadVideoExportSettings();
 	void SaveVideoExportSettings() const;
 	void UpdateVideoExportControls();
+	void UpdateAutoOptimizationControls();
+	bool AnalyzeCurrentFrameAutoStats(double &meanLuma, double &lumaLow,
+			double &lumaHigh, double &channelSpread) const;
+	void ApplyAutoOptimizationToFrameControls(bool forceApply);
+	bool ComputeAutoVideoEqSettings(double &brightness, double &contrast,
+			double &saturation, QString *summary = nullptr) const;
 	void UpdateAudioQualityPresetFromControls();
 	void UpdateAudioOnlyQualityPresetFromControls();
 	void CaptureUiScaleBaseGeometry();

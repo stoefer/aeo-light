@@ -1560,6 +1560,96 @@
             </property>
            </widget>
           </item>
+          <item row="9" column="0" colspan="3">
+           <widget class="QGroupBox" name="autoOptimizeGroupBox">
+            <property name="title">
+             <string>Automatische kleur/contrast/helderheid</string>
+            </property>
+            <layout class="QGridLayout" name="autoOptimizeGridLayout">
+             <item row="0" column="0">
+              <widget class="QCheckBox" name="autoOptimizeFramesCheckBox">
+               <property name="text">
+                <string>Toepassen op frames (preview)</string>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="1">
+              <widget class="QCheckBox" name="autoOptimizeVideoCheckBox">
+               <property name="text">
+                <string>Toepassen op video-export</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QLabel" name="autoOptimizeProfileLabel">
+               <property name="text">
+                <string>Profiel</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="1">
+              <layout class="QHBoxLayout" name="autoOptimizeProfileLayout">
+               <item>
+                <widget class="QComboBox" name="autoOptimizeProfileComboBox">
+                 <item>
+                  <property name="text">
+                   <string>Conservatief</string>
+                  </property>
+                 </item>
+                 <item>
+                  <property name="text">
+                   <string>Standaard</string>
+                  </property>
+                 </item>
+                 <item>
+                  <property name="text">
+                   <string>Sterk</string>
+                  </property>
+                 </item>
+                </widget>
+               </item>
+               <item>
+                <widget class="QCheckBox" name="autoOptimizeColorCheckBox">
+                 <property name="text">
+                  <string>Auto kleur (saturatie)</string>
+                 </property>
+                 <property name="checked">
+                  <bool>true</bool>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item row="2" column="0" colspan="2">
+              <widget class="QPushButton" name="autoOptimizeAnalyzeButton">
+               <property name="text">
+                <string>Analyseer huidige frame</string>
+               </property>
+              </widget>
+             </item>
+             <item row="3" column="0" colspan="2">
+              <widget class="QLabel" name="autoOptimizeHelpLabel">
+               <property name="text">
+                <string>Schat automatisch helderheid/contrast (en optioneel kleur) op basis van het huidige frame. Gebruik het profiel voor subtiel of agressiever gedrag.</string>
+               </property>
+               <property name="wordWrap">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item row="4" column="0" colspan="2">
+              <widget class="QLabel" name="autoOptimizeSummaryLabel">
+               <property name="text">
+                <string>Auto-optimalisatie uit.</string>
+               </property>
+               <property name="wordWrap">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
          </layout>
         </widget>
        </item>
@@ -3166,6 +3256,11 @@ QPushButton:disabled {
   <tabstop>videoExportPresetComboBox</tabstop>
   <tabstop>videoExportQualitySlider</tabstop>
   <tabstop>videoExportAudioBitrateSpinBox</tabstop>
+  <tabstop>autoOptimizeFramesCheckBox</tabstop>
+  <tabstop>autoOptimizeVideoCheckBox</tabstop>
+  <tabstop>autoOptimizeProfileComboBox</tabstop>
+  <tabstop>autoOptimizeColorCheckBox</tabstop>
+  <tabstop>autoOptimizeAnalyzeButton</tabstop>
   <tabstop>audioOutputFilenameEdit</tabstop>
   <tabstop>audioOutputBrowseButton</tabstop>
   <tabstop>outputVideoCheckBox</tabstop>

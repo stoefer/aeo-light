@@ -22,6 +22,7 @@
 //-----------------------------------------------------------------------------
 
 #include <algorithm>
+#include <array>
 
 #include <QApplication>
 #include <QByteArray>
@@ -68,6 +69,7 @@
 #include <memory>
 #include <cmath>
 #include <stdexcept>
+#include <cstdint>
 
 #include <fcntl.h>
 #include <stdlib.h>
@@ -277,6 +279,173 @@ static QString EnsureNonOverwritingPath(const QString &requestedPath)
 	return candidate;
 }
 
+struct AutoFrameStats
+{
+	double meanLuma = 0.0;
+	double lumaLow = 0.0;
+	double lumaHigh = 1.0;
+	double channelSpread = 0.0;
+	bool valid = false;
+};
+
+static double AutoProfileStrength(int profileMode)
+{
+	switch(profileMode)
+	{
+	case 0: return 0.60; // Conservatief
+	case 2: return 1.15; // Sterk
+	default: return 0.85; // Standaard
+	}
+}
+
+static bool ComputeAutoFrameStats(const FrameTexture *frame, AutoFrameStats &stats)
+{
+	if(!frame || !frame->buf || frame->width <= 0 || frame->height <= 0)
+		return false;
+
+	const int64_t totalPixels = int64_t(frame->width) * int64_t(frame->height);
+	if(totalPixels <= 0)
+		return false;
+
+	const int targetSamples = 200000;
+	const int step = std::max(1, int(std::sqrt(
+			double(totalPixels) / std::max(1, targetSamples))));
+
+	double sumLuma = 0.0;
+	double sumR = 0.0;
+	double sumG = 0.0;
+	double sumB = 0.0;
+	int64_t samples = 0;
+	std::array<int, 256> hist{};
+
+	auto clamp01 = [](double v) { return std::max(0.0, std::min(1.0, v)); };
+	auto addSample = [&](double r, double g, double b)
+	{
+		r = clamp01(r);
+		g = clamp01(g);
+		b = clamp01(b);
+		const double luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+		const int bin = std::max(0, std::min(255, int(std::round(luma * 255.0))));
+		hist[size_t(bin)]++;
+		sumLuma += luma;
+		sumR += r;
+		sumG += g;
+		sumB += b;
+		samples++;
+	};
+
+	if(frame->format == GL_UNSIGNED_BYTE)
+	{
+		const int comps = std::max(1, frame->nComponents);
+		const uint8_t *src = reinterpret_cast<const uint8_t*>(frame->buf);
+		for(int y = 0; y < frame->height; y += step)
+		{
+			for(int x = 0; x < frame->width; x += step)
+			{
+				const int idx = (y * frame->width + x) * comps;
+				double r = 0.0, g = 0.0, b = 0.0;
+				if(comps >= 3)
+				{
+					r = src[idx + 0] / 255.0;
+					g = src[idx + 1] / 255.0;
+					b = src[idx + 2] / 255.0;
+				}
+				else
+				{
+					r = g = b = src[idx] / 255.0;
+				}
+				addSample(r, g, b);
+			}
+		}
+	}
+	else if(frame->format == GL_UNSIGNED_SHORT)
+	{
+		const int comps = std::max(1, frame->nComponents);
+		const uint16_t *src = reinterpret_cast<const uint16_t*>(frame->buf);
+		for(int y = 0; y < frame->height; y += step)
+		{
+			for(int x = 0; x < frame->width; x += step)
+			{
+				const int idx = (y * frame->width + x) * comps;
+				double r = 0.0, g = 0.0, b = 0.0;
+				if(comps >= 3)
+				{
+					r = src[idx + 0] / 65535.0;
+					g = src[idx + 1] / 65535.0;
+					b = src[idx + 2] / 65535.0;
+				}
+				else
+				{
+					r = g = b = src[idx] / 65535.0;
+				}
+				addSample(r, g, b);
+			}
+		}
+	}
+	else if(frame->format == GL_UNSIGNED_INT_10_10_10_2)
+	{
+		const uint32_t *src = reinterpret_cast<const uint32_t*>(frame->buf);
+		for(int y = 0; y < frame->height; y += step)
+		{
+			for(int x = 0; x < frame->width; x += step)
+			{
+				const uint32_t px = src[y * frame->width + x];
+				// For luma/spread estimation channel order is not critical.
+				double r = double(px & 0x3FFu) / 1023.0;
+				double g = double((px >> 10) & 0x3FFu) / 1023.0;
+				double b = double((px >> 20) & 0x3FFu) / 1023.0;
+				addSample(r, g, b);
+			}
+		}
+	}
+	else
+	{
+		return false;
+	}
+
+	if(samples <= 0)
+		return false;
+
+	const int lowTarget = int(std::round(samples * 0.02));
+	const int highTarget = int(std::round(samples * 0.98));
+	int cumulative = 0;
+	int lowBin = 0;
+	int highBin = 255;
+	for(int i = 0; i < 256; ++i)
+	{
+		cumulative += hist[size_t(i)];
+		if(cumulative >= lowTarget)
+		{
+			lowBin = i;
+			break;
+		}
+	}
+	cumulative = 0;
+	for(int i = 0; i < 256; ++i)
+	{
+		cumulative += hist[size_t(i)];
+		if(cumulative >= highTarget)
+		{
+			highBin = i;
+			break;
+		}
+	}
+
+	const double rMean = sumR / samples;
+	const double gMean = sumG / samples;
+	const double bMean = sumB / samples;
+
+	stats.meanLuma = sumLuma / samples;
+	stats.lumaLow = lowBin / 255.0;
+	stats.lumaHigh = std::max(stats.lumaLow + 0.01, highBin / 255.0);
+	stats.channelSpread =
+			(std::abs(rMean - gMean) +
+			 std::abs(gMean - bMean) +
+			 std::abs(bMean - rMean)) / 3.0;
+	stats.valid = true;
+	return true;
+}
+
 static QString BuildDarkThemeStyleSheet()
 {
 	return QString(
@@ -480,6 +649,10 @@ static void EncodeVideoWithExternalFfmpeg(const QString &frameDir,
 		int qualityPercent,
 		int audioBitrateKbps,
 		int presetMode,
+		bool useAutoEq,
+		double autoBrightness,
+		double autoContrast,
+		double autoSaturation,
 		int totalFrames,
 		QProgressDialog *progress, bool *wasCanceled,
 		bool allowCancel)
@@ -550,15 +723,28 @@ static void EncodeVideoWithExternalFfmpeg(const QString &frameDir,
 	     << "-i" << audioWav
 	     << "-f" << containerArg;
 
+	QStringList vfParts;
 	QSize targetSize = VideoResolutionSizeForMode(resolutionMode);
 	if(targetSize.width() > 0 && targetSize.height() > 0)
 	{
-		QString vf = QString(
+		vfParts << QString(
 				"scale=w=%1:h=%2:force_original_aspect_ratio=decrease:flags=lanczos,"
 				"pad=%1:%2:(ow-iw)/2:(oh-ih)/2:black")
 				.arg(targetSize.width())
 				.arg(targetSize.height());
-		args << "-vf" << vf;
+	}
+	if(useAutoEq)
+	{
+		QString eq = QString("eq=contrast=%1:brightness=%2")
+				.arg(autoContrast, 0, 'f', 3)
+				.arg(autoBrightness, 0, 'f', 3);
+		if(std::abs(autoSaturation - 1.0) > 0.01)
+			eq += QString(":saturation=%1").arg(autoSaturation, 0, 'f', 3);
+		vfParts << eq;
+	}
+	if(!vfParts.isEmpty())
+	{
+		args << "-vf" << vfParts.join(",");
 	}
 
 	if(codecArg == "mpeg4")
@@ -895,6 +1081,12 @@ MainWindow::MainWindow(QWidget *parent) :
 	applyingWindowLayout = false;
 	audioQualityPresetSyncLock = false;
 	audioOnlyQualityPresetSyncLock = false;
+	autoOptimizeFramesEnabled = false;
+	autoOptimizeVideoEnabled = false;
+	autoOptimizeColorEnabled = true;
+	autoOptimizeProfileMode = 1;
+	autoOptimizeFrameApplyLock = false;
+	suppressFrameAutoOptimizeDuringExtraction = false;
 	uiScalePercent = -1;
 	uiScaleGeometryCaptured = false;
 	uiScaleLayoutActive = false;
@@ -1928,6 +2120,10 @@ bool MainWindow::Load_Frame_Texture(int frame_num)
 
 	// record frame in static variable for debugging/restarting from error:
 	lastFrameLoad = frame_num;
+	if(!frame_window->is_rendering && !suppressFrameAutoOptimizeDuringExtraction)
+		ApplyAutoOptimizationToFrameControls(false);
+	else
+		UpdateAutoOptimizationControls();
 
 	return true;
 }
@@ -2860,6 +3056,14 @@ void MainWindow::LoadVideoExportSettings()
 			settings.value("audio-bitrate-kbps", 192).toInt(), 96, 512);
 	videoPresetMode = ClampRangeInt(
 			settings.value("preset-mode", 1).toInt(), 0, 2);
+	autoOptimizeFramesEnabled =
+			settings.value("auto-optimize-frames", false).toBool();
+	autoOptimizeVideoEnabled =
+			settings.value("auto-optimize-video", false).toBool();
+	autoOptimizeColorEnabled =
+			settings.value("auto-optimize-color", true).toBool();
+	autoOptimizeProfileMode = ClampRangeInt(
+			settings.value("auto-optimize-profile", 1).toInt(), 0, 2);
 	settings.endGroup();
 	UpdateVideoExportControls();
 }
@@ -2875,6 +3079,10 @@ void MainWindow::SaveVideoExportSettings() const
 	settings.setValue("quality-percent", videoQualityPercent);
 	settings.setValue("audio-bitrate-kbps", videoAudioBitrateKbps);
 	settings.setValue("preset-mode", videoPresetMode);
+	settings.setValue("auto-optimize-frames", autoOptimizeFramesEnabled);
+	settings.setValue("auto-optimize-video", autoOptimizeVideoEnabled);
+	settings.setValue("auto-optimize-color", autoOptimizeColorEnabled);
+	settings.setValue("auto-optimize-profile", autoOptimizeProfileMode);
 	settings.endGroup();
 }
 
@@ -2887,6 +3095,10 @@ void MainWindow::UpdateVideoExportControls()
 	QSignalBlocker blockPreset(ui->videoExportPresetComboBox);
 	QSignalBlocker blockQuality(ui->videoExportQualitySlider);
 	QSignalBlocker blockAudio(ui->videoExportAudioBitrateSpinBox);
+	QSignalBlocker blockAutoFrames(ui->autoOptimizeFramesCheckBox);
+	QSignalBlocker blockAutoVideo(ui->autoOptimizeVideoCheckBox);
+	QSignalBlocker blockAutoColor(ui->autoOptimizeColorCheckBox);
+	QSignalBlocker blockAutoProfile(ui->autoOptimizeProfileComboBox);
 
 	ui->videoExportModeComboBox->setCurrentIndex(
 			ClampRangeInt(videoExportMode, SIMPLE_EXPORT_FAST, SIMPLE_EXPORT_ULTRA));
@@ -2903,6 +3115,11 @@ void MainWindow::UpdateVideoExportControls()
 			ClampRangeInt(videoQualityPercent, 1, 100));
 	ui->videoExportAudioBitrateSpinBox->setValue(
 			ClampRangeInt(videoAudioBitrateKbps, 96, 512));
+	ui->autoOptimizeFramesCheckBox->setChecked(autoOptimizeFramesEnabled);
+	ui->autoOptimizeVideoCheckBox->setChecked(autoOptimizeVideoEnabled);
+	ui->autoOptimizeColorCheckBox->setChecked(autoOptimizeColorEnabled);
+	ui->autoOptimizeProfileComboBox->setCurrentIndex(
+			ClampRangeInt(autoOptimizeProfileMode, 0, 2));
 
 	static const char *modeNames[] = {
 		"Snel", "Standaard", "Kwaliteit", "Ultra kwaliteit"
@@ -2928,6 +3145,155 @@ void MainWindow::UpdateVideoExportControls()
 			.arg(presetNames[ClampRangeInt(videoPresetMode, 0, 2)])
 			.arg(videoQualityPercent)
 			.arg(videoAudioBitrateKbps));
+	UpdateAutoOptimizationControls();
+}
+
+void MainWindow::UpdateAutoOptimizationControls()
+{
+	ui->autoOptimizeColorCheckBox->setEnabled(
+			autoOptimizeFramesEnabled || autoOptimizeVideoEnabled);
+	ui->autoOptimizeProfileComboBox->setEnabled(
+			autoOptimizeFramesEnabled || autoOptimizeVideoEnabled);
+	ui->autoOptimizeAnalyzeButton->setEnabled(
+			currentFrameTexture != nullptr &&
+			(autoOptimizeFramesEnabled || autoOptimizeVideoEnabled));
+
+	QString summary = tr("Auto-optimalisatie uit.");
+	if(autoOptimizeFramesEnabled || autoOptimizeVideoEnabled)
+	{
+		double meanLuma = 0.0;
+		double lumaLow = 0.0;
+		double lumaHigh = 0.0;
+		double spread = 0.0;
+		if(AnalyzeCurrentFrameAutoStats(meanLuma, lumaLow, lumaHigh, spread))
+		{
+			const double range = std::max(0.01, lumaHigh - lumaLow);
+			summary = tr("Analyse huidig frame: luma %1, bereik %2.")
+					.arg(meanLuma, 0, 'f', 2)
+					.arg(range, 0, 'f', 2);
+			if(autoOptimizeVideoEnabled)
+			{
+				double b = 0.0, c = 1.0, s = 1.0;
+				QString videoSummary;
+				if(ComputeAutoVideoEqSettings(b, c, s, &videoSummary))
+					summary += QString(" ") + videoSummary;
+			}
+		}
+		else
+		{
+			summary = tr("Auto-optimalisatie actief, maar frame-analyse is nog niet beschikbaar.");
+		}
+	}
+	ui->autoOptimizeSummaryLabel->setText(summary);
+}
+
+bool MainWindow::AnalyzeCurrentFrameAutoStats(double &meanLuma, double &lumaLow,
+		double &lumaHigh, double &channelSpread) const
+{
+	AutoFrameStats stats;
+	if(!ComputeAutoFrameStats(currentFrameTexture, stats))
+		return false;
+	meanLuma = stats.meanLuma;
+	lumaLow = stats.lumaLow;
+	lumaHigh = stats.lumaHigh;
+	channelSpread = stats.channelSpread;
+	return true;
+}
+
+void MainWindow::ApplyAutoOptimizationToFrameControls(bool forceApply)
+{
+	if(autoOptimizeFrameApplyLock)
+		return;
+	if(!forceApply && !autoOptimizeFramesEnabled)
+		return;
+	if(frame_window == NULL || !currentFrameTexture)
+	{
+		UpdateAutoOptimizationControls();
+		return;
+	}
+	if(frame_window->is_rendering)
+		return;
+
+	double meanLuma = 0.0;
+	double lumaLow = 0.0;
+	double lumaHigh = 0.0;
+	double channelSpread = 0.0;
+	if(!AnalyzeCurrentFrameAutoStats(meanLuma, lumaLow, lumaHigh, channelSpread))
+	{
+		UpdateAutoOptimizationControls();
+		return;
+	}
+
+	const double strength = AutoProfileStrength(autoOptimizeProfileMode);
+	const double range = std::max(0.01, lumaHigh - lumaLow);
+	const double targetMean = 0.52;
+	const double targetRange = 0.62;
+	const double meanDelta = targetMean - meanLuma;
+	const double contrastDelta = targetRange - range;
+
+	const int liftTarget = ClampRangeInt(
+			int(std::lround((meanDelta * 120.0 + contrastDelta * 25.0) * strength)),
+			-45, 45);
+	const int gammaTarget = ClampRangeInt(
+			int(std::lround(100.0 - meanDelta * 50.0 * strength)),
+			80, 130);
+	const int gainTarget = ClampRangeInt(
+			int(std::lround(100.0 + contrastDelta * 190.0 * strength)),
+			75, 190);
+
+	autoOptimizeFrameApplyLock = true;
+	{
+		QSignalBlocker lockLift(ui->liftSlider);
+		QSignalBlocker lockGamma(ui->gammaSlider);
+		QSignalBlocker lockGain(ui->gainSlider);
+		ui->liftSlider->setValue(liftTarget);
+		ui->gammaSlider->setValue(gammaTarget);
+		ui->gainSlider->setValue(gainTarget);
+	}
+	ui->liftLabel->setText(QString::number(ui->liftSlider->value() / 100.f, 'f', 2));
+	ui->gammaLabel->setText(QString::number(ui->gammaSlider->value() / 100.f, 'f', 2));
+	ui->gainLabel->setText(QString::number(ui->gainSlider->value() / 100.f, 'f', 2));
+
+	if(autoOptimizeColorEnabled)
+	{
+		QSignalBlocker lockDesat(ui->desatBox);
+		if(ui->desatBox->isChecked())
+			ui->desatBox->setChecked(false);
+	}
+	autoOptimizeFrameApplyLock = false;
+	GPU_Params_Update(1);
+	UpdateAutoOptimizationControls();
+}
+
+bool MainWindow::ComputeAutoVideoEqSettings(double &brightness, double &contrast,
+		double &saturation, QString *summary) const
+{
+	double meanLuma = 0.0;
+	double lumaLow = 0.0;
+	double lumaHigh = 0.0;
+	double channelSpread = 0.0;
+	if(!AnalyzeCurrentFrameAutoStats(meanLuma, lumaLow, lumaHigh, channelSpread))
+		return false;
+
+	const double strength = AutoProfileStrength(autoOptimizeProfileMode);
+	const double range = std::max(0.01, lumaHigh - lumaLow);
+	brightness = std::max(-0.20, std::min(0.20, (0.52 - meanLuma) * 0.45 * strength));
+	contrast = std::max(0.75, std::min(1.45, 1.0 + (0.62 - range) * 1.35 * strength));
+	saturation = 1.0;
+	if(autoOptimizeColorEnabled)
+	{
+		saturation = std::max(0.75, std::min(1.45,
+				1.0 + (0.10 - channelSpread) * 2.2 * strength));
+	}
+
+	if(summary)
+	{
+		*summary = tr("Video auto: contrast %1x, helderheid %2, saturatie %3x.")
+				.arg(contrast, 0, 'f', 2)
+				.arg(brightness, 0, 'f', 2)
+				.arg(saturation, 0, 'f', 2);
+	}
+	return true;
 }
 
 void MainWindow::UpdateAudioQualityPresetFromControls()
@@ -4896,6 +5262,20 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 	progress.setMinimumDuration(0);
 
 	this->requestCancel = false;
+	struct AutoOptimizeExtractionGuard
+	{
+		bool &flag;
+		bool previous;
+		AutoOptimizeExtractionGuard(bool &ref)
+			: flag(ref), previous(ref)
+		{
+			flag = true;
+		}
+		~AutoOptimizeExtractionGuard()
+		{
+			flag = previous;
+		}
+	} autoOptimizeGuard(suppressFrameAutoOptimizeDuringExtraction);
 	QElapsedTimer progressTimer;
 	progressTimer.start();
 	long progressFramesShown = 0;
@@ -5014,6 +5394,11 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 			videoAudioOffsetCorrectionEnabled ? 26 : 0;
 	av_log(NULL, AV_LOG_INFO, "Video/audio sync correction = %d frames\n",
 			videoAudioSyncAdvanceFrames);
+	bool useAutoVideoEq = false;
+	double autoVideoBrightness = 0.0;
+	double autoVideoContrast = 1.0;
+	double autoVideoSaturation = 1.0;
+	QString autoVideoSummary;
 
 	if(videoFn)
 	{
@@ -5090,6 +5475,19 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 
 		traceCurrentOperation = "Load Base Texture";
 		if(!Load_Frame_Texture(firstFrame + 0)) throw 1;
+		if(videoFn && autoOptimizeVideoEnabled)
+		{
+			if(ComputeAutoVideoEqSettings(
+					autoVideoBrightness,
+					autoVideoContrast,
+					autoVideoSaturation,
+					&autoVideoSummary))
+			{
+				useAutoVideoEq = true;
+				Log() << "Auto video-optimalisatie actief: "
+					  << autoVideoSummary << "\n";
+			}
+		}
 		frame_window->is_rendering=true;
 
 		unsigned int sec;
@@ -5297,6 +5695,10 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 					videoQualityPercent,
 					videoAudioBitrateKbps,
 					videoPresetMode,
+					useAutoVideoEq,
+					autoVideoBrightness,
+					autoVideoContrast,
+					autoVideoSaturation,
 					externalVideoFrameCount,
 					&progress,
 					&ffmpegCanceled,
@@ -6526,5 +6928,73 @@ void MainWindow::on_videoExportAudioBitrateSpinBox_valueChanged(int arg1)
 	SaveVideoExportSettings();
 	UpdateVideoExportControls();
 	UpdateAudioQualityPresetFromControls();
+}
+
+void MainWindow::on_autoOptimizeFramesCheckBox_toggled(bool checked)
+{
+	autoOptimizeFramesEnabled = checked;
+	SaveVideoExportSettings();
+	if(checked)
+		ApplyAutoOptimizationToFrameControls(true);
+	else
+		UpdateAutoOptimizationControls();
+}
+
+void MainWindow::on_autoOptimizeVideoCheckBox_toggled(bool checked)
+{
+	autoOptimizeVideoEnabled = checked;
+	SaveVideoExportSettings();
+	UpdateAutoOptimizationControls();
+}
+
+void MainWindow::on_autoOptimizeColorCheckBox_toggled(bool checked)
+{
+	autoOptimizeColorEnabled = checked;
+	SaveVideoExportSettings();
+	if(autoOptimizeFramesEnabled)
+		ApplyAutoOptimizationToFrameControls(true);
+	else
+		UpdateAutoOptimizationControls();
+}
+
+void MainWindow::on_autoOptimizeProfileComboBox_currentIndexChanged(int index)
+{
+	autoOptimizeProfileMode = ClampRangeInt(index, 0, 2);
+	SaveVideoExportSettings();
+	if(autoOptimizeFramesEnabled)
+		ApplyAutoOptimizationToFrameControls(true);
+	else
+		UpdateAutoOptimizationControls();
+}
+
+void MainWindow::on_autoOptimizeAnalyzeButton_clicked()
+{
+	if(!currentFrameTexture)
+	{
+		QMessageBox::information(
+				this,
+				tr("Auto-optimalisatie"),
+				tr("Laad eerst een bronframe om automatische analyse uit te voeren."));
+		return;
+	}
+
+	const bool shouldApplyFrameAdjust = autoOptimizeFramesEnabled;
+	if(shouldApplyFrameAdjust)
+		ApplyAutoOptimizationToFrameControls(true);
+	else
+		UpdateAutoOptimizationControls();
+
+	if(autoOptimizeVideoEnabled)
+	{
+		double b = 0.0, c = 1.0, s = 1.0;
+		QString summary;
+		if(ComputeAutoVideoEqSettings(b, c, s, &summary))
+		{
+			QMessageBox::information(
+					this,
+					tr("Video auto-optimalisatie"),
+					summary);
+		}
+	}
 }
 
