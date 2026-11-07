@@ -835,7 +835,7 @@
       <widget class="QPushButton" name="soundtrackDefaultsButton">
        <property name="geometry">
         <rect>
-         <x>259</x>
+         <x>189</x>
         <y>458</y>
          <width>127</width>
          <height>32</height>
@@ -843,6 +843,19 @@
        </property>
        <property name="text">
         <string>Set as Default</string>
+       </property>
+      </widget>
+      <widget class="QPushButton" name="soundtrackResetButton">
+       <property name="geometry">
+        <rect>
+         <x>322</x>
+         <y>458</y>
+         <width>127</width>
+         <height>32</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Reset Section</string>
        </property>
       </widget>
      </widget>
@@ -1273,7 +1286,7 @@
       <widget class="QPushButton" name="imageDefaultsButton">
        <property name="geometry">
         <rect>
-         <x>259</x>
+         <x>189</x>
          <y>253</y>
          <width>127</width>
          <height>32</height>
@@ -1281,6 +1294,19 @@
        </property>
        <property name="text">
         <string>Set as Default</string>
+       </property>
+      </widget>
+      <widget class="QPushButton" name="imageResetButton">
+       <property name="geometry">
+        <rect>
+         <x>322</x>
+         <y>253</y>
+         <width>127</width>
+         <height>32</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Reset Section</string>
        </property>
       </widget>
      </widget>
@@ -2159,6 +2185,13 @@
           </property>
           <property name="text">
            <string>Set as Default</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="extractResetButton">
+          <property name="text">
+           <string>Reset Section</string>
           </property>
          </widget>
         </item>
@@ -3091,6 +3124,13 @@ QPushButton:disabled {
         </property>
        </widget>
       </item>
+      <item row="1" column="2">
+       <widget class="QPushButton" name="loadLastSettingsButton">
+        <property name="text">
+         <string>Load Last Settings</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
     <zorder>logosLabel</zorder>
@@ -3134,6 +3174,9 @@ QPushButton:disabled {
     <addaction name="actionOpen_Source"/>
     <addaction name="actionLoad_Settings"/>
     <addaction name="actionSave_Settings"/>
+    <addaction name="actionLoad_Settings_Preset"/>
+    <addaction name="actionSave_Settings_Preset"/>
+    <addaction name="actionDelete_Settings_Preset"/>
     <addaction name="separator"/>
     <addaction name="actionPreferences"/>
    <addaction name="separator"/>
@@ -3197,6 +3240,21 @@ QPushButton:disabled {
     <string>Ctrl+S</string>
    </property>
   </action>
+  <action name="actionSave_Settings_Preset">
+   <property name="text">
+    <string>Save Settings Preset...</string>
+   </property>
+  </action>
+  <action name="actionLoad_Settings_Preset">
+   <property name="text">
+    <string>Load Settings Preset...</string>
+   </property>
+  </action>
+  <action name="actionDelete_Settings_Preset">
+   <property name="text">
+    <string>Delete Settings Preset...</string>
+   </property>
+  </action>
   <action name="actionQuit">
    <property name="text">
     <string>Exit</string>
@@ -3255,6 +3313,7 @@ QPushButton:disabled {
   <tabstop>loadprojectButton</tabstop>
   <tabstop>saveprojectButton</tabstop>
   <tabstop>loadSettingsButton</tabstop>
+  <tabstop>loadLastSettingsButton</tabstop>
   <tabstop>filmrate_PD</tabstop>
   <tabstop>tabWidget</tabstop>
   <tabstop>OverlapSoundtrackCheckBox</tabstop>

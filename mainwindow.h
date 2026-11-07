@@ -255,6 +255,9 @@ private slots:
 	void on_actionOpen_Source_triggered();
 	void on_actionLoad_Settings_triggered();
 	void on_actionSave_Settings_triggered();
+	void on_actionSave_Settings_Preset_triggered();
+	void on_actionLoad_Settings_Preset_triggered();
+	void on_actionDelete_Settings_Preset_triggered();
 	void on_actionQuit_triggered();
 	void on_frame_numberSpinBox_editingFinished();
 	void on_frameOutSpinBox_valueChanged(int arg1);
@@ -285,14 +288,18 @@ private slots:
     void QueueImportVFB();
 
 	void on_loadSettingsButton_clicked();
+	void on_loadLastSettingsButton_clicked();
 
 	void on_queueExtractButton_clicked();
 
 	void on_soundtrackDefaultsButton_clicked();
+	void on_soundtrackResetButton_clicked();
 
 	void on_imageDefaultsButton_clicked();
+	void on_imageResetButton_clicked();
 
 	void on_extractDefaultsButton_clicked();
+	void on_extractResetButton_clicked();
 
 	void on_actionPreferences_triggered();
 
@@ -398,6 +405,14 @@ private:
 	void UpdateAdaptiveUiScale();
 	void RestoreUiWindowSettings();
 	void SaveUiWindowSettings() const;
+	QString SerializeCurrentSettings();
+	bool LoadSettingsFromSerializedText(const QString &serialized);
+	void SaveLastUsedSettingsSnapshot();
+	bool LoadLastUsedSettingsSnapshot();
+	QStringList SavedPresetNames() const;
+	void SaveCurrentSettingsPreset();
+	void LoadSettingsPreset();
+	void DeleteSettingsPreset();
 	void ApplyThemeFromSettings();
 	void PositionPreviewWindowBesideMainWindow();
 

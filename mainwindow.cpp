@@ -1030,6 +1030,7 @@ MainWindow::MainWindow(QWidget *parent) :
 	ui->actionShow_Soundtrack_Only->setEnabled(false);
 	ui->actionWaveform_Zoom->setEnabled(false);
 	ui->loadSettingsButton->setEnabled(false);
+	ui->loadLastSettingsButton->setEnabled(false);
 	ui->tabWidget->setEnabled(false);
 	RecursivelyEnable(ui->viewOptionsLayout, false);
 	RecursivelyEnable(ui->frameNumberLayout, false);
@@ -2301,6 +2302,7 @@ bool MainWindow::NewSource(QString filename, SourceFormat ft)
 			ui->menuView->setEnabled(true);
 			ui->saveprojectButton->setEnabled(true);
 			ui->loadSettingsButton->setEnabled(true);
+			ui->loadLastSettingsButton->setEnabled(true);
 			ui->tabWidget->setEnabled(true);
 			RecursivelyEnable(ui->viewOptionsLayout, true);
 			RecursivelyEnable(ui->frameNumberLayout, true);
@@ -2430,6 +2432,187 @@ bool MainWindow::saveproject(QTextStream &out)
 	out<<"View Frame = "<<ui->frame_numberSpinBox->value()<<"\n";
 
 	return true;
+}
+
+QString MainWindow::SerializeCurrentSettings()
+{
+	QString serialized;
+	QTextStream stream(&serialized);
+	saveproject(stream);
+	return serialized;
+}
+
+bool MainWindow::LoadSettingsFromSerializedText(const QString &serialized)
+{
+	if(serialized.trimmed().isEmpty())
+		return false;
+
+	QTemporaryFile temp;
+	temp.setAutoRemove(true);
+	if(!temp.open())
+		return false;
+
+	QTextStream out(&temp);
+	out << serialized;
+	out.flush();
+	temp.flush();
+
+	return LoadProjectSettings(temp.fileName());
+}
+
+void MainWindow::SaveLastUsedSettingsSnapshot()
+{
+	QSettings settings;
+	settings.beginGroup("ui");
+	settings.setValue("last-used-settings", SerializeCurrentSettings());
+	settings.setValue("last-used-settings-ts", QDateTime::currentDateTimeUtc().toString(Qt::ISODate));
+	settings.endGroup();
+}
+
+bool MainWindow::LoadLastUsedSettingsSnapshot()
+{
+	if(!this->scan.inFile.IsReady())
+	{
+		QMessageBox::information(
+				this,
+				tr("Load Last Settings"),
+				tr("Open eerst een project/bron voordat je instellingen laadt."));
+		return false;
+	}
+
+	QSettings settings;
+	settings.beginGroup("ui");
+	const QString serialized = settings.value("last-used-settings", "").toString();
+	settings.endGroup();
+	if(serialized.trimmed().isEmpty())
+	{
+		QMessageBox::information(
+				this,
+				tr("Load Last Settings"),
+				tr("Er zijn nog geen laatst gebruikte instellingen opgeslagen."));
+		return false;
+	}
+	return LoadSettingsFromSerializedText(serialized);
+}
+
+QStringList MainWindow::SavedPresetNames() const
+{
+	QSettings settings;
+	settings.beginGroup("settings-presets");
+	QStringList names = settings.childKeys();
+	settings.endGroup();
+	names.sort(Qt::CaseInsensitive);
+	return names;
+}
+
+void MainWindow::SaveCurrentSettingsPreset()
+{
+	QString presetName = QInputDialog::getText(
+			this,
+			tr("Save Settings Preset"),
+			tr("Presetnaam:"));
+	presetName = presetName.trimmed();
+	if(presetName.isEmpty())
+		return;
+
+	QSettings settings;
+	settings.beginGroup("settings-presets");
+	const bool exists = settings.contains(presetName);
+	settings.endGroup();
+	if(exists)
+	{
+		const int answer = QMessageBox::question(
+				this,
+				tr("Preset overschrijven"),
+				tr("Preset '%1' bestaat al. Overschrijven?").arg(presetName),
+				QMessageBox::Yes | QMessageBox::No,
+				QMessageBox::No);
+		if(answer != QMessageBox::Yes)
+			return;
+	}
+
+	settings.beginGroup("settings-presets");
+	settings.setValue(presetName, SerializeCurrentSettings());
+	settings.endGroup();
+}
+
+void MainWindow::LoadSettingsPreset()
+{
+	if(!this->scan.inFile.IsReady())
+	{
+		QMessageBox::information(
+				this,
+				tr("Load Settings Preset"),
+				tr("Open eerst een project/bron voordat je een preset laadt."));
+		return;
+	}
+
+	const QStringList names = SavedPresetNames();
+	if(names.isEmpty())
+	{
+		QMessageBox::information(
+				this,
+				tr("Load Settings Preset"),
+				tr("Er zijn nog geen opgeslagen presets."));
+		return;
+	}
+
+	bool ok = false;
+	const QString selected = QInputDialog::getItem(
+			this,
+			tr("Load Settings Preset"),
+			tr("Kies preset:"),
+			names,
+			0,
+			false,
+			&ok);
+	if(!ok || selected.isEmpty())
+		return;
+
+	QSettings settings;
+	settings.beginGroup("settings-presets");
+	const QString serialized = settings.value(selected, "").toString();
+	settings.endGroup();
+	LoadSettingsFromSerializedText(serialized);
+}
+
+void MainWindow::DeleteSettingsPreset()
+{
+	const QStringList names = SavedPresetNames();
+	if(names.isEmpty())
+	{
+		QMessageBox::information(
+				this,
+				tr("Delete Settings Preset"),
+				tr("Er zijn geen presets om te verwijderen."));
+		return;
+	}
+
+	bool ok = false;
+	const QString selected = QInputDialog::getItem(
+			this,
+			tr("Delete Settings Preset"),
+			tr("Kies preset:"),
+			names,
+			0,
+			false,
+			&ok);
+	if(!ok || selected.isEmpty())
+		return;
+
+	const int answer = QMessageBox::question(
+			this,
+			tr("Preset verwijderen"),
+			tr("Preset '%1' verwijderen?").arg(selected),
+			QMessageBox::Yes | QMessageBox::No,
+			QMessageBox::No);
+	if(answer != QMessageBox::Yes)
+		return;
+
+	QSettings settings;
+	settings.beginGroup("settings-presets");
+	settings.remove(selected);
+	settings.endGroup();
 }
 
 bool MainWindow::OpenProject(QString fn)
@@ -2738,6 +2921,11 @@ void MainWindow::on_loadSettingsButton_clicked()
 
 	this->LoadProjectSettings(fileName);
 	this->prevProjectDir = QFileInfo(fileName).absolutePath();
+}
+
+void MainWindow::on_loadLastSettingsButton_clicked()
+{
+	LoadLastUsedSettingsSnapshot();
 }
 
 
@@ -3409,6 +3597,7 @@ void MainWindow::on_HeightCalculateBtn_clicked()
 
 void MainWindow::on_extractGLButton_clicked()
 {
+	SaveLastUsedSettingsSnapshot();
 	if(QApplication::keyboardModifiers() & Qt::ShiftModifier)
 		extractGL(false);
 	else
@@ -6146,6 +6335,21 @@ void MainWindow::on_actionSave_Settings_triggered()
 	on_saveprojectButton_clicked();
 }
 
+void MainWindow::on_actionSave_Settings_Preset_triggered()
+{
+	SaveCurrentSettingsPreset();
+}
+
+void MainWindow::on_actionLoad_Settings_Preset_triggered()
+{
+	LoadSettingsPreset();
+}
+
+void MainWindow::on_actionDelete_Settings_Preset_triggered()
+{
+	DeleteSettingsPreset();
+}
+
 void MainWindow::on_actionQuit_triggered()
 {
 	close();
@@ -6650,14 +6854,98 @@ void MainWindow::on_soundtrackDefaultsButton_clicked()
 	SaveDefaultsSoundtrack();
 }
 
+void MainWindow::on_soundtrackResetButton_clicked()
+{
+	if(!scan.inFile.IsReady()) return;
+
+	const int w = scan.inFile.Width();
+	ui->OverlapSoundtrackCheckBox->setChecked(true);
+	ui->leftSpinBox->setValue(0);
+	ui->rightSpinBox->setValue(std::max(1, w - 1));
+	ui->monostereo_PD->setCurrentIndex(0);
+
+	ui->OverlapPixCheckBox->setChecked(false);
+	ui->leftPixSpinBox->setValue(int(w * 0.475));
+	ui->rightPixSpinBox->setValue(int(w * 0.525));
+	on_OverlapPixCheckBox_clicked(false);
+
+	ui->framepitchstartSlider->setValue(100);
+	ui->FramePitchendSlider->setValue(100);
+	NormalizePitchControls(true);
+	ui->framepitchstartLabel->setText(
+			QString::number(ui->framepitchstartSlider->value()/1000.f,'f',3));
+	ui->framePitchLabel->setText(
+			QString::number(ui->FramePitchendSlider->value()/1000.f,'f',3));
+
+	ui->videoFrameTopSlider->setValue(100);
+	ui->videoFrameBottomSlider->setValue(100);
+	NormalizeVideoCropControls(true);
+	UpdateVideoCropLabels();
+	ui->videoStableCropCheckBox->setChecked(true);
+	ui->videoDriftSensitivitySlider->setValue(100);
+	UpdateVideoStabilizationControls();
+
+	ui->overlapSlider->setValue(5);
+	ui->overlap_label->setText(QString::number(ui->overlapSlider->value()/100.f,'f',2));
+	ui->HeightCalculateBtn->setChecked(false);
+	ui->HeightCalculateBtn->setText("Lock Height");
+
+	GPU_Params_Update(1);
+}
+
 void MainWindow::on_imageDefaultsButton_clicked()
 {
 	SaveDefaultsImage();
 }
 
+void MainWindow::on_imageResetButton_clicked()
+{
+	ui->liftSlider->setValue(0);
+	ui->gammaSlider->setValue(100);
+	ui->gainSlider->setValue(100);
+	ui->thresholdSlider->setValue(300);
+	ui->blurSlider->setValue(0);
+	ui->threshBox->setChecked(false);
+	ui->negBox->setChecked(false);
+	ui->desatBox->setChecked(false);
+	ui->liftLabel->setText(QString::number(0.0f,'f',2));
+	ui->gammaLabel->setText(QString::number(1.0f,'f',2));
+	ui->gainLabel->setText(QString::number(1.0f,'f',2));
+	ui->threshLabel->setText(QString::number(3.0f,'f',2));
+	ui->blurLabel->setText(QString::number(0.0f,'f',2));
+	GPU_Params_Update(1);
+}
+
 void MainWindow::on_extractDefaultsButton_clicked()
 {
 	SaveDefaultsAudio();
+}
+
+void MainWindow::on_extractResetButton_clicked()
+{
+	if(scan.inFile.IsReady())
+	{
+		ui->frameInSpinBox->setValue(scan.inFile.FirstFrame());
+		ui->frameOutSpinBox->setValue(scan.inFile.LastFrame());
+	}
+	ui->filerate_PD->setCurrentIndex(0);
+	ui->bitDepthComboBox->setCurrentIndex(0);
+	const int idx16mm = ui->advance_CB->findText("26 - 16mm Standard",
+			Qt::MatchFixedString);
+	ui->advance_CB->setCurrentIndex(idx16mm >= 0 ? idx16mm : 0);
+	ui->audioQualityPresetComboBox->setCurrentIndex(AUDIO_QUALITY_PRESET_COMPACT);
+	ui->audioOnlyQualityPresetComboBox->setCurrentIndex(AUDIO_QUALITY_PRESET_COMPACT);
+	ui->outputVideoCheckBox->setChecked(false);
+	ui->videoAvOffsetCheckBox->setChecked(true);
+	ui->outputFlipHorizontalCheckBox->setChecked(false);
+	ui->outputFlipVerticalCheckBox->setChecked(false);
+	ui->outputRotationComboBox->setCurrentIndex(0);
+	ui->outputVideoSizeComboBox->setCurrentIndex(VIDEO_RESOLUTION_SOURCE);
+	videoResolutionMode = VIDEO_RESOLUTION_SOURCE;
+	SaveExtractOutputSettings();
+	SaveVideoExportSettings();
+	UpdateExtractOutputControls();
+	UpdateVideoExportControls();
 }
 
 void MainWindow::on_actionPreferences_triggered()
