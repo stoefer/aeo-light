@@ -1356,34 +1356,7 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->queueImportVFBClipsButton, &QPushButton::clicked,
             this, &MainWindow::QueueImportVFB);
 	connect(ui->queueRetryFailedButton, &QPushButton::clicked,
-			this, [this]()
-	{
-		if(failedQueueItems.empty())
-		{
-			QMessageBox::information(
-					this,
-					tr("Geen gefaalde items"),
-					tr("Er zijn geen gefaalde queue-items om opnieuw te proberen."));
-			return;
-		}
-
-		std::vector<ExtractTask> merged = failedQueueItems;
-		merged.insert(merged.end(), extractQueue.begin(), extractQueue.end());
-		if(merged.size() > 5)
-		{
-			merged.resize(5);
-			QMessageBox::information(
-					this,
-					tr("Queue limiet"),
-					tr("Retry past alleen de eerste 5 items toe (queue-limiet)."));
-		}
-		extractQueue = merged;
-		failedQueueItems.clear();
-		UpdateQueueWidgets();
-		ui->queueBatchStatusLabel->setText(
-				tr("Batch status: retry van gefaalde items gestart."));
-		on_queueExtractButton_clicked();
-	});
+			this, [this]() { this->RetryFailedQueueItems(); });
 
 	// Quick-access shortcuts for the most-used extraction actions.
 	QShortcut *extractShortcut = new QShortcut(QKeySequence("Ctrl+E"), this);
@@ -3104,6 +3077,35 @@ void MainWindow::DeleteQueuePreset()
 	settings.beginGroup("queue-presets");
 	settings.remove(selected);
 	settings.endGroup();
+}
+
+void MainWindow::RetryFailedQueueItems()
+{
+	if(failedQueueItems.empty())
+	{
+		QMessageBox::information(
+				this,
+				tr("Geen gefaalde items"),
+				tr("Er zijn geen gefaalde queue-items om opnieuw te proberen."));
+		return;
+	}
+
+	std::vector<ExtractTask> merged = failedQueueItems;
+	merged.insert(merged.end(), extractQueue.begin(), extractQueue.end());
+	if(merged.size() > 5)
+	{
+		merged.resize(5);
+		QMessageBox::information(
+				this,
+				tr("Queue limiet"),
+				tr("Retry past alleen de eerste 5 items toe (queue-limiet)."));
+	}
+	extractQueue = merged;
+	failedQueueItems.clear();
+	UpdateQueueWidgets();
+	ui->queueBatchStatusLabel->setText(
+			tr("Batch status: retry van gefaalde items gestart."));
+	on_queueExtractButton_clicked();
 }
 
 void MainWindow::WriteQueueBatchReport(
@@ -8557,12 +8559,19 @@ void MainWindow::on_queueExtractButton_clicked()
 		batchWarn.setText(tr("%1 item(s) gefaald. Open Details voor foutredenen.")
 				.arg(failedDetailLines.size()));
 		batchWarn.setDetailedText(failureDetailsText);
+		QPushButton *retryFailedButton = batchWarn.addButton(
+				tr("Retry gefaalde items"),
+				QMessageBox::AcceptRole);
 		QPushButton *copyDetailsButton = batchWarn.addButton(
 				tr("Kopieer details"),
 				QMessageBox::ActionRole);
 		batchWarn.addButton(QMessageBox::Ok);
 		batchWarn.exec();
-		if(batchWarn.clickedButton() == copyDetailsButton)
+		if(batchWarn.clickedButton() == retryFailedButton)
+		{
+			RetryFailedQueueItems();
+		}
+		else if(batchWarn.clickedButton() == copyDetailsButton)
 		{
 			QApplication::clipboard()->setText(
 					tr("Batch fouten (%1):\n%2")

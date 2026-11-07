@@ -455,6 +455,7 @@ private:
 	void SaveQueuePreset();
 	void LoadQueuePreset();
 	void DeleteQueuePreset();
+	void RetryFailedQueueItems();
 	void WriteQueueBatchReport(
 			size_t totalCount,
 			size_t successCount,
