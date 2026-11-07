@@ -3114,6 +3114,7 @@ void MainWindow::WriteQueueBatchReport(
 		size_t successCount,
 		size_t failedCount,
 		size_t pendingCount,
+		double elapsedSec,
 		const QStringList &itemLines) const
 {
 	const int mode = ClampRangeInt(
@@ -3150,6 +3151,12 @@ void MainWindow::WriteQueueBatchReport(
 			out << "Success = " << successCount << "\n";
 			out << "Failed = " << failedCount << "\n";
 			out << "Pending = " << pendingCount << "\n";
+			out << "Elapsed seconds = " << QString::number(elapsedSec, 'f', 3) << "\n";
+			out << "Average seconds per item = " <<
+					QString::number(
+							elapsedSec / std::max<double>(1.0, double(totalCount)),
+							'f',
+							3) << "\n";
 			out << "\nItems:\n";
 			for(const QString &line : itemLines)
 				out << " - " << line << "\n";
@@ -3170,6 +3177,10 @@ void MainWindow::WriteQueueBatchReport(
 			root.insert("success", static_cast<int>(successCount));
 			root.insert("failed", static_cast<int>(failedCount));
 			root.insert("pending", static_cast<int>(pendingCount));
+			root.insert("elapsedSeconds", elapsedSec);
+			root.insert(
+					"avgSecondsPerItem",
+					elapsedSec / std::max<double>(1.0, double(totalCount)));
 			QJsonArray items;
 			for(const QString &line : itemLines)
 				items.append(line);
@@ -8549,17 +8560,25 @@ void MainWindow::on_queueExtractButton_clicked()
 
 	const size_t pendingCount = this->extractQueue.size();
 	const double batchElapsedSec = std::max(0.0, batchTimer.elapsed() / 1000.0);
+	const double avgSecPerItem =
+			batchElapsedSec / std::max<double>(1.0, double(processedCount));
 	WriteQueueBatchReport(
-			initialTotal, successCount, failedCount, pendingCount, batchItemLines);
+			initialTotal,
+			successCount,
+			failedCount,
+			pendingCount,
+			batchElapsedSec,
+			batchItemLines);
 	const QString reportSuffix = (queueBatchReportMode == QUEUE_BATCH_REPORT_OFF) ?
 			QString() :
 			tr(" Rapport opgeslagen.");
 	ui->queueBatchStatusLabel->setText(
-			tr("Batch klaar: %1 gelukt, %2 gefaald, %3 wachtend, duur %4.%5")
+			tr("Batch klaar: %1 gelukt, %2 gefaald, %3 wachtend, duur %4, gem. %5s/item.%6")
 			.arg(successCount)
 			.arg(failedCount)
 			.arg(pendingCount)
 			.arg(FormatEtaSeconds(batchElapsedSec))
+			.arg(QString::number(avgSecPerItem, 'f', 2))
 			.arg(reportSuffix));
 	if(!failedDetailLines.isEmpty())
 	{

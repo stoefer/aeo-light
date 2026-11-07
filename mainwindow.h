@@ -461,6 +461,7 @@ private:
 			size_t successCount,
 			size_t failedCount,
 			size_t pendingCount,
+			double elapsedSec,
 			const QStringList &itemLines) const;
 	void WriteSingleExportReport(
 			const QString &audioPath,
