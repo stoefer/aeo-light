@@ -59,6 +59,7 @@ private:
 	QSettings *settings;
 	QLineEdit *settingsSearchEdit;
 	QCheckBox *compactModeCheckBox;
+	QCheckBox *skipLicenseAgreementCheckBox;
 };
 
 #endif // PREFERENCESDIALOG_H

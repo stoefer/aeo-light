@@ -57,7 +57,8 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 	QDialog(parent),
 	ui(new Ui::preferencesdialog),
 	settingsSearchEdit(NULL),
-	compactModeCheckBox(NULL)
+	compactModeCheckBox(NULL),
+	skipLicenseAgreementCheckBox(NULL)
 {
 	ui->setupUi(this);
 
@@ -99,6 +100,8 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 	ui->showHelpTextCheckBox->setChecked(showHelpText);
 	const bool compactModeEnabled =
 			settings->value("compact-mode", false).toBool();
+	const bool skipLicenseAgreement =
+			settings->value("skip-license-agreement", false).toBool();
 	QString theme = settings->value("theme", "light").toString().toLower();
 	ui->themeComboBox->setCurrentIndex(theme == "dark" ? 1 : 0);
 	QString mode = settings->value("window-layout-mode", "").toString().toLower();
@@ -127,6 +130,10 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 			"Compact mode (minder tekst, compactere weergave)", this);
 	compactModeCheckBox->setChecked(compactModeEnabled);
 	ui->verticalLayout->insertWidget(3, compactModeCheckBox);
+	skipLicenseAgreementCheckBox = new QCheckBox(
+			"License agreement na eerste acceptatie niet meer tonen", this);
+	skipLicenseAgreementCheckBox->setChecked(skipLicenseAgreement);
+	ui->verticalLayout->insertWidget(6, skipLicenseAgreementCheckBox);
 
 	PopulateMonitorChoices();
 	settings->beginGroup("ui");
@@ -311,6 +318,10 @@ void preferencesdialog::Save()
 	settings->setValue(
 			"compact-mode",
 			compactModeCheckBox ? compactModeCheckBox->isChecked() : false);
+	settings->setValue(
+			"skip-license-agreement",
+			skipLicenseAgreementCheckBox ?
+					skipLicenseAgreementCheckBox->isChecked() : false);
 	settings->setValue(
 			"theme",
 			ui->themeComboBox->currentIndex() == 1 ? "dark" : "light");

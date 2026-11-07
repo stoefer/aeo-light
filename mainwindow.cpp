@@ -1095,8 +1095,13 @@ MainWindow::MainWindow(QWidget *parent) :
 
     ui->filmrate_PD->setCurrentIndex(1); // default to 24fps
     ui->degreeSpinBox->setSingleStep(0.01);
-	// skip license agreement if the user has already agreed to this version
+	// skip license agreement if disabled by preference, otherwise keep
+	// the existing per-version acceptance behavior.
 	QSettings settings;
+	settings.beginGroup("ui");
+	const bool skipLicenseAgreement =
+			settings.value("skip-license-agreement", false).toBool();
+	settings.endGroup();
 	QString ag = settings.value("license","0.1").toString();
 	QVersionNumber agv = QVersionNumber::fromString(ag);
 	QVersionNumber thisv = QVersionNumber::fromString(APP_VERSION);
@@ -1104,7 +1109,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
 	Log() << "Starting project: " << startingProjectFilename << "\n";
 
-	if(QVersionNumber::compare(agv, thisv) < 0)
+	if(!skipLicenseAgreement && QVersionNumber::compare(agv, thisv) < 0)
 		QTimer::singleShot(0, this, SLOT(LicenseAgreement()));
 	else
 		QTimer::singleShot(0, this, SLOT(OpenStartingProject()));
