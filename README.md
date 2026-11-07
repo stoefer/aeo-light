@@ -1,8 +1,34 @@
-# AEO-Light 3.1.33 (fork release)
+# AEO-Light 3.1.34 (fork release)
 
-Deze 3.1.33 patchrelease centraliseert helptekst-zichtbaarheid, hernoemt de hoofdtab en maakt de actieve tab visueel opvallender.
+Deze 3.1.34 patchrelease bundelt de workflow-uitbreidingen uit hoofdstuk 1 t/m 6: presets, test-run verbeteringen, queue-tools en extra exportveiligheid.
 
-## Nieuw in 3.1.33
+## Nieuw in 3.1.34
+- Presets/workflow:
+  - instellingen-presets opslaan/laden/verwijderen
+  - knop voor laatst gebruikte instellingen
+  - reset per sectie verbeterd
+- Video-export gemak:
+  - output bestandsnaam-template met tokens (bv. `{source}_{datetime}`)
+  - keuze **automatisch nummeren** of **overschrijven**
+  - optie **open map na export**
+- Test Run:
+  - extra presets (**5 sec / 20 sec / 1 min**)
+  - loop test-run met instelbaar aantal herhalingen
+  - test zonder definitief wegschrijven (tijdelijke bestanden)
+- UI/bruikbaarheid:
+  - compacte UI-modus
+  - subtiele help-iconen met tooltip
+  - zoekveld in Preferences om opties snel te filteren
+- Veiligheid/kwaliteit:
+  - preflight check op schijfruimte voor export
+  - FFmpeg testknop + duidelijke status
+  - basis integriteitscheck na export
+- Queue:
+  - queue-item dupliceren
+  - queue-item omhoog/omlaag verplaatsen
+  - **stop na huidig item** bij batch-extractie
+
+## Eerder toegevoegd in 3.1.33
 - Nieuwe voorkeur in **Preferences**: **Toon helptekst in de app** (geldt app-breed).
 - Tabnaam aangepast naar **Audio- & Video-track Settings**.
 - Actieve tab heeft nu een duidelijkere highlight-kleur (licht en donker thema).
