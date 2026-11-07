@@ -1236,6 +1236,35 @@ MainWindow::MainWindow(QWidget *parent) :
 
     connect(ui->queueImportVFBClipsButton, &QPushButton::clicked,
             this, &MainWindow::QueueImportVFB);
+	connect(ui->queueRetryFailedButton, &QPushButton::clicked,
+			this, [this]()
+	{
+		if(failedQueueItems.empty())
+		{
+			QMessageBox::information(
+					this,
+					tr("Geen gefaalde items"),
+					tr("Er zijn geen gefaalde queue-items om opnieuw te proberen."));
+			return;
+		}
+
+		std::vector<ExtractTask> merged = failedQueueItems;
+		merged.insert(merged.end(), extractQueue.begin(), extractQueue.end());
+		if(merged.size() > 5)
+		{
+			merged.resize(5);
+			QMessageBox::information(
+					this,
+					tr("Queue limiet"),
+					tr("Retry past alleen de eerste 5 items toe (queue-limiet)."));
+		}
+		extractQueue = merged;
+		failedQueueItems.clear();
+		UpdateQueueWidgets();
+		ui->queueBatchStatusLabel->setText(
+				tr("Batch status: retry van gefaalde items gestart."));
+		on_queueExtractButton_clicked();
+	});
 
 	// Quick-access shortcuts for the most-used extraction actions.
 	QShortcut *extractShortcut = new QShortcut(QKeySequence("Ctrl+E"), this);
@@ -7255,6 +7284,7 @@ void MainWindow::UpdateQueueWidgets(void)
 		downBtn[i]->setEnabled(false);
     }
 	ui->queueStopAfterCurrentCheckBox->setEnabled(!this->extractQueue.empty());
+	ui->queueRetryFailedButton->setEnabled(!failedQueueItems.empty());
 }
 
 
@@ -7648,30 +7678,65 @@ void MainWindow::QueueImportVFB()
 
 void MainWindow::on_queueExtractButton_clicked()
 {
-	bool success;
-	const bool stopAfterCurrent = ui->queueStopAfterCurrentCheckBox->isChecked();
-
-	while(this->extractQueue.size()>0)
+	if(this->extractQueue.empty())
 	{
-		if(!this->NewSource(
-				this->extractQueue[0].source,
-				this->extractQueue[0].srcFormat))
-			break;
+		ui->queueBatchStatusLabel->setText(
+				tr("Batch status: geen items in de queue."));
+		return;
+	}
 
-		this->ExtractionParametersToGUI(this->extractQueue[0].params);
+	const bool stopAfterCurrent = ui->queueStopAfterCurrentCheckBox->isChecked();
+	failedQueueItems.clear();
 
-		success = this->extractGL(this->extractQueue[0].output);
+	const size_t initialTotal = this->extractQueue.size();
+	size_t successCount = 0;
+	size_t failedCount = 0;
+	size_t processedCount = 0;
 
+	while(!this->extractQueue.empty())
+	{
+		ExtractTask task = this->extractQueue.front();
+		this->extractQueue.erase(this->extractQueue.begin());
+		UpdateQueueWidgets();
+
+		ui->queueBatchStatusLabel->setText(
+				tr("Batch bezig: item %1/%2")
+				.arg(processedCount + 1)
+				.arg(initialTotal));
+		qApp->processEvents();
+
+		bool sourceReady = this->NewSource(task.source, task.srcFormat);
+		bool success = false;
+		if(sourceReady)
+		{
+			this->ExtractionParametersToGUI(task.params);
+			success = this->extractGL(task.output);
+		}
+
+		++processedCount;
 		if(success)
 		{
-			this->extractQueue.erase(extractQueue.begin());
-			UpdateQueueWidgets();
+			++successCount;
 			if(stopAfterCurrent)
 				break;
 		}
 		else
-			break;
+		{
+			++failedCount;
+			failedQueueItems.push_back(task);
+			// If the user explicitly canceled, stop the current batch loop.
+			if(this->requestCancel)
+				break;
+		}
 	}
+
+	const size_t pendingCount = this->extractQueue.size();
+	ui->queueBatchStatusLabel->setText(
+			tr("Batch klaar: %1 gelukt, %2 gefaald, %3 wachtend.")
+			.arg(successCount)
+			.arg(failedCount)
+			.arg(pendingCount));
+	UpdateQueueWidgets();
 }
 
 void MainWindow::on_soundtrackDefaultsButton_clicked()

@@ -380,6 +380,7 @@ private:
 	bool applyingWindowLayout;
 	bool audioQualityPresetSyncLock;
 	bool audioOnlyQualityPresetSyncLock;
+	std::vector<ExtractTask> failedQueueItems;
 	bool autoOptimizeFramesEnabled;
 	bool autoOptimizeVideoEnabled;
 	bool autoOptimizeColorEnabled;

@@ -2913,6 +2913,16 @@ QPushButton:disabled {
          </spacer>
         </item>
         <item>
+         <widget class="QPushButton" name="queueRetryFailedButton">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="text">
+           <string>Retry Failed</string>
+          </property>
+         </widget>
+        </item>
+        <item>
          <widget class="QPushButton" name="queueExtractButton">
           <property name="enabled">
            <bool>false</bool>
@@ -2923,6 +2933,22 @@ QPushButton:disabled {
          </widget>
         </item>
        </layout>
+      </widget>
+      <widget class="QLabel" name="queueBatchStatusLabel">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>262</y>
+         <width>631</width>
+         <height>31</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Batch status: wacht op start.</string>
+       </property>
+       <property name="wordWrap">
+        <bool>true</bool>
+       </property>
       </widget>
      </widget>
     </widget>
@@ -3575,6 +3601,7 @@ QPushButton:disabled {
   <tabstop>enqueueButton</tabstop>
   <tabstop>testRunExportButton</tabstop>
   <tabstop>extractGLButton</tabstop>
+  <tabstop>queueRetryFailedButton</tabstop>
   <tabstop>queueExtractButton</tabstop>
   <tabstop>waveformZoomCheckBox</tabstop>
   <tabstop>showOverlapCheckBox</tabstop>
