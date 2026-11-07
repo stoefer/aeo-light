@@ -56,6 +56,7 @@
 #include <QProgressDialog>
 #include <QStandardPaths>
 #include <QSignalBlocker>
+#include <QStorageInfo>
 #include <QScreen>
 #include <QSpinBox>
 #include <QCheckBox>
@@ -145,6 +146,32 @@ static QString FormatEtaSeconds(double seconds)
 	return QString("%1:%2")
 			.arg(mins, 2, 10, QChar('0'))
 			.arg(secs, 2, 10, QChar('0'));
+}
+
+static QString FormatBytesHumanReadable(qint64 bytes)
+{
+	double value = std::max<qint64>(0, bytes);
+	const char *units[] = {"B", "KB", "MB", "GB", "TB"};
+	int unitIndex = 0;
+	while(value >= 1024.0 && unitIndex < 4)
+	{
+		value /= 1024.0;
+		++unitIndex;
+	}
+	if(unitIndex == 0)
+		return QString("%1 %2").arg(static_cast<qint64>(value)).arg(units[unitIndex]);
+	return QString("%1 %2").arg(value, 0, 'f', 1).arg(units[unitIndex]);
+}
+
+static double ReadFpsFromUiIndex(int fpsIndex)
+{
+	switch(fpsIndex)
+	{
+	case 0: return 23.976;
+	case 1: return 24.0;
+	case 2: return 25.0;
+	default: return 24.0;
+	}
 }
 
 static QString BuildNumberedPath(const QString &requestedPath, int suffix)
@@ -684,7 +711,9 @@ static void EncodeVideoWithExternalFfmpeg(const QString &frameDir,
 
 	QString ffmpegBin = FindExternalFfmpeg();
 	if(ffmpegBin.isEmpty())
-		throw std::runtime_error("ffmpeg executable not found for video export");
+		throw std::runtime_error(
+				"FFmpeg executable not found for video export. "
+				"Install FFmpeg or place ffmpeg.exe next to AEO-Light.");
 
 	int effectiveQuality = std::max(1, std::min(100, qualityPercent));
 	int effectiveAudioBitrate = std::max(96, std::min(512, audioBitrateKbps));
@@ -3468,6 +3497,22 @@ void MainWindow::UpdateVideoExportControls()
 			.arg(presetNames[ClampRangeInt(videoPresetMode, 0, 2)])
 			.arg(videoQualityPercent)
 			.arg(videoAudioBitrateKbps));
+#ifdef USELIBAV
+	ui->videoExportFfmpegStatusLabel->setText(
+			tr("Encoder: ingebouwde LibAV (externe FFmpeg niet vereist)."));
+#else
+	const QString ffmpegBin = FindExternalFfmpeg();
+	if(ffmpegBin.isEmpty())
+	{
+		ui->videoExportFfmpegStatusLabel->setText(
+				tr("FFmpeg niet gevonden. Video-export werkt pas nadat FFmpeg beschikbaar is."));
+	}
+	else
+	{
+		ui->videoExportFfmpegStatusLabel->setText(
+				tr("FFmpeg pad: %1").arg(QDir::toNativeSeparators(ffmpegBin)));
+	}
+#endif
 	UpdateAutoOptimizationControls();
 }
 
@@ -3508,6 +3553,251 @@ void MainWindow::UpdateAutoOptimizationControls()
 		}
 	}
 	ui->autoOptimizeSummaryLabel->setText(summary);
+}
+
+QString MainWindow::RunFfmpegSelfTest(QString *errorOut) const
+{
+	if(errorOut) errorOut->clear();
+#ifdef USELIBAV
+	return tr("Ingebouwde LibAV encoder actief (geen externe FFmpeg vereist).");
+#else
+	const QString ffmpegBin = FindExternalFfmpeg();
+	if(ffmpegBin.isEmpty())
+	{
+		if(errorOut)
+		{
+			*errorOut = tr("FFmpeg uitvoerbaar bestand niet gevonden in PATH.\n"
+					"Installeer FFmpeg of plaats ffmpeg.exe naast AEO-Light.");
+		}
+		return QString();
+	}
+
+	QProcess ffmpeg;
+	ffmpeg.setProcessChannelMode(QProcess::MergedChannels);
+	ffmpeg.start(ffmpegBin, QStringList() << "-hide_banner" << "-version");
+	if(!ffmpeg.waitForStarted(5000))
+	{
+		if(errorOut)
+			*errorOut = tr("FFmpeg kon niet starten via: %1")
+					.arg(QDir::toNativeSeparators(ffmpegBin));
+		return QString();
+	}
+	if(!ffmpeg.waitForFinished(6000))
+	{
+		ffmpeg.kill();
+		ffmpeg.waitForFinished(1000);
+		if(errorOut)
+			*errorOut = tr("FFmpeg test time-out. Controleer de installatie.");
+		return QString();
+	}
+
+	const QString output = QString::fromLocal8Bit(ffmpeg.readAll()).trimmed();
+	if(ffmpeg.exitStatus() != QProcess::NormalExit || ffmpeg.exitCode() != 0)
+	{
+		if(errorOut)
+		{
+			*errorOut = tr("FFmpeg reageerde met een foutcode (%1).\n%2")
+					.arg(ffmpeg.exitCode())
+					.arg(output.left(800));
+		}
+		return QString();
+	}
+
+	QString firstLine;
+	const QStringList lines = output.split('\n', Qt::SkipEmptyParts);
+	for(const QString &line : lines)
+	{
+		const QString trimmed = line.trimmed();
+		if(!trimmed.isEmpty())
+		{
+			firstLine = trimmed;
+			break;
+		}
+	}
+	if(firstLine.isEmpty())
+		firstLine = tr("FFmpeg reageerde zonder versie-output.");
+	return firstLine;
+#endif
+}
+
+bool MainWindow::CheckExportDiskSpace(const QString &audioPath, const QString &videoPath,
+		long numFrames, QString *detailsOut) const
+{
+	if(detailsOut) detailsOut->clear();
+	if(numFrames <= 0 || audioPath.trimmed().isEmpty())
+		return true;
+
+	const double fps = ReadFpsFromUiIndex(ui->filmrate_PD->currentIndex());
+	const int sampleRate = (ui->filerate_PD->currentIndex() == 1) ? 96000 : 48000;
+	const int bitDepth = ui->bitDepthComboBox->currentText().split(" ")[0].toInt();
+	const int channels = 2;
+	const double seconds = std::max(0.01, static_cast<double>(numFrames) / std::max(1.0, fps));
+	const double bytesPerSecond = sampleRate * channels * std::max(1, bitDepth) / 8.0;
+	const qint64 audioBytes = std::max<qint64>(
+			2 * 1024 * 1024,
+			static_cast<qint64>(seconds * bytesPerSecond + 2 * 1024 * 1024));
+
+	qint64 videoBytes = 0;
+	qint64 tempBytes = 0;
+	if(!videoPath.trimmed().isEmpty())
+	{
+		QSize estimatedSize = VideoResolutionSizeForMode(videoResolutionMode);
+		if(estimatedSize.width() <= 0 || estimatedSize.height() <= 0)
+		{
+			if(currentFrameTexture &&
+					currentFrameTexture->width > 0 &&
+					currentFrameTexture->height > 0)
+			{
+				estimatedSize = QSize(
+						std::max(320, currentFrameTexture->width),
+						std::max(240, currentFrameTexture->height));
+			}
+			else
+			{
+				estimatedSize = QSize(1920, 1080);
+			}
+		}
+
+		double bitsPerPixel = 0.22;
+		switch(videoExportMode)
+		{
+		case SIMPLE_EXPORT_FAST: bitsPerPixel = 0.14; break;
+		case SIMPLE_EXPORT_QUALITY: bitsPerPixel = 0.30; break;
+		case SIMPLE_EXPORT_ULTRA: bitsPerPixel = 0.45; break;
+		default: bitsPerPixel = 0.22; break;
+		}
+		if(videoCodecMode == VIDEO_CODEC_HEVC) bitsPerPixel *= 0.75;
+		if(videoCodecMode == VIDEO_CODEC_MPEG4) bitsPerPixel *= 1.25;
+
+		const long double totalPixels = static_cast<long double>(estimatedSize.width()) *
+				static_cast<long double>(estimatedSize.height()) *
+				static_cast<long double>(std::max<long>(1, numFrames));
+		videoBytes = static_cast<qint64>(totalPixels * bitsPerPixel / 8.0L) +
+				16 * 1024 * 1024;
+
+#ifndef USELIBAV
+		// External FFmpeg workflow writes temporary PNG frames before muxing.
+		tempBytes = static_cast<qint64>(totalPixels * 1.2L) + 64 * 1024 * 1024;
+#endif
+	}
+
+	QHash<QString, qint64> neededByRoot;
+	auto addNeed = [&](const QString &targetPath, qint64 bytes)
+	{
+		if(targetPath.trimmed().isEmpty() || bytes <= 0) return;
+		const QString absolutePath = QFileInfo(targetPath).absolutePath();
+		QStorageInfo storage(absolutePath);
+		QString root = storage.rootPath();
+		if(root.isEmpty())
+			root = absolutePath;
+		neededByRoot[root] += bytes;
+	};
+
+	addNeed(audioPath, audioBytes);
+	addNeed(videoPath, videoBytes);
+#ifndef USELIBAV
+	if(!videoPath.trimmed().isEmpty() && tempBytes > 0)
+	{
+		const QString tempPlaceholder = QDir::temp().filePath("aeo-temp-space-check.tmp");
+		addNeed(tempPlaceholder, tempBytes);
+	}
+#endif
+
+	const qint64 safetyMargin = 128 * 1024 * 1024;
+	bool enoughSpace = true;
+	QStringList lines;
+	lines << tr("Geschatte ruimte: audio %1, video %2, tijdelijk %3.")
+			.arg(FormatBytesHumanReadable(audioBytes))
+			.arg(FormatBytesHumanReadable(videoBytes))
+			.arg(FormatBytesHumanReadable(tempBytes));
+
+	for(auto it = neededByRoot.constBegin(); it != neededByRoot.constEnd(); ++it)
+	{
+		const QString root = it.key();
+		const qint64 needed = it.value();
+		QStorageInfo storage(root);
+		const qint64 available = storage.bytesAvailable();
+		const qint64 neededWithMargin = needed + safetyMargin;
+		const bool availabilityKnown = (available >= 0);
+		const bool rootOk = !availabilityKnown || (available >= neededWithMargin);
+		enoughSpace = enoughSpace && rootOk;
+		if(availabilityKnown)
+		{
+			lines << tr("Schijf %1: beschikbaar %2, nodig %3 (incl. marge).")
+					.arg(QDir::toNativeSeparators(root))
+					.arg(FormatBytesHumanReadable(available))
+					.arg(FormatBytesHumanReadable(neededWithMargin));
+		}
+		else
+		{
+			lines << tr("Schijf %1: beschikbare ruimte kon niet worden bepaald; geschatte nood %2.")
+					.arg(QDir::toNativeSeparators(root))
+					.arg(FormatBytesHumanReadable(neededWithMargin));
+		}
+	}
+
+	if(detailsOut)
+		*detailsOut = lines.join("\n");
+	return enoughSpace;
+}
+
+bool MainWindow::CheckExportIntegrity(const QString &audioPath, const QString &videoPath,
+		long numFrames, QString *detailsOut) const
+{
+	if(detailsOut) detailsOut->clear();
+	QStringList issues;
+	QStringList info;
+
+	const QFileInfo audioInfo(audioPath);
+	if(!audioInfo.exists() || audioInfo.size() <= 44)
+	{
+		issues << tr("Audio-output ontbreekt of is te klein.");
+	}
+	else
+	{
+		const int sampleRate = (ui->filerate_PD->currentIndex() == 1) ? 96000 : 48000;
+		const int bitDepth = ui->bitDepthComboBox->currentText().split(" ")[0].toInt();
+		const int channels = 2;
+		const qint64 payloadBytes = std::max<qint64>(0, audioInfo.size() - 44);
+		const double bytesPerSecond = sampleRate * channels * std::max(1, bitDepth) / 8.0;
+		const double audioDurationSec = payloadBytes / std::max(1.0, bytesPerSecond);
+		info << tr("Audio duur: %1s").arg(audioDurationSec, 0, 'f', 2);
+		if(audioDurationSec <= 0.01)
+			issues << tr("Audio-output lijkt leeg (duur <= 0).");
+		if(numFrames > 0)
+		{
+			const double expectedDuration = static_cast<double>(numFrames) /
+					std::max(1.0, ReadFpsFromUiIndex(ui->filmrate_PD->currentIndex()));
+			if(audioDurationSec < expectedDuration * 0.2)
+			{
+				issues << tr("Audio-outputduur is veel korter dan verwacht.");
+			}
+		}
+	}
+
+	if(!videoPath.trimmed().isEmpty())
+	{
+		const QFileInfo videoInfo(videoPath);
+		if(!videoInfo.exists() || videoInfo.size() <= 1024)
+		{
+			issues << tr("Video-output ontbreekt of is te klein.");
+		}
+		else
+		{
+			info << tr("Video grootte: %1").arg(FormatBytesHumanReadable(videoInfo.size()));
+		}
+	}
+
+	QString summary;
+	if(!info.isEmpty())
+		summary += info.join(", ");
+	if(!issues.isEmpty())
+	{
+		if(!summary.isEmpty()) summary += "\n";
+		summary += issues.join("\n");
+	}
+	if(detailsOut) *detailsOut = summary;
+	return issues.isEmpty();
 }
 
 bool MainWindow::AnalyzeCurrentFrameAutoStats(double &meanLuma, double &lumaLow,
@@ -4196,6 +4486,34 @@ bool MainWindow::extractGL(QString filename, bool doTimer,
 			videoFilename = EnsureNonOverwritingPath(videoFilename);
 	}
 
+	if(!videoFilename.isEmpty())
+	{
+		QString ffmpegError;
+		RunFfmpegSelfTest(&ffmpegError);
+		if(!ffmpegError.isEmpty())
+		{
+			QMessageBox::warning(
+					this,
+					tr("Video-export niet klaar"),
+					tr("FFmpeg-check mislukt:\n%1").arg(ffmpegError));
+			return false;
+		}
+	}
+
+	QString diskSpaceDetails;
+	if(!CheckExportDiskSpace(filename, videoFilename, numFrames, &diskSpaceDetails))
+	{
+		const int answer = QMessageBox::warning(
+				this,
+				tr("Mogelijk te weinig schijfruimte"),
+				tr("De export heeft mogelijk onvoldoende vrije schijfruimte.\n\n%1\n\nToch doorgaan?")
+						.arg(diskSpaceDetails),
+				QMessageBox::Yes | QMessageBox::No,
+				QMessageBox::No);
+		if(answer != QMessageBox::Yes)
+			return false;
+	}
+
 	QElapsedTimer timer;
 	if(doTimer) timer.start();
 
@@ -4248,6 +4566,19 @@ bool MainWindow::extractGL(QString filename, bool doTimer,
 					filename.toStdString().c_str(),
 					firstFrame, numFrames
 			);
+		}
+
+		QString integrityDetails;
+		if(!CheckExportIntegrity(filename, videoFilename, numFrames, &integrityDetails))
+		{
+			processMsg = tr("Extraction Complete (Integrity Warning)");
+			if(!integrityDetails.trimmed().isEmpty())
+				timingMsg += QString("\n%1").arg(integrityDetails);
+			Log() << "Integrity warning: " << integrityDetails << "\n";
+		}
+		else if(!integrityDetails.trimmed().isEmpty())
+		{
+			Log() << "Integrity check: " << integrityDetails << "\n";
 		}
 	}
 	else
@@ -7589,6 +7920,29 @@ void MainWindow::on_videoExportAudioBitrateSpinBox_valueChanged(int arg1)
 	SaveVideoExportSettings();
 	UpdateVideoExportControls();
 	UpdateAudioQualityPresetFromControls();
+}
+
+void MainWindow::on_videoExportTestFfmpegButton_clicked()
+{
+	QString error;
+	const QString testResult = RunFfmpegSelfTest(&error);
+	if(error.isEmpty())
+	{
+		ui->videoExportFfmpegStatusLabel->setText(testResult);
+		QMessageBox::information(
+				this,
+				tr("FFmpeg-test geslaagd"),
+				tr("FFmpeg reageert correct.\n%1").arg(testResult));
+	}
+	else
+	{
+		ui->videoExportFfmpegStatusLabel->setText(
+				tr("FFmpeg-check mislukt: %1").arg(error));
+		QMessageBox::warning(
+				this,
+				tr("FFmpeg-test mislukt"),
+				error);
+	}
 }
 
 void MainWindow::on_autoOptimizeFramesCheckBox_toggled(bool checked)

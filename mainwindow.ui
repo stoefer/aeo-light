@@ -1587,6 +1587,27 @@
            </widget>
           </item>
           <item row="9" column="0" colspan="3">
+           <layout class="QHBoxLayout" name="videoExportFfmpegLayout">
+            <item>
+             <widget class="QPushButton" name="videoExportTestFfmpegButton">
+              <property name="text">
+               <string>Test FFmpeg</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="videoExportFfmpegStatusLabel">
+              <property name="text">
+               <string>FFmpeg status onbekend.</string>
+              </property>
+              <property name="wordWrap">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="10" column="0" colspan="3">
            <widget class="QGroupBox" name="autoOptimizeGroupBox">
             <property name="title">
              <string>Automatische kleur/contrast/helderheid</string>
@@ -3410,6 +3431,7 @@ QPushButton:disabled {
   <tabstop>videoExportPresetComboBox</tabstop>
   <tabstop>videoExportQualitySlider</tabstop>
   <tabstop>videoExportAudioBitrateSpinBox</tabstop>
+  <tabstop>videoExportTestFfmpegButton</tabstop>
   <tabstop>autoOptimizeFramesCheckBox</tabstop>
   <tabstop>autoOptimizeVideoCheckBox</tabstop>
   <tabstop>autoOptimizeProfileComboBox</tabstop>
