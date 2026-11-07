@@ -328,6 +328,7 @@ private slots:
 	void on_outputConflictModeComboBox_currentIndexChanged(int index);
 	void on_outputOpenFolderCheckBox_toggled(bool checked);
 	void on_outputAutoCleanupTempCheckBox_toggled(bool checked);
+	void on_outputExportReportModeComboBox_currentIndexChanged(int index);
 	void on_outputVideoOrientationPresetButton_clicked();
 	void on_outputFlipHorizontalCheckBox_toggled(bool checked);
 	void on_outputFlipVerticalCheckBox_toggled(bool checked);
@@ -376,6 +377,7 @@ private:
 	int outputConflictMode;
 	bool outputOpenFolderAfterExport;
 	bool autoCleanupTempFilesEnabled;
+	int exportReportMode;
 	int queueBatchReportMode;
 	bool videoAudioOffsetCorrectionEnabled;
 	bool videoUseStableFrameCrop;
@@ -456,6 +458,16 @@ private:
 			size_t failedCount,
 			size_t pendingCount,
 			const QStringList &itemLines) const;
+	void WriteSingleExportReport(
+			const QString &audioPath,
+			const QString &videoPath,
+			bool success,
+			bool canceled,
+			long firstFrame,
+			long numFrames,
+			double elapsedSec,
+			const QString &timingMsg,
+			const QString &processMsg) const;
 	void ApplyThemeFromSettings();
 	void PositionPreviewWindowBesideMainWindow();
 
