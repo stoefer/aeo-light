@@ -8572,6 +8572,13 @@ void MainWindow::on_queueExtractButton_clicked()
 	const QString reportSuffix = (queueBatchReportMode == QUEUE_BATCH_REPORT_OFF) ?
 			QString() :
 			tr(" Rapport opgeslagen.");
+	const QString batchSummaryHeader =
+			tr("Batch samenvatting: %1 gelukt, %2 gefaald, %3 wachtend, duur %4, gem. %5s/item.")
+					.arg(successCount)
+					.arg(failedCount)
+					.arg(pendingCount)
+					.arg(FormatEtaSeconds(batchElapsedSec))
+					.arg(QString::number(avgSecPerItem, 'f', 2));
 	ui->queueBatchStatusLabel->setText(
 			tr("Batch klaar: %1 gelukt, %2 gefaald, %3 wachtend, duur %4, gem. %5s/item.%6")
 			.arg(successCount)
@@ -8592,8 +8599,11 @@ void MainWindow::on_queueExtractButton_clicked()
 		const QString reasonSummary = reasonLines.isEmpty() ?
 				QString() :
 				tr("Fouttypes:\n- %1").arg(reasonLines.join("\n- "));
-		QString copyText = tr("Batch fouten (%1)")
-				.arg(failedDetailLines.size());
+		const QString batchTimestamp = QDateTime::currentDateTime().toString(Qt::ISODate);
+		QString copyText = tr("Batch fouten (%1)\nTimestamp: %2\n%3")
+				.arg(failedDetailLines.size())
+				.arg(batchTimestamp)
+				.arg(batchSummaryHeader);
 		if(!reasonSummary.isEmpty())
 			copyText += QString("\n%1").arg(reasonSummary);
 		copyText += QString("\n\n%1").arg(failureDetailsText);
@@ -8606,8 +8616,10 @@ void MainWindow::on_queueExtractButton_clicked()
 				tr("Batch voltooid met fouten"));
 		batchWarn.setText(tr("%1 item(s) gefaald. Open Details voor foutredenen.")
 				.arg(failedDetailLines.size()));
+		QString informative = batchSummaryHeader;
 		if(!reasonSummary.isEmpty())
-			batchWarn.setInformativeText(reasonSummary);
+			informative += QString("\n%1").arg(reasonSummary);
+		batchWarn.setInformativeText(informative);
 		batchWarn.setDetailedText(failureDetailsText);
 		QPushButton *retryFailedButton = batchWarn.addButton(
 				tr("Retry gefaalde items"),
