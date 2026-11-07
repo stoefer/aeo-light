@@ -8572,6 +8572,27 @@ void MainWindow::on_queueExtractButton_clicked()
 	const QString reportSuffix = (queueBatchReportMode == QUEUE_BATCH_REPORT_OFF) ?
 			QString() :
 			tr(" Rapport opgeslagen.");
+	QString topFailureSuffix;
+	if(failedCount > 0 && !failureReasonCounts.isEmpty())
+	{
+		QString topReason;
+		int topReasonCount = 0;
+		for(auto it = failureReasonCounts.constBegin();
+				it != failureReasonCounts.constEnd(); ++it)
+		{
+			if(it.value() > topReasonCount)
+			{
+				topReason = it.key();
+				topReasonCount = it.value();
+			}
+		}
+		if(!topReason.isEmpty() && topReasonCount > 0)
+		{
+			topFailureSuffix = tr(" Top fout: %1 (%2x).")
+					.arg(topReason)
+					.arg(topReasonCount);
+		}
+	}
 	const QString batchSummaryHeader =
 			tr("Batch samenvatting: %1 gelukt, %2 gefaald, %3 wachtend, duur %4, gem. %5s/item.")
 					.arg(successCount)
@@ -8580,13 +8601,14 @@ void MainWindow::on_queueExtractButton_clicked()
 					.arg(FormatEtaSeconds(batchElapsedSec))
 					.arg(QString::number(avgSecPerItem, 'f', 2));
 	ui->queueBatchStatusLabel->setText(
-			tr("Batch klaar: %1 gelukt, %2 gefaald, %3 wachtend, duur %4, gem. %5s/item.%6")
+			tr("Batch klaar: %1 gelukt, %2 gefaald, %3 wachtend, duur %4, gem. %5s/item.%6%7")
 			.arg(successCount)
 			.arg(failedCount)
 			.arg(pendingCount)
 			.arg(FormatEtaSeconds(batchElapsedSec))
 			.arg(QString::number(avgSecPerItem, 'f', 2))
-			.arg(reportSuffix));
+			.arg(reportSuffix)
+			.arg(topFailureSuffix));
 	if(!failedDetailLines.isEmpty())
 	{
 		const QString failureDetailsText = failedDetailLines.join("\n");
@@ -8648,24 +8670,66 @@ void MainWindow::on_queueExtractButton_clicked()
 			}
 			const QString suggestName = QString("aeo-batch-failures-%1.txt")
 					.arg(QDateTime::currentDateTime().toString("yyyyMMdd-HHmmss"));
+			QString selectedFilter;
 			const QString savePath = QFileDialog::getSaveFileName(
 					this,
 					tr("Bewaar batch-foutdetails"),
 					QDir(baseDir).filePath(suggestName),
-					tr("Text files (*.txt)"));
+					tr("Text files (*.txt);;JSON files (*.json)"),
+					&selectedFilter);
 			if(!savePath.isEmpty())
 			{
-				QFile outFile(savePath);
+				bool saveAsJson = selectedFilter.contains(
+						"JSON", Qt::CaseInsensitive);
+				QString finalSavePath = savePath;
+				const QString chosenExt = QFileInfo(finalSavePath).suffix().toLower();
+				if(chosenExt == "json")
+					saveAsJson = true;
+				else if(chosenExt == "txt")
+					saveAsJson = false;
+				else if(chosenExt.isEmpty())
+					finalSavePath += saveAsJson ? ".json" : ".txt";
+
+				QFile outFile(finalSavePath);
 				if(outFile.open(QIODevice::WriteOnly | QIODevice::Text))
 				{
-					QTextStream out(&outFile);
-					out << copyText << "\n";
+					if(saveAsJson)
+					{
+						QJsonObject root;
+						root.insert("timestamp", batchTimestamp);
+						root.insert("successCount", static_cast<int>(successCount));
+						root.insert("failedCount", static_cast<int>(failedCount));
+						root.insert("pendingCount", static_cast<int>(pendingCount));
+						root.insert("elapsedSeconds", batchElapsedSec);
+						root.insert("avgSecondsPerItem", avgSecPerItem);
+						root.insert("summary", batchSummaryHeader);
+						if(!reasonSummary.isEmpty())
+							root.insert("reasonSummary", reasonSummary);
+						QJsonObject reasonCountsObj;
+						for(auto it = failureReasonCounts.constBegin();
+								it != failureReasonCounts.constEnd(); ++it)
+						{
+							reasonCountsObj.insert(it.key(), it.value());
+						}
+						root.insert("failureReasonCounts", reasonCountsObj);
+						QJsonArray failedItems;
+						for(const QString &line : failedDetailLines)
+							failedItems.append(line);
+						root.insert("failedItems", failedItems);
+						outFile.write(
+								QJsonDocument(root).toJson(QJsonDocument::Indented));
+					}
+					else
+					{
+						QTextStream out(&outFile);
+						out << copyText << "\n";
+					}
 					outFile.close();
 					QMessageBox::information(
 							this,
 							tr("Details bewaard"),
 							tr("Batch-foutdetails opgeslagen naar:\n%1")
-									.arg(QDir::toNativeSeparators(savePath)));
+									.arg(QDir::toNativeSeparators(finalSavePath)));
 				}
 				else
 				{
@@ -8673,7 +8737,7 @@ void MainWindow::on_queueExtractButton_clicked()
 							this,
 							tr("Opslaan mislukt"),
 							tr("Kon batch-foutdetails niet opslaan naar:\n%1")
-									.arg(QDir::toNativeSeparators(savePath)));
+									.arg(QDir::toNativeSeparators(finalSavePath)));
 				}
 			}
 		}
