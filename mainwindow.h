@@ -217,8 +217,11 @@ private slots:
 	void on_frame_numberSpinBox_valueChanged(int arg1);
 
 	void on_extractGLButton_clicked();
-	bool extractGL(QString filename, bool doTimer);
+	bool extractGL(QString filename, bool doTimer,
+			bool suppressResultDialog = false,
+			bool skipSidecarWrite = false);
 	bool extractGL(bool doTimer) { return extractGL(QString(), doTimer); }
+	bool extractGL(QString filename) { return extractGL(filename, false); }
 	ExtractedSound Extract(QString filename, QString videoFilename,
 			long firstFrame, long numFrames, uint8_t flags=0);
 

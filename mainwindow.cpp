@@ -58,6 +58,7 @@
 #include <QSignalBlocker>
 #include <QScreen>
 #include <QSpinBox>
+#include <QCheckBox>
 #include <QRegularExpression>
 #include <QHBoxLayout>
 #include <QPushButton>
@@ -3742,17 +3743,33 @@ void MainWindow::on_testRunExportButton_clicked()
 	layout.addWidget(&presetLabel);
 
 	QHBoxLayout presetLayout;
+	QPushButton preset5s("5 sec");
 	QPushButton preset100("100");
 	QPushButton preset300("300");
 	QPushButton preset500("500");
 	QPushButton preset10s("10 sec");
+	QPushButton preset20s("20 sec");
+	QPushButton preset60s("1 min");
+	presetLayout.addWidget(&preset5s);
 	presetLayout.addWidget(&preset100);
 	presetLayout.addWidget(&preset300);
 	presetLayout.addWidget(&preset500);
 	presetLayout.addWidget(&preset10s);
+	presetLayout.addWidget(&preset20s);
+	presetLayout.addWidget(&preset60s);
 	presetLayout.addStretch(1);
 	layout.addLayout(&presetLayout);
 
+	auto currentFps = [&]() -> double
+	{
+		switch(ui->filmrate_PD->currentIndex())
+		{
+		case 0: return 23.976;
+		case 1: return 24.0;
+		case 2: return 25.0;
+		default: return 24.0;
+		}
+	};
 	auto applyPresetFrames = [&](int frameCount)
 	{
 		int startFrame = firstSpin.value();
@@ -3760,6 +3777,12 @@ void MainWindow::on_testRunExportButton_clicked()
 		endFrame = std::max(startFrame, std::min(maxFrame, endFrame));
 		lastSpin.setValue(endFrame);
 	};
+	connect(&preset5s, &QPushButton::clicked, &dialog,
+			[&]()
+	{
+		int frames = std::max(1, static_cast<int>(std::round(currentFps() * 5.0)));
+		applyPresetFrames(frames);
+	});
 	connect(&preset100, &QPushButton::clicked, &dialog,
 			[&]() { applyPresetFrames(100); });
 	connect(&preset300, &QPushButton::clicked, &dialog,
@@ -3769,16 +3792,43 @@ void MainWindow::on_testRunExportButton_clicked()
 	connect(&preset10s, &QPushButton::clicked, &dialog,
 			[&]()
 	{
-		double fps = 24.0;
-		switch(ui->filmrate_PD->currentIndex())
-		{
-		case 0: fps = 23.976; break;
-		case 1: fps = 24.0; break;
-		case 2: fps = 25.0; break;
-		default: break;
-		}
-		int tenSecondFrames = std::max(1, static_cast<int>(std::round(fps * 10.0)));
+		int tenSecondFrames = std::max(1, static_cast<int>(std::round(currentFps() * 10.0)));
 		applyPresetFrames(tenSecondFrames);
+	});
+	connect(&preset20s, &QPushButton::clicked, &dialog,
+			[&]()
+	{
+		int frames = std::max(1, static_cast<int>(std::round(currentFps() * 20.0)));
+		applyPresetFrames(frames);
+	});
+	connect(&preset60s, &QPushButton::clicked, &dialog,
+			[&]()
+	{
+		int frames = std::max(1, static_cast<int>(std::round(currentFps() * 60.0)));
+		applyPresetFrames(frames);
+	});
+
+	QCheckBox loopCheck("Loop test-run");
+	QSpinBox loopCountSpin;
+	loopCountSpin.setRange(2, 20);
+	loopCountSpin.setValue(3);
+	loopCountSpin.setSuffix("x");
+	loopCountSpin.setEnabled(false);
+
+	QHBoxLayout loopLayout;
+	loopLayout.addWidget(&loopCheck);
+	loopLayout.addWidget(&loopCountSpin);
+	loopLayout.addStretch(1);
+	layout.addLayout(&loopLayout);
+
+	QCheckBox dryRunCheck(
+			"Test zonder wegschrijven (tijdelijke bestanden)");
+	layout.addWidget(&dryRunCheck);
+
+	connect(&loopCheck, &QCheckBox::toggled, &dialog,
+			[&](bool checked)
+	{
+		loopCountSpin.setEnabled(checked);
 	});
 	connect(&firstSpin,
 			static_cast<void(QSpinBox::*)(int)>(&QSpinBox::valueChanged),
@@ -3807,13 +3857,113 @@ void MainWindow::on_testRunExportButton_clicked()
 
 	ui->frameInSpinBox->setValue(first);
 	ui->frameOutSpinBox->setValue(last);
-	const bool doTimer = true;
-	extractGL(doTimer);
+
+	const int runCount = loopCheck.isChecked() ? loopCountSpin.value() : 1;
+	const bool dryRun = dryRunCheck.isChecked();
+	const bool suppressDialogs = (runCount > 1) || dryRun;
+	const QString prevAudioOutputText = ui->audioOutputFilenameEdit->text();
+	const QString prevVideoOutputText = ui->videoOutputFilenameEdit->text();
+
+	int completedRuns = 0;
+	bool success = true;
+	QString suggestedAudioForLoop = ui->audioOutputFilenameEdit->text().trimmed();
+
+	if(runCount > 1 && !dryRun && suggestedAudioForLoop.isEmpty())
+	{
+		QString expDir = this->prevExportDir;
+		if(expDir.isEmpty())
+		{
+			QSettings settings;
+			settings.beginGroup("default-folder");
+			expDir = settings.value("export").toString();
+			if(expDir.isEmpty())
+			{
+				expDir = QStandardPaths::writableLocation(
+							QStandardPaths::DocumentsLocation);
+			}
+			settings.endGroup();
+		}
+		suggestedAudioForLoop = QDir(expDir).filePath(
+				BuildOutputNameFromTemplate(".wav"));
+	}
+	if(runCount > 1 && !dryRun && !suggestedAudioForLoop.isEmpty())
+	{
+		ui->audioOutputFilenameEdit->setText(suggestedAudioForLoop);
+		if(ui->outputVideoCheckBox->isChecked() &&
+				ui->videoOutputFilenameEdit->text().trimmed().isEmpty())
+		{
+			QString expDir = QFileInfo(suggestedAudioForLoop).absolutePath();
+			if(expDir.isEmpty()) expDir = QDir::tempPath();
+			ui->videoOutputFilenameEdit->setText(QDir(expDir).filePath(
+					BuildOutputNameFromTemplate(
+							VideoContainerExtensionForMode(videoContainerMode))));
+		}
+	}
+
+	for(int i = 0; i < runCount; ++i)
+	{
+		if(dryRun)
+		{
+			const QString tempStamp = QString("%1-%2")
+					.arg(QDateTime::currentMSecsSinceEpoch())
+					.arg(i + 1);
+			QString tempAudio = QDir::temp().filePath(
+					QString("aeo-test-%1.wav").arg(tempStamp));
+			QString tempVideo;
+			if(ui->outputVideoCheckBox->isChecked())
+			{
+				tempVideo = QDir::temp().filePath(
+						QString("aeo-test-video-%1%2")
+								.arg(tempStamp)
+								.arg(VideoContainerExtensionForMode(videoContainerMode)));
+				ui->videoOutputFilenameEdit->setText(tempVideo);
+			}
+			ui->audioOutputFilenameEdit->setText(tempAudio);
+			success = extractGL(QString(), true, true, true);
+			QFile::remove(tempAudio);
+			if(!tempVideo.isEmpty())
+				QFile::remove(tempVideo);
+		}
+		else
+		{
+			if(runCount > 1)
+				success = extractGL(QString(), true, true, false);
+			else
+				success = extractGL(true);
+		}
+
+		if(!success)
+			break;
+
+		++completedRuns;
+	}
+
 	ui->frameInSpinBox->setValue(prevFrameIn);
 	ui->frameOutSpinBox->setValue(prevFrameOut);
+	if(dryRun)
+	{
+		ui->audioOutputFilenameEdit->setText(prevAudioOutputText);
+		ui->videoOutputFilenameEdit->setText(prevVideoOutputText);
+		SaveExtractOutputSettings();
+	}
+
+	if(suppressDialogs)
+	{
+		const QString title = success ? tr("Test Run voltooid") :
+				tr("Test Run onderbroken");
+		const QString mode = dryRun ?
+				tr("zonder definitieve outputbestanden") :
+				tr("met outputbestanden");
+		QString detail = tr("%1 van %2 run(s) uitgevoerd (%3).")
+				.arg(completedRuns)
+				.arg(runCount)
+				.arg(mode);
+		QMessageBox::information(this, title, detail);
+	}
 }
 
-bool MainWindow::extractGL(QString filename=QString(), bool doTimer=false)
+bool MainWindow::extractGL(QString filename, bool doTimer,
+		bool suppressResultDialog, bool skipSidecarWrite)
 {
 	SaveLastUsedSettingsSnapshot();
 	bool batch = true;
@@ -4011,7 +4161,8 @@ bool MainWindow::extractGL(QString filename=QString(), bool doTimer=false)
 			timingMsg = tr("Sound extraction completed successfully.");
 		}
 
-		if(ui->xmlSidecarComboBox->currentText() == "Premis")
+		if(!skipSidecarWrite &&
+				ui->xmlSidecarComboBox->currentText() == "Premis")
 		{
 			write_premis_xml(
 					(filename + QString(".xml")).toStdString().c_str(),
@@ -4019,7 +4170,9 @@ bool MainWindow::extractGL(QString filename=QString(), bool doTimer=false)
 					filename.toStdString().c_str(),
 					firstFrame, numFrames
 			);
-		} else if(ui->xmlSidecarComboBox->currentText() == "MODS")
+		}
+		else if(!skipSidecarWrite &&
+				ui->xmlSidecarComboBox->currentText() == "MODS")
 		{
 			write_mods_xml(
 					(filename + QString(".xml")).toStdString().c_str(),
@@ -4048,7 +4201,7 @@ bool MainWindow::extractGL(QString filename=QString(), bool doTimer=false)
 
 	Log() << timingMsg << "\n";
 	Log() << QDateTime::currentDateTime().toString() << "\n";
-	if(success && !batch && outputOpenFolderAfterExport)
+	if(success && !batch && outputOpenFolderAfterExport && !suppressResultDialog)
 	{
 		const QString preferredPath =
 				!videoFilename.isEmpty() ? videoFilename : filename;
@@ -4062,23 +4215,26 @@ bool MainWindow::extractGL(QString filename=QString(), bool doTimer=false)
 		this->LogClose();
 		this->currentMeta = NULL;
 
-		QMessageBox msg;
-		msg.setText(processMsg);
-		msg.setInformativeText(timingMsg);
-		QPushButton *viewButton =
-				msg.addButton("View Log", QMessageBox::HelpRole);
-		msg.addButton(QMessageBox::Ok);
-
-		msg.exec();
-
-		if(msg.clickedButton() == viewButton)
+		if(!suppressResultDialog)
 		{
-            #ifdef Q_OS_WIN32
-			system(QString("start %1/%2").arg(QDir::homePath(),"AEO-log.txt")
-					.toStdString().c_str());
-			#else
-			system("open ~/.aeolight.log.txt");
-			#endif
+			QMessageBox msg;
+			msg.setText(processMsg);
+			msg.setInformativeText(timingMsg);
+			QPushButton *viewButton =
+					msg.addButton("View Log", QMessageBox::HelpRole);
+			msg.addButton(QMessageBox::Ok);
+
+			msg.exec();
+
+			if(msg.clickedButton() == viewButton)
+			{
+				#ifdef Q_OS_WIN32
+				system(QString("start %1/%2").arg(QDir::homePath(),"AEO-log.txt")
+						.toStdString().c_str());
+				#else
+				system("open ~/.aeolight.log.txt");
+				#endif
+			}
 		}
 	}
 
