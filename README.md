@@ -1,8 +1,32 @@
-# AEO-Light 3.1.34 (fork release)
+# AEO-Light 3.1.35 (fork release)
 
-Deze 3.1.34 patchrelease bundelt de workflow-uitbreidingen uit hoofdstuk 1 t/m 6: presets, test-run verbeteringen, queue-tools en extra exportveiligheid.
+Deze 3.1.35 patchrelease bundelt de hoofdstuk-7 workflowverbeteringen rond queue-diagnose, exportprofielen, rapportering en betrouwbaarheid.
 
-## Nieuw in 3.1.34
+## Nieuw in 3.1.35
+- Nieuwe voorkeur in **Preferences**: **License agreement na eerste acceptatie niet meer tonen**.
+- Nieuwe **Exportprofielen per doel** in Video instellingen:
+  - **Snelle review**
+  - **Web share**
+  - **Archiefkwaliteit**
+  - + automatische terugval naar **Aangepast** bij manuele wijzigingen.
+- Uitgebreide rapportering:
+  - single-export rapporten (**TXT/JSON**) met settings, outputpaden en duur
+  - queue-batch rapporten uitgebreid met totale duur + gemiddelde tijd per item
+- Queue batch verbeteringen:
+  - live voortgang met **% + ETA**
+  - eindstatus met **totale duur + gemiddelde tijd/item**
+  - per-item detailregels met **framebereik + duur + foutreden**
+  - foutpopup met:
+    - retry van gefaalde items
+    - kopieer details naar klembord
+    - bewaar details als tekstbestand
+    - samenvatting per fouttype met aantallen
+- Extra export-waarschuwingen:
+  - ontbrekend video-outputpad
+  - container/extensie mismatch
+  - FPS-mismatch tussen bronhint en gekozen frame rate
+
+## Eerder toegevoegd in 3.1.34
 - Presets/workflow:
   - instellingen-presets opslaan/laden/verwijderen
   - knop voor laatst gebruikte instellingen
