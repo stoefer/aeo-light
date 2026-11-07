@@ -2900,6 +2900,27 @@ QPushButton:disabled {
          </widget>
         </item>
         <item>
+         <widget class="QPushButton" name="queueSavePresetButton">
+          <property name="text">
+           <string>Save Queue Preset</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="queueLoadPresetButton">
+          <property name="text">
+           <string>Load Queue Preset</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="queueDeletePresetButton">
+          <property name="text">
+           <string>Delete Queue Preset</string>
+          </property>
+         </widget>
+        </item>
+        <item>
          <spacer name="horizontalSpacer_9">
           <property name="orientation">
            <enum>Qt::Horizontal</enum>
@@ -3601,6 +3622,9 @@ QPushButton:disabled {
   <tabstop>enqueueButton</tabstop>
   <tabstop>testRunExportButton</tabstop>
   <tabstop>extractGLButton</tabstop>
+  <tabstop>queueSavePresetButton</tabstop>
+  <tabstop>queueLoadPresetButton</tabstop>
+  <tabstop>queueDeletePresetButton</tabstop>
   <tabstop>queueRetryFailedButton</tabstop>
   <tabstop>queueExtractButton</tabstop>
   <tabstop>waveformZoomCheckBox</tabstop>

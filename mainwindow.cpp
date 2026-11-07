@@ -66,6 +66,7 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QSlider>
+#include <QVariantMap>
 
 #include <cstdio>
 #include <exception>
@@ -300,6 +301,91 @@ static bool ReadCompactModeSetting()
 	const bool compactMode = settings.value("compact-mode", false).toBool();
 	settings.endGroup();
 	return compactMode;
+}
+
+static QVariantMap SerializeExtractedSoundParams(const ExtractedSound &params)
+{
+	QVariantMap map;
+	map.insert("frameIn", static_cast<uint>(params.frameIn));
+	map.insert("frameOut", static_cast<uint>(params.frameOut));
+	map.insert("bounds0", static_cast<uint>(params.bounds[0]));
+	map.insert("bounds1", static_cast<uint>(params.bounds[1]));
+	map.insert("pixBounds0", static_cast<uint>(params.pixBounds[0]));
+	map.insert("pixBounds1", static_cast<uint>(params.pixBounds[1]));
+	map.insert("framePitch0", static_cast<uint>(params.framePitch[0]));
+	map.insert("framePitch1", static_cast<uint>(params.framePitch[1]));
+	map.insert("videoFrameCrop0", static_cast<uint>(params.videoFrameCrop[0]));
+	map.insert("videoFrameCrop1", static_cast<uint>(params.videoFrameCrop[1]));
+	map.insert("videoStableCrop", params.videoStableCrop);
+	map.insert("videoDriftSensitivity", static_cast<uint>(params.videoDriftSensitivity));
+	map.insert("gamma", static_cast<uint>(params.gamma));
+	map.insert("gain", static_cast<uint>(params.gain));
+	map.insert("sCurve", static_cast<uint>(params.sCurve));
+	map.insert("overlap", static_cast<uint>(params.overlap));
+	map.insert("lift", static_cast<int>(params.lift));
+	map.insert("blur", static_cast<int>(params.blur));
+	map.insert("fpsType", static_cast<int>(params.fpsType));
+	map.insert("rot_angle", params.rot_angle);
+	map.insert("useBounds", params.useBounds);
+	map.insert("usePixBounds", params.usePixBounds);
+	map.insert("useSCurve", params.useSCurve);
+	map.insert("makeNegative", params.makeNegative);
+	map.insert("makeGray", params.makeGray);
+	map.insert("applyRotation", params.applyRotation);
+	return map;
+}
+
+static ExtractedSound DeserializeExtractedSoundParams(const QVariantMap &map)
+{
+	ExtractedSound params;
+	params.frameIn = map.value("frameIn", 0).toUInt();
+	params.frameOut = map.value("frameOut", 0).toUInt();
+	params.bounds[0] = static_cast<uint16_t>(map.value("bounds0", 0).toUInt());
+	params.bounds[1] = static_cast<uint16_t>(map.value("bounds1", 0).toUInt());
+	params.pixBounds[0] = static_cast<uint16_t>(map.value("pixBounds0", 0).toUInt());
+	params.pixBounds[1] = static_cast<uint16_t>(map.value("pixBounds1", 0).toUInt());
+	params.framePitch[0] = static_cast<uint16_t>(map.value("framePitch0", 0).toUInt());
+	params.framePitch[1] = static_cast<uint16_t>(map.value("framePitch1", 0).toUInt());
+	params.videoFrameCrop[0] = static_cast<uint16_t>(map.value("videoFrameCrop0", 100).toUInt());
+	params.videoFrameCrop[1] = static_cast<uint16_t>(map.value("videoFrameCrop1", 100).toUInt());
+	params.videoStableCrop = map.value("videoStableCrop", true).toBool();
+	params.videoDriftSensitivity = static_cast<uint16_t>(
+			map.value("videoDriftSensitivity", 100).toUInt());
+	params.gamma = static_cast<uint16_t>(map.value("gamma", 100).toUInt());
+	params.gain = static_cast<uint16_t>(map.value("gain", 100).toUInt());
+	params.sCurve = static_cast<uint16_t>(map.value("sCurve", 0).toUInt());
+	params.overlap = static_cast<uint8_t>(map.value("overlap", 20).toUInt());
+	params.lift = static_cast<int8_t>(map.value("lift", 0).toInt());
+	params.blur = static_cast<int8_t>(map.value("blur", 0).toInt());
+	params.fpsType = static_cast<uint8_t>(map.value("fpsType", FPS_FILM).toUInt());
+	params.rot_angle = map.value("rot_angle", 0.0).toDouble();
+	params.useBounds = map.value("useBounds", true).toBool();
+	params.usePixBounds = map.value("usePixBounds", false).toBool();
+	params.useSCurve = map.value("useSCurve", false).toBool();
+	params.makeNegative = map.value("makeNegative", false).toBool();
+	params.makeGray = map.value("makeGray", false).toBool();
+	params.applyRotation = map.value("applyRotation", false).toBool();
+	return params;
+}
+
+static QVariantMap SerializeExtractTaskMap(const ExtractTask &task)
+{
+	QVariantMap map;
+	map.insert("source", task.source);
+	map.insert("srcFormat", static_cast<int>(task.srcFormat));
+	map.insert("output", task.output);
+	map.insert("params", SerializeExtractedSoundParams(task.params));
+	return map;
+}
+
+static bool DeserializeExtractTaskMap(const QVariantMap &map, ExtractTask &task)
+{
+	task.source = map.value("source").toString().trimmed();
+	task.srcFormat = static_cast<SourceFormat>(
+			map.value("srcFormat", static_cast<int>(SOURCE_UNKNOWN)).toInt());
+	task.output = map.value("output").toString().trimmed();
+	task.params = DeserializeExtractedSoundParams(map.value("params").toMap());
+	return !task.source.isEmpty() && !task.output.isEmpty();
 }
 
 static QString EnsureNonOverwritingPath(const QString &requestedPath)
@@ -2800,6 +2886,176 @@ void MainWindow::DeleteSettingsPreset()
 	settings.endGroup();
 }
 
+QStringList MainWindow::SavedQueuePresetNames() const
+{
+	QSettings settings;
+	settings.beginGroup("queue-presets");
+	QStringList names = settings.childKeys();
+	settings.endGroup();
+	names.sort(Qt::CaseInsensitive);
+	return names;
+}
+
+void MainWindow::SaveQueuePreset()
+{
+	if(this->extractQueue.empty())
+	{
+		QMessageBox::information(
+				this,
+				tr("Save Queue Preset"),
+				tr("De queue is leeg; er is niets om op te slaan."));
+		return;
+	}
+
+	QString presetName = QInputDialog::getText(
+			this,
+			tr("Save Queue Preset"),
+			tr("Presetnaam:"));
+	presetName = presetName.trimmed();
+	if(presetName.isEmpty())
+		return;
+
+	QSettings settings;
+	settings.beginGroup("queue-presets");
+	const bool exists = settings.contains(presetName);
+	settings.endGroup();
+	if(exists)
+	{
+		const int answer = QMessageBox::question(
+				this,
+				tr("Preset overschrijven"),
+				tr("Queue preset '%1' bestaat al. Overschrijven?").arg(presetName),
+				QMessageBox::Yes | QMessageBox::No,
+				QMessageBox::No);
+		if(answer != QMessageBox::Yes)
+			return;
+	}
+
+	QVariantList serializedTasks;
+	for(const ExtractTask &task : this->extractQueue)
+		serializedTasks.push_back(SerializeExtractTaskMap(task));
+
+	settings.beginGroup("queue-presets");
+	settings.setValue(presetName, serializedTasks);
+	settings.endGroup();
+}
+
+void MainWindow::LoadQueuePreset()
+{
+	const QStringList names = SavedQueuePresetNames();
+	if(names.isEmpty())
+	{
+		QMessageBox::information(
+				this,
+				tr("Load Queue Preset"),
+				tr("Er zijn nog geen opgeslagen queue presets."));
+		return;
+	}
+
+	bool ok = false;
+	const QString selected = QInputDialog::getItem(
+			this,
+			tr("Load Queue Preset"),
+			tr("Kies queue preset:"),
+			names,
+			0,
+			false,
+			&ok);
+	if(!ok || selected.isEmpty())
+		return;
+
+	QSettings settings;
+	settings.beginGroup("queue-presets");
+	const QVariantList serializedTasks = settings.value(selected).toList();
+	settings.endGroup();
+	if(serializedTasks.isEmpty())
+	{
+		QMessageBox::warning(
+				this,
+				tr("Load Queue Preset"),
+				tr("De gekozen queue preset bevat geen bruikbare items."));
+		return;
+	}
+
+	std::vector<ExtractTask> loadedTasks;
+	for(const QVariant &entry : serializedTasks)
+	{
+		ExtractTask task;
+		if(DeserializeExtractTaskMap(entry.toMap(), task))
+			loadedTasks.push_back(task);
+	}
+	if(loadedTasks.empty())
+	{
+		QMessageBox::warning(
+				this,
+				tr("Load Queue Preset"),
+				tr("De gekozen queue preset kon niet worden gelezen."));
+		return;
+	}
+
+	if(!this->extractQueue.empty())
+	{
+		const int answer = QMessageBox::question(
+				this,
+				tr("Queue preset laden"),
+				tr("Huidige queue vervangen? (Nee = toevoegen)"),
+				QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel,
+				QMessageBox::Yes);
+		if(answer == QMessageBox::Cancel)
+			return;
+		if(answer == QMessageBox::Yes)
+			this->extractQueue.clear();
+	}
+
+	for(const ExtractTask &task : loadedTasks)
+	{
+		if(this->extractQueue.size() >= 5)
+			break;
+		this->extractQueue.push_back(task);
+	}
+
+	UpdateQueueWidgets();
+}
+
+void MainWindow::DeleteQueuePreset()
+{
+	const QStringList names = SavedQueuePresetNames();
+	if(names.isEmpty())
+	{
+		QMessageBox::information(
+				this,
+				tr("Delete Queue Preset"),
+				tr("Er zijn geen queue presets om te verwijderen."));
+		return;
+	}
+
+	bool ok = false;
+	const QString selected = QInputDialog::getItem(
+			this,
+			tr("Delete Queue Preset"),
+			tr("Kies queue preset:"),
+			names,
+			0,
+			false,
+			&ok);
+	if(!ok || selected.isEmpty())
+		return;
+
+	const int answer = QMessageBox::question(
+			this,
+			tr("Preset verwijderen"),
+			tr("Queue preset '%1' verwijderen?").arg(selected),
+			QMessageBox::Yes | QMessageBox::No,
+			QMessageBox::No);
+	if(answer != QMessageBox::Yes)
+		return;
+
+	QSettings settings;
+	settings.beginGroup("queue-presets");
+	settings.remove(selected);
+	settings.endGroup();
+}
+
 bool MainWindow::OpenProject(QString fn)
 {
 	if(LoadProjectSource(fn))
@@ -3121,6 +3377,21 @@ void MainWindow::on_loadSettingsButton_clicked()
 void MainWindow::on_loadLastSettingsButton_clicked()
 {
 	LoadLastUsedSettingsSnapshot();
+}
+
+void MainWindow::on_queueSavePresetButton_clicked()
+{
+	SaveQueuePreset();
+}
+
+void MainWindow::on_queueLoadPresetButton_clicked()
+{
+	LoadQueuePreset();
+}
+
+void MainWindow::on_queueDeletePresetButton_clicked()
+{
+	DeleteQueuePreset();
 }
 
 

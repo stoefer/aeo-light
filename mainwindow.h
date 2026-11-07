@@ -296,6 +296,9 @@ private slots:
 	void on_loadSettingsButton_clicked();
 	void on_loadLastSettingsButton_clicked();
 
+	void on_queueSavePresetButton_clicked();
+	void on_queueLoadPresetButton_clicked();
+	void on_queueDeletePresetButton_clicked();
 	void on_queueExtractButton_clicked();
 
 	void on_soundtrackDefaultsButton_clicked();
@@ -435,6 +438,10 @@ private:
 	void SaveCurrentSettingsPreset();
 	void LoadSettingsPreset();
 	void DeleteSettingsPreset();
+	QStringList SavedQueuePresetNames() const;
+	void SaveQueuePreset();
+	void LoadQueuePreset();
+	void DeleteQueuePreset();
 	void ApplyThemeFromSettings();
 	void PositionPreviewWindowBesideMainWindow();
 
