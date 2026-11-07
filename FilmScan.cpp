@@ -309,6 +309,43 @@ SourceFormat FilmScan::StrToSourceFormat(const char *str)
 	return i;
 }
 
+double FilmScan::SourceFpsHint() const
+{
+	if(this->numFrames <= 0)
+		return 0.0;
+#ifdef USELIBAV
+	if(this->srcFormat == SOURCE_LIBAV &&
+			this->vid &&
+			this->vid->format &&
+			this->vid->streamIdx >= 0 &&
+			this->vid->streamIdx < int(this->vid->format->nb_streams))
+	{
+		AVStream *stream = this->vid->format->streams[this->vid->streamIdx];
+		auto ratioToDouble = [](const AVRational &value) -> double
+		{
+			if(value.num <= 0 || value.den <= 0) return 0.0;
+			return double(value.num) / double(value.den);
+		};
+
+		double fps = ratioToDouble(stream->avg_frame_rate);
+		if(fps <= 0.0)
+			fps = ratioToDouble(stream->r_frame_rate);
+		if(fps <= 0.0 && stream->codec &&
+				stream->codec->time_base.num > 0 &&
+				stream->codec->time_base.den > 0)
+		{
+			fps = double(stream->codec->time_base.den) /
+					double(stream->codec->time_base.num);
+		}
+		if(fps > 0.0 && fps < 240.0)
+			return fps;
+	}
+#endif
+	if(this->srcFormat == SOURCE_WAV)
+		return 24.0;
+	return 0.0;
+}
+
 //-----------------------------------------------------------------------------
 bool FilmScan::Source(const std::string filename, SourceFormat fmt)
 {

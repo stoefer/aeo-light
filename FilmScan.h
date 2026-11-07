@@ -186,6 +186,7 @@ public:
 	SourceFormat GetFormat() const { return srcFormat; }
 	const char *GetFormatStr() const;
 	static SourceFormat StrToSourceFormat(const char *str);
+	double SourceFpsHint() const;
 	const char *GetPath() const { return path; }
 	const char *GetBaseName() const { return name; }
 

@@ -351,6 +351,7 @@ private slots:
 	void on_autoOptimizeAnalyzeButton_clicked();
 	void on_audioQualityPresetComboBox_currentIndexChanged(int index);
 	void on_audioOnlyQualityPresetComboBox_currentIndexChanged(int index);
+	void on_filmrate_PD_currentIndexChanged(int index);
 	void on_filerate_PD_currentIndexChanged(int index);
 	void on_bitDepthComboBox_currentIndexChanged(int index);
 

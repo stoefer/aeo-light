@@ -4271,6 +4271,14 @@ void MainWindow::UpdateVideoExportControls()
 	{
 		warnings << tr("Audio bitrate < 128 kbps kan hoorbaar kwaliteitsverlies geven.");
 	}
+	const double sourceFpsHint = this->scan.inFile.SourceFpsHint();
+	const double selectedFps = ReadFpsFromUiIndex(ui->filmrate_PD->currentIndex());
+	if(sourceFpsHint > 0.0 && std::fabs(sourceFpsHint - selectedFps) > 0.05)
+	{
+		warnings << tr("FPS mismatch: bron ~%1 fps, ingestelde frame rate %2 fps.")
+				.arg(sourceFpsHint, 0, 'f', 3)
+				.arg(selectedFps, 0, 'f', 3);
+	}
 	if(ui->outputVideoCheckBox->isChecked())
 	{
 		const QString videoPath = ui->videoOutputFilenameEdit->text().trimmed();
@@ -8857,6 +8865,12 @@ void MainWindow::on_audioOnlyQualityPresetComboBox_currentIndexChanged(int index
 
 	UpdateAudioQualityPresetFromControls();
 	SaveDefaultsAudio();
+}
+
+void MainWindow::on_filmrate_PD_currentIndexChanged(int index)
+{
+	Q_UNUSED(index);
+	UpdateVideoExportControls();
 }
 
 void MainWindow::on_filerate_PD_currentIndexChanged(int index)
