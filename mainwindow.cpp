@@ -8441,6 +8441,8 @@ void MainWindow::on_queueExtractButton_clicked()
 	size_t processedCount = 0;
 	QStringList batchItemLines;
 	QStringList failedDetailLines;
+	QElapsedTimer batchTimer;
+	batchTimer.start();
 
 	while(!this->extractQueue.empty())
 	{
@@ -8448,10 +8450,24 @@ void MainWindow::on_queueExtractButton_clicked()
 		this->extractQueue.erase(this->extractQueue.begin());
 		UpdateQueueWidgets();
 
+		const double elapsedSec = std::max(0.0, batchTimer.elapsed() / 1000.0);
+		const int progressPct = int(std::round(
+				(100.0 * double(processedCount)) /
+				std::max<size_t>(1, initialTotal)));
+		QString etaText = "--:--";
+		if(processedCount > 0)
+		{
+			const double avgSecPerItem = elapsedSec / double(processedCount);
+			const double remainingSec =
+					avgSecPerItem * double(initialTotal - processedCount);
+			etaText = FormatEtaSeconds(remainingSec);
+		}
 		ui->queueBatchStatusLabel->setText(
-				tr("Batch bezig: item %1/%2")
+				tr("Batch bezig: item %1/%2 (%3%) - ETA %4")
 				.arg(processedCount + 1)
-				.arg(initialTotal));
+				.arg(initialTotal)
+				.arg(progressPct)
+				.arg(etaText));
 		qApp->processEvents();
 
 		bool sourceReady = this->NewSource(task.source, task.srcFormat);
@@ -8515,16 +8531,19 @@ void MainWindow::on_queueExtractButton_clicked()
 	}
 
 	const size_t pendingCount = this->extractQueue.size();
+	const double batchElapsedSec = std::max(0.0, batchTimer.elapsed() / 1000.0);
 	WriteQueueBatchReport(
 			initialTotal, successCount, failedCount, pendingCount, batchItemLines);
+	const QString reportSuffix = (queueBatchReportMode == QUEUE_BATCH_REPORT_OFF) ?
+			QString() :
+			tr(" Rapport opgeslagen.");
 	ui->queueBatchStatusLabel->setText(
-			tr("Batch klaar: %1 gelukt, %2 gefaald, %3 wachtend.%4")
+			tr("Batch klaar: %1 gelukt, %2 gefaald, %3 wachtend, duur %4.%5")
 			.arg(successCount)
 			.arg(failedCount)
 			.arg(pendingCount)
-			.arg(queueBatchReportMode == QUEUE_BATCH_REPORT_OFF ?
-					QString() :
-					tr(" Rapport opgeslagen.")));
+			.arg(FormatEtaSeconds(batchElapsedSec))
+			.arg(reportSuffix));
 	if(!failedDetailLines.isEmpty())
 	{
 		const QString failureDetailsText = failedDetailLines.join("\n");
