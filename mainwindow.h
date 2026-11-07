@@ -334,6 +334,7 @@ private slots:
 	void on_videoAvOffsetCheckBox_toggled(bool checked);
 	void on_outputRotationComboBox_currentIndexChanged(int index);
 	void on_videoExportModeComboBox_currentIndexChanged(int index);
+	void on_videoExportTargetProfileComboBox_currentIndexChanged(int index);
 	void on_videoExportResolutionComboBox_currentIndexChanged(int index);
 	void on_videoExportContainerComboBox_currentIndexChanged(int index);
 	void on_videoExportCodecComboBox_currentIndexChanged(int index);
@@ -365,6 +366,7 @@ private:
 	FrameTexture *outputFrameTexture;
 	bool isVideoMuxingRisky;
 	int videoExportMode;
+	int videoTargetProfileMode;
 	int videoContainerMode;
 	int videoCodecMode;
 	int videoResolutionMode;
@@ -415,6 +417,8 @@ private:
 	void ApplyVideoContainerExtensionToOutputFilename();
 	void LoadVideoExportSettings();
 	void SaveVideoExportSettings() const;
+	void ApplyVideoTargetProfile(int profileMode);
+	void UpdateVideoTargetProfileFromControls();
 	void UpdateVideoExportControls();
 	void UpdateAutoOptimizationControls();
 	QString RunFfmpegSelfTest(QString *errorOut = nullptr) const;

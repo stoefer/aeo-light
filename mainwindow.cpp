@@ -259,6 +259,14 @@ enum QueueBatchReportMode
 	QUEUE_BATCH_REPORT_BOTH = 3
 };
 
+enum VideoTargetProfileMode
+{
+	VIDEO_TARGET_PROFILE_CUSTOM = 0,
+	VIDEO_TARGET_PROFILE_QUICK_REVIEW = 1,
+	VIDEO_TARGET_PROFILE_WEB_SHARE = 2,
+	VIDEO_TARGET_PROFILE_ARCHIVE = 3
+};
+
 static QString ReadLastExportDirMain(const QString &key, const QString &fallback)
 {
 	QSettings settings;
@@ -1219,6 +1227,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
 	isVideoMuxingRisky = false;
 	videoExportMode = SIMPLE_EXPORT_STANDARD;
+	videoTargetProfileMode = VIDEO_TARGET_PROFILE_CUSTOM;
 	videoContainerMode = VIDEO_CONTAINER_MP4;
 	videoCodecMode = VIDEO_CODEC_H264;
 	videoResolutionMode = VIDEO_RESOLUTION_SOURCE;
@@ -3936,9 +3945,89 @@ void MainWindow::SaveVideoExportSettings() const
 	settings.endGroup();
 }
 
+void MainWindow::ApplyVideoTargetProfile(int profileMode)
+{
+	switch(ClampRangeInt(
+			profileMode,
+			VIDEO_TARGET_PROFILE_CUSTOM,
+			VIDEO_TARGET_PROFILE_ARCHIVE))
+	{
+	case VIDEO_TARGET_PROFILE_QUICK_REVIEW:
+		videoExportMode = SIMPLE_EXPORT_FAST;
+		videoContainerMode = VIDEO_CONTAINER_MP4;
+		videoCodecMode = VIDEO_CODEC_H264;
+		videoResolutionMode = VIDEO_RESOLUTION_1280X720;
+		videoPresetMode = 0;
+		videoQualityPercent = 60;
+		videoAudioBitrateKbps = 128;
+		break;
+	case VIDEO_TARGET_PROFILE_WEB_SHARE:
+		videoExportMode = SIMPLE_EXPORT_STANDARD;
+		videoContainerMode = VIDEO_CONTAINER_MP4;
+		videoCodecMode = VIDEO_CODEC_H264;
+		videoResolutionMode = VIDEO_RESOLUTION_1920X1080;
+		videoPresetMode = 1;
+		videoQualityPercent = 76;
+		videoAudioBitrateKbps = 160;
+		break;
+	case VIDEO_TARGET_PROFILE_ARCHIVE:
+		videoExportMode = SIMPLE_EXPORT_ULTRA;
+		videoContainerMode = VIDEO_CONTAINER_MOV;
+		videoCodecMode = VIDEO_CODEC_H264;
+		videoResolutionMode = VIDEO_RESOLUTION_SOURCE;
+		videoPresetMode = 2;
+		videoQualityPercent = 95;
+		videoAudioBitrateKbps = 320;
+		break;
+	case VIDEO_TARGET_PROFILE_CUSTOM:
+	default:
+		break;
+	}
+}
+
+void MainWindow::UpdateVideoTargetProfileFromControls()
+{
+	videoTargetProfileMode = VIDEO_TARGET_PROFILE_CUSTOM;
+	if(videoExportMode == SIMPLE_EXPORT_FAST &&
+			videoContainerMode == VIDEO_CONTAINER_MP4 &&
+			videoCodecMode == VIDEO_CODEC_H264 &&
+			videoResolutionMode == VIDEO_RESOLUTION_1280X720 &&
+			videoPresetMode == 0 &&
+			videoQualityPercent == 60 &&
+			videoAudioBitrateKbps == 128)
+	{
+		videoTargetProfileMode = VIDEO_TARGET_PROFILE_QUICK_REVIEW;
+		return;
+	}
+	if(videoExportMode == SIMPLE_EXPORT_STANDARD &&
+			videoContainerMode == VIDEO_CONTAINER_MP4 &&
+			videoCodecMode == VIDEO_CODEC_H264 &&
+			videoResolutionMode == VIDEO_RESOLUTION_1920X1080 &&
+			videoPresetMode == 1 &&
+			videoQualityPercent == 76 &&
+			videoAudioBitrateKbps == 160)
+	{
+		videoTargetProfileMode = VIDEO_TARGET_PROFILE_WEB_SHARE;
+		return;
+	}
+	if(videoExportMode == SIMPLE_EXPORT_ULTRA &&
+			videoContainerMode == VIDEO_CONTAINER_MOV &&
+			videoCodecMode == VIDEO_CODEC_H264 &&
+			videoResolutionMode == VIDEO_RESOLUTION_SOURCE &&
+			videoPresetMode == 2 &&
+			videoQualityPercent == 95 &&
+			videoAudioBitrateKbps == 320)
+	{
+		videoTargetProfileMode = VIDEO_TARGET_PROFILE_ARCHIVE;
+	}
+}
+
 void MainWindow::UpdateVideoExportControls()
 {
+	UpdateVideoTargetProfileFromControls();
+
 	QSignalBlocker blockMode(ui->videoExportModeComboBox);
+	QSignalBlocker blockTargetProfile(ui->videoExportTargetProfileComboBox);
 	QSignalBlocker blockContainer(ui->videoExportContainerComboBox);
 	QSignalBlocker blockCodec(ui->videoExportCodecComboBox);
 	QSignalBlocker blockResolution(ui->videoExportResolutionComboBox);
@@ -3953,6 +4042,11 @@ void MainWindow::UpdateVideoExportControls()
 
 	ui->videoExportModeComboBox->setCurrentIndex(
 			ClampRangeInt(videoExportMode, SIMPLE_EXPORT_FAST, SIMPLE_EXPORT_ULTRA));
+	ui->videoExportTargetProfileComboBox->setCurrentIndex(
+			ClampRangeInt(
+					videoTargetProfileMode,
+					VIDEO_TARGET_PROFILE_CUSTOM,
+					VIDEO_TARGET_PROFILE_ARCHIVE));
 	ui->videoExportContainerComboBox->setCurrentIndex(
 			ClampRangeInt(videoContainerMode, VIDEO_CONTAINER_MP4, VIDEO_CONTAINER_MKV));
 	ui->videoExportCodecComboBox->setCurrentIndex(
@@ -3984,13 +4078,20 @@ void MainWindow::UpdateVideoExportControls()
 	static const char *codecNames[] = {
 		"H.264", "HEVC", "MPEG-4"
 	};
+	static const char *profileNames[] = {
+		"Aangepast",
+		"Snelle review",
+		"Web share",
+		"Archiefkwaliteit"
+	};
 	static const char *presetNames[] = {
 		"Sneller", "Gebalanceerd", "Langzamer"
 	};
 
 	ui->videoExportQualityValueLabel->setText(
 			QString("%1%").arg(videoQualityPercent));
-	QString summaryText = tr("Actief: %1, %2, %3, %4, preset %5, kwaliteit %6%, audio %7 kbps.")
+	QString summaryText = tr("Profiel: %1.\nActief: %2, %3, %4, %5, preset %6, kwaliteit %7%, audio %8 kbps.")
+			.arg(profileNames[ClampRangeInt(videoTargetProfileMode, 0, 3)])
 			.arg(modeNames[ClampRangeInt(videoExportMode, 0, 3)])
 			.arg(containerNames[ClampRangeInt(videoContainerMode, 0, 2)])
 			.arg(codecNames[ClampRangeInt(videoCodecMode, 0, 2)])
@@ -8544,6 +8645,22 @@ void MainWindow::on_outputRotationComboBox_currentIndexChanged(int index)
 void MainWindow::on_videoExportModeComboBox_currentIndexChanged(int index)
 {
 	videoExportMode = ClampRangeInt(index, SIMPLE_EXPORT_FAST, SIMPLE_EXPORT_ULTRA);
+	SaveVideoExportSettings();
+	UpdateVideoExportControls();
+}
+
+void MainWindow::on_videoExportTargetProfileComboBox_currentIndexChanged(int index)
+{
+	videoTargetProfileMode = ClampRangeInt(
+			index,
+			VIDEO_TARGET_PROFILE_CUSTOM,
+			VIDEO_TARGET_PROFILE_ARCHIVE);
+	if(videoTargetProfileMode != VIDEO_TARGET_PROFILE_CUSTOM)
+	{
+		ApplyVideoTargetProfile(videoTargetProfileMode);
+		ApplyVideoContainerExtensionToOutputFilename();
+		SaveExtractOutputSettings();
+	}
 	SaveVideoExportSettings();
 	UpdateVideoExportControls();
 }

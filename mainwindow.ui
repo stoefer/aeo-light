@@ -1607,7 +1607,41 @@
             </item>
            </layout>
           </item>
-          <item row="10" column="0" colspan="3">
+          <item row="10" column="0">
+           <widget class="QLabel" name="videoExportTargetProfileLabel">
+            <property name="text">
+             <string>Exportprofiel</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item row="10" column="1" colspan="2">
+           <widget class="QComboBox" name="videoExportTargetProfileComboBox">
+            <item>
+             <property name="text">
+              <string>Aangepast</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Snelle review</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Web share</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Archiefkwaliteit</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item row="11" column="0" colspan="3">
            <widget class="QGroupBox" name="autoOptimizeGroupBox">
             <property name="title">
              <string>Automatische kleur/contrast/helderheid</string>
@@ -3656,6 +3690,7 @@ QPushButton:disabled {
   <tabstop>CalEnableCB</tabstop>
   <tabstop>imageDefaultsButton</tabstop>
   <tabstop>videoExportModeComboBox</tabstop>
+  <tabstop>videoExportTargetProfileComboBox</tabstop>
   <tabstop>videoExportContainerComboBox</tabstop>
   <tabstop>videoExportCodecComboBox</tabstop>
   <tabstop>videoExportResolutionComboBox</tabstop>
