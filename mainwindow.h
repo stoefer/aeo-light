@@ -302,6 +302,8 @@ private slots:
 	void on_queueLoadPresetButton_clicked();
 	void on_queueDeletePresetButton_clicked();
 	void on_queueBatchReportModeComboBox_currentIndexChanged(int index);
+	void on_queuePauseResumeButton_clicked();
+	void on_queueSkipCurrentButton_clicked();
 	void on_queueExtractButton_clicked();
 
 	void on_soundtrackDefaultsButton_clicked();
@@ -396,6 +398,8 @@ private:
 	bool audioQualityPresetSyncLock;
 	bool audioOnlyQualityPresetSyncLock;
 	bool queueBatchRunning;
+	bool queueBatchPaused;
+	bool queueBatchSkipRequested;
 	std::vector<ExtractTask> failedQueueItems;
 	QString lastExtractFailureReason;
 	bool autoOptimizeFramesEnabled;
@@ -463,6 +467,7 @@ private:
 			size_t totalCount,
 			size_t successCount,
 			size_t failedCount,
+			size_t skippedCount,
 			size_t pendingCount,
 			double elapsedSec,
 			const QMap<QString, int> &failureReasonCounts,

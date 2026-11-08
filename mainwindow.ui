@@ -3012,6 +3012,26 @@ QPushButton:disabled {
          </spacer>
         </item>
         <item>
+         <widget class="QPushButton" name="queuePauseResumeButton">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="text">
+           <string>Pause Batch</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="queueSkipCurrentButton">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="text">
+           <string>Skip Current</string>
+          </property>
+         </widget>
+        </item>
+        <item>
          <widget class="QPushButton" name="queueRetryFailedButton">
           <property name="enabled">
            <bool>false</bool>
@@ -3769,6 +3789,8 @@ QPushButton:disabled {
   <tabstop>queueLoadPresetButton</tabstop>
   <tabstop>queueDeletePresetButton</tabstop>
   <tabstop>queueBatchReportModeComboBox</tabstop>
+  <tabstop>queuePauseResumeButton</tabstop>
+  <tabstop>queueSkipCurrentButton</tabstop>
   <tabstop>queueRetryFailedButton</tabstop>
   <tabstop>queueExtractButton</tabstop>
   <tabstop>waveformZoomCheckBox</tabstop>

@@ -1263,6 +1263,8 @@ MainWindow::MainWindow(QWidget *parent) :
 	audioQualityPresetSyncLock = false;
 	audioOnlyQualityPresetSyncLock = false;
 	queueBatchRunning = false;
+	queueBatchPaused = false;
+	queueBatchSkipRequested = false;
 	lastExtractFailureReason.clear();
 	autoOptimizeFramesEnabled = false;
 	autoOptimizeVideoEnabled = false;
@@ -3124,6 +3126,7 @@ void MainWindow::WriteQueueBatchReport(
 		size_t totalCount,
 		size_t successCount,
 		size_t failedCount,
+		size_t skippedCount,
 		size_t pendingCount,
 		double elapsedSec,
 		const QMap<QString, int> &failureReasonCounts,
@@ -3197,6 +3200,7 @@ void MainWindow::WriteQueueBatchReport(
 			out << "Total = " << totalCount << "\n";
 			out << "Success = " << successCount << "\n";
 			out << "Failed = " << failedCount << "\n";
+			out << "Skipped = " << skippedCount << "\n";
 			out << "Pending = " << pendingCount << "\n";
 			out << "Processed = " << itemDurationsSec.size() << "\n";
 			out << "Elapsed seconds = " << QString::number(elapsedSec, 'f', 3) << "\n";
@@ -3246,6 +3250,7 @@ void MainWindow::WriteQueueBatchReport(
 			root.insert("total", static_cast<int>(totalCount));
 			root.insert("success", static_cast<int>(successCount));
 			root.insert("failed", static_cast<int>(failedCount));
+			root.insert("skipped", static_cast<int>(skippedCount));
 			root.insert("pending", static_cast<int>(pendingCount));
 			root.insert("processed", itemDurationsSec.size());
 			root.insert("elapsedSeconds", elapsedSec);
@@ -8151,6 +8156,12 @@ void MainWindow::UpdateQueueWidgets(void)
 	ui->queueSavePresetButton->setEnabled(queueIdle);
 	ui->queueLoadPresetButton->setEnabled(queueIdle);
 	ui->queueDeletePresetButton->setEnabled(queueIdle);
+	ui->queuePauseResumeButton->setEnabled(queueBatchRunning);
+	ui->queueSkipCurrentButton->setEnabled(queueBatchRunning);
+	ui->queuePauseResumeButton->setText(
+			queueBatchPaused ?
+					tr("Resume Batch") :
+					tr("Pause Batch"));
 }
 
 
@@ -8561,6 +8572,8 @@ void MainWindow::on_queueExtractButton_clicked()
 	}
 
 	queueBatchRunning = true;
+	queueBatchPaused = false;
+	queueBatchSkipRequested = false;
 	UpdateQueueWidgets();
 	bool retryFailedAfterDialog = false;
 
@@ -8572,6 +8585,7 @@ void MainWindow::on_queueExtractButton_clicked()
 	const size_t initialTotal = this->extractQueue.size();
 	size_t successCount = 0;
 	size_t failedCount = 0;
+	size_t skippedCount = 0;
 	size_t processedCount = 0;
 	QStringList batchItemLines;
 	QStringList failedDetailLines;
@@ -8582,6 +8596,15 @@ void MainWindow::on_queueExtractButton_clicked()
 
 	while(!this->extractQueue.empty())
 	{
+		while(queueBatchPaused)
+		{
+			ui->queueBatchStatusLabel->setText(
+					tr("Batch gepauzeerd: %1/%2 verwerkt. Klik Resume Batch om verder te gaan.")
+					.arg(processedCount)
+					.arg(initialTotal));
+			qApp->processEvents();
+		}
+
 		QElapsedTimer itemTimer;
 		itemTimer.start();
 		ExtractTask task = this->extractQueue.front();
@@ -8619,33 +8642,58 @@ void MainWindow::on_queueExtractButton_clicked()
 			  << currentRangeText
 			  << "]\n";
 
-		bool sourceReady = this->NewSource(task.source, task.srcFormat);
+		bool skippedByUser = false;
+		if(queueBatchSkipRequested)
+		{
+			queueBatchSkipRequested = false;
+			this->requestCancel = false;
+			skippedByUser = true;
+		}
+
+		bool sourceReady = false;
 		bool success = false;
 		QString outcome = tr("Mislukt");
 		QString failureReason;
-		if(sourceReady)
+		if(skippedByUser)
 		{
-			this->ExtractionParametersToGUI(task.params);
-			success = this->extractGL(task.output);
-			if(success)
-				outcome = tr("Gelukt");
-			else if(this->requestCancel)
-				outcome = tr("Geannuleerd");
-			if(!success)
-			{
-				failureReason = this->lastExtractFailureReason.trimmed();
-				if(failureReason.isEmpty())
-				{
-					failureReason = this->requestCancel ?
-							tr("Geannuleerd door gebruiker.") :
-							tr("Onbekende fout tijdens extractie.");
-				}
-			}
+			outcome = tr("Overgeslagen");
+			failureReason = tr("Handmatig overgeslagen door gebruiker.");
 		}
 		else
 		{
-			outcome = tr("Bron niet geladen");
-			failureReason = tr("Bron kon niet geladen worden.");
+			sourceReady = this->NewSource(task.source, task.srcFormat);
+			if(sourceReady)
+			{
+				this->ExtractionParametersToGUI(task.params);
+				success = this->extractGL(task.output);
+				if(success)
+					outcome = tr("Gelukt");
+				else if(queueBatchSkipRequested)
+				{
+					outcome = tr("Overgeslagen");
+					failureReason = tr("Handmatig overgeslagen door gebruiker.");
+					skippedByUser = true;
+					queueBatchSkipRequested = false;
+					this->requestCancel = false;
+				}
+				else if(this->requestCancel)
+					outcome = tr("Geannuleerd");
+				if(!success && !skippedByUser)
+				{
+					failureReason = this->lastExtractFailureReason.trimmed();
+					if(failureReason.isEmpty())
+					{
+						failureReason = this->requestCancel ?
+								tr("Geannuleerd door gebruiker.") :
+								tr("Onbekende fout tijdens extractie.");
+					}
+				}
+			}
+			else
+			{
+				outcome = tr("Bron niet geladen");
+				failureReason = tr("Bron kon niet geladen worden.");
+			}
 		}
 		const double itemElapsedSec = std::max(0.0, itemTimer.elapsed() / 1000.0);
 		itemDurationsSec.append(itemElapsedSec);
@@ -8665,6 +8713,10 @@ void MainWindow::on_queueExtractButton_clicked()
 		if(success)
 		{
 			++successCount;
+		}
+		else if(skippedByUser)
+		{
+			++skippedCount;
 		}
 		else
 		{
@@ -8702,6 +8754,7 @@ void MainWindow::on_queueExtractButton_clicked()
 			initialTotal,
 			successCount,
 			failedCount,
+			skippedCount,
 			pendingCount,
 			batchElapsedSec,
 			failureReasonCounts,
@@ -8733,16 +8786,18 @@ void MainWindow::on_queueExtractButton_clicked()
 				.arg(sortedFailureReasons.first().second);
 	}
 	const QString batchSummaryHeader =
-			tr("Batch samenvatting: %1 gelukt, %2 gefaald, %3 wachtend, duur %4, gem. %5s/item.")
+			tr("Batch samenvatting: %1 gelukt, %2 gefaald, %3 overgeslagen, %4 wachtend, duur %5, gem. %6s/item.")
 					.arg(successCount)
 					.arg(failedCount)
+					.arg(skippedCount)
 					.arg(pendingCount)
 					.arg(FormatEtaSeconds(batchElapsedSec))
 					.arg(QString::number(avgSecPerItem, 'f', 2));
 	ui->queueBatchStatusLabel->setText(
-			tr("Batch klaar: %1 gelukt, %2 gefaald, %3 wachtend, duur %4, gem. %5s/item, max %6s/item.%7%8")
+			tr("Batch klaar: %1 gelukt, %2 gefaald, %3 overgeslagen, %4 wachtend, duur %5, gem. %6s/item, max %7s/item.%8%9")
 			.arg(successCount)
 			.arg(failedCount)
+			.arg(skippedCount)
 			.arg(pendingCount)
 			.arg(FormatEtaSeconds(batchElapsedSec))
 			.arg(QString::number(avgSecPerItem, 'f', 2))
@@ -8892,6 +8947,8 @@ void MainWindow::on_queueExtractButton_clicked()
 					tr("Foutdetails zijn naar het klembord gekopieerd."));
 		}
 	}
+	queueBatchPaused = false;
+	queueBatchSkipRequested = false;
 	queueBatchRunning = false;
 	UpdateQueueWidgets();
 	if(retryFailedAfterDialog)
@@ -8901,6 +8958,8 @@ void MainWindow::on_queueExtractButton_clicked()
 	}
 	catch(const std::exception &e)
 	{
+		queueBatchPaused = false;
+		queueBatchSkipRequested = false;
 		queueBatchRunning = false;
 		UpdateQueueWidgets();
 		ui->queueBatchStatusLabel->setText(
@@ -8913,6 +8972,8 @@ void MainWindow::on_queueExtractButton_clicked()
 	}
 	catch(...)
 	{
+		queueBatchPaused = false;
+		queueBatchSkipRequested = false;
 		queueBatchRunning = false;
 		UpdateQueueWidgets();
 		ui->queueBatchStatusLabel->setText(
@@ -9377,6 +9438,34 @@ void MainWindow::on_queueBatchReportModeComboBox_currentIndexChanged(int index)
 	queueBatchReportMode = ClampRangeInt(
 			index, QUEUE_BATCH_REPORT_OFF, QUEUE_BATCH_REPORT_BOTH);
 	SaveExtractOutputSettings();
+}
+
+void MainWindow::on_queuePauseResumeButton_clicked()
+{
+	if(!queueBatchRunning)
+		return;
+	queueBatchPaused = !queueBatchPaused;
+	if(queueBatchPaused)
+	{
+		ui->queueBatchStatusLabel->setText(
+				tr("Batch gepauzeerd. Klik Resume Batch om verder te gaan."));
+	}
+	else
+	{
+		ui->queueBatchStatusLabel->setText(
+				tr("Batch hervat..."));
+	}
+	UpdateQueueWidgets();
+}
+
+void MainWindow::on_queueSkipCurrentButton_clicked()
+{
+	if(!queueBatchRunning)
+		return;
+	queueBatchSkipRequested = true;
+	this->requestCancel = true;
+	ui->queueBatchStatusLabel->setText(
+			tr("Batch: skip huidig item aangevraagd..."));
 }
 
 void MainWindow::on_videoExportTestFfmpegButton_clicked()
