@@ -8938,8 +8938,12 @@ void MainWindow::on_queueExtractButton_clicked()
 				tr("Kopieer JSON"),
 				QMessageBox::ActionRole);
 		QPushButton *openReportFolderButton = nullptr;
+		QPushButton *openReportFileButton = nullptr;
 		if(!generatedBatchReports.isEmpty())
 		{
+			openReportFileButton = batchWarn.addButton(
+					tr("Open laatste rapport"),
+					QMessageBox::ActionRole);
 			openReportFolderButton = batchWarn.addButton(
 					tr("Open rapportmap"),
 					QMessageBox::ActionRole);
@@ -9040,6 +9044,19 @@ void MainWindow::on_queueExtractButton_clicked()
 						tr("Map openen mislukt"),
 						tr("Kon rapportmap niet openen:\n%1")
 								.arg(QDir::toNativeSeparators(reportDir)));
+			}
+		}
+		else if(openReportFileButton &&
+				batchWarn.clickedButton() == openReportFileButton)
+		{
+			const QString reportPath = generatedBatchReports.last();
+			if(!QDesktopServices::openUrl(QUrl::fromLocalFile(reportPath)))
+			{
+				QMessageBox::warning(
+						this,
+						tr("Rapport openen mislukt"),
+						tr("Kon rapport niet openen:\n%1")
+								.arg(QDir::toNativeSeparators(reportPath)));
 			}
 		}
 	}
