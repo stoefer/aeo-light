@@ -8942,6 +8942,7 @@ void MainWindow::on_queueExtractButton_clicked()
 				QMessageBox::ActionRole);
 		QPushButton *openReportFolderButton = nullptr;
 		QPushButton *openReportFileButton = nullptr;
+		QPushButton *copyReportPathsButton = nullptr;
 		QPushButton *requeueSkippedButton = nullptr;
 		QPushButton *requeueAllUnsuccessfulButton = nullptr;
 		if(!generatedBatchReports.isEmpty())
@@ -8951,6 +8952,9 @@ void MainWindow::on_queueExtractButton_clicked()
 					QMessageBox::ActionRole);
 			openReportFolderButton = batchWarn.addButton(
 					tr("Open rapportmap"),
+					QMessageBox::ActionRole);
+			copyReportPathsButton = batchWarn.addButton(
+					tr("Kopieer rapportpaden"),
 					QMessageBox::ActionRole);
 		}
 		if(!skippedQueueItems.empty())
@@ -9079,6 +9083,19 @@ void MainWindow::on_queueExtractButton_clicked()
 						tr("Kon rapport niet openen:\n%1")
 								.arg(QDir::toNativeSeparators(reportPath)));
 			}
+		}
+		else if(copyReportPathsButton &&
+				batchWarn.clickedButton() == copyReportPathsButton)
+		{
+			QStringList reportPaths;
+			for(const QString &path : generatedBatchReports)
+				reportPaths << QDir::toNativeSeparators(path);
+			const QString reportPathsText = reportPaths.join("\n");
+			QApplication::clipboard()->setText(reportPathsText);
+			QMessageBox::information(
+					this,
+					tr("Rapportpaden gekopieerd"),
+					tr("De rapportpaden zijn naar het klembord gekopieerd."));
 		}
 		else if(requeueSkippedButton &&
 				batchWarn.clickedButton() == requeueSkippedButton)
