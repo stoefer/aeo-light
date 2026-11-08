@@ -8926,8 +8926,9 @@ void MainWindow::on_queueExtractButton_clicked()
 		QPushButton *retryFailedButton = nullptr;
 		if(hasFailures)
 		{
+			const int failedRetryCount = failedDetailLines.size();
 			retryFailedButton = batchWarn.addButton(
-					tr("Retry gefaalde items"),
+					tr("Retry gefaalde items (%1)").arg(failedRetryCount),
 					QMessageBox::AcceptRole);
 		}
 		QPushButton *saveDetailsButton = batchWarn.addButton(
@@ -8954,14 +8955,18 @@ void MainWindow::on_queueExtractButton_clicked()
 		}
 		if(!skippedQueueItems.empty())
 		{
+			const int skippedRetryCount = static_cast<int>(skippedQueueItems.size());
 			requeueSkippedButton = batchWarn.addButton(
-					tr("Zet overgeslagen terug in queue"),
+					tr("Zet overgeslagen terug in queue (%1)").arg(skippedRetryCount),
 					QMessageBox::ActionRole);
 		}
 		if(!failedQueueItems.empty() && !skippedQueueItems.empty())
 		{
+			const int unsuccessfulCount = static_cast<int>(
+					failedQueueItems.size() + skippedQueueItems.size());
 			requeueAllUnsuccessfulButton = batchWarn.addButton(
-					tr("Zet alle niet-gelukte terug in queue"),
+					tr("Zet alle niet-gelukte terug in queue (%1)")
+							.arg(unsuccessfulCount),
 					QMessageBox::ActionRole);
 		}
 		batchWarn.addButton(QMessageBox::Ok);
