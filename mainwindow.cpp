@@ -8602,6 +8602,7 @@ void MainWindow::on_queueExtractButton_clicked()
 	QStringList batchItemLines;
 	QStringList failedDetailLines;
 	QStringList skippedDetailLines;
+	std::vector<ExtractTask> skippedQueueItems;
 	QMap<QString, int> failureReasonCounts;
 	QList<double> itemDurationsSec;
 	QElapsedTimer batchTimer;
@@ -8730,6 +8731,7 @@ void MainWindow::on_queueExtractButton_clicked()
 		else if(skippedByUser)
 		{
 			++skippedCount;
+			skippedQueueItems.push_back(task);
 			QString skipLine = QString("%1 | frames %2-%3 | %4 | %5s | %6")
 					.arg(QFileInfo(task.source).fileName())
 					.arg(task.params.frameIn)
@@ -8939,6 +8941,7 @@ void MainWindow::on_queueExtractButton_clicked()
 				QMessageBox::ActionRole);
 		QPushButton *openReportFolderButton = nullptr;
 		QPushButton *openReportFileButton = nullptr;
+		QPushButton *requeueSkippedButton = nullptr;
 		if(!generatedBatchReports.isEmpty())
 		{
 			openReportFileButton = batchWarn.addButton(
@@ -8946,6 +8949,12 @@ void MainWindow::on_queueExtractButton_clicked()
 					QMessageBox::ActionRole);
 			openReportFolderButton = batchWarn.addButton(
 					tr("Open rapportmap"),
+					QMessageBox::ActionRole);
+		}
+		if(!skippedQueueItems.empty())
+		{
+			requeueSkippedButton = batchWarn.addButton(
+					tr("Zet overgeslagen terug in queue"),
 					QMessageBox::ActionRole);
 		}
 		batchWarn.addButton(QMessageBox::Ok);
@@ -9058,6 +9067,25 @@ void MainWindow::on_queueExtractButton_clicked()
 						tr("Kon rapport niet openen:\n%1")
 								.arg(QDir::toNativeSeparators(reportPath)));
 			}
+		}
+		else if(requeueSkippedButton &&
+				batchWarn.clickedButton() == requeueSkippedButton)
+		{
+			std::vector<ExtractTask> merged = skippedQueueItems;
+			merged.insert(merged.end(), extractQueue.begin(), extractQueue.end());
+			if(merged.size() > 5)
+			{
+				merged.resize(5);
+				QMessageBox::information(
+						this,
+						tr("Queue limiet"),
+						tr("Alleen de eerste 5 items konden in de queue worden gezet."));
+			}
+			extractQueue = merged;
+			UpdateQueueWidgets();
+			ui->queueBatchStatusLabel->setText(
+					tr("Batch status: %1 overgeslagen item(s) terug in de queue gezet.")
+							.arg(skippedQueueItems.size()));
 		}
 	}
 	queueBatchPaused = false;
