@@ -3106,19 +3106,30 @@ void MainWindow::RetryFailedQueueItems()
 
 	std::vector<ExtractTask> merged = failedQueueItems;
 	merged.insert(merged.end(), extractQueue.begin(), extractQueue.end());
+	const size_t requestedCount = merged.size();
+	size_t droppedCount = 0;
 	if(merged.size() > 5)
 	{
+		droppedCount = merged.size() - 5;
 		merged.resize(5);
 		QMessageBox::information(
 				this,
 				tr("Queue limiet"),
-				tr("Retry past alleen de eerste 5 items toe (queue-limiet)."));
+				tr("Retry toegevoegd: %1 item(s). %2 item(s) niet toegevoegd door queue-limiet.")
+						.arg(merged.size())
+						.arg(droppedCount));
 	}
 	extractQueue = merged;
 	failedQueueItems.clear();
 	UpdateQueueWidgets();
-	ui->queueBatchStatusLabel->setText(
-			tr("Batch status: retry van gefaalde items gestart."));
+	QString retryStatus = tr("Batch status: retry van gefaalde items gestart (%1/%2 in queue).")
+			.arg(extractQueue.size())
+			.arg(requestedCount);
+	if(droppedCount > 0)
+	{
+		retryStatus += tr(" %1 item(s) over limiet.").arg(droppedCount);
+	}
+	ui->queueBatchStatusLabel->setText(retryStatus);
 	on_queueExtractButton_clicked();
 }
 
@@ -9102,19 +9113,30 @@ void MainWindow::on_queueExtractButton_clicked()
 		{
 			std::vector<ExtractTask> merged = skippedQueueItems;
 			merged.insert(merged.end(), extractQueue.begin(), extractQueue.end());
+			const size_t requestedCount = merged.size();
+			size_t droppedCount = 0;
 			if(merged.size() > 5)
 			{
+				droppedCount = merged.size() - 5;
 				merged.resize(5);
 				QMessageBox::information(
 						this,
 						tr("Queue limiet"),
-						tr("Alleen de eerste 5 items konden in de queue worden gezet."));
+						tr("Queue toegevoegd: %1 item(s). %2 item(s) niet toegevoegd door queue-limiet.")
+								.arg(merged.size())
+								.arg(droppedCount));
 			}
 			extractQueue = merged;
 			UpdateQueueWidgets();
-			ui->queueBatchStatusLabel->setText(
-					tr("Batch status: %1 overgeslagen item(s) terug in de queue gezet.")
-							.arg(skippedQueueItems.size()));
+			QString requeueStatus = tr("Batch status: %1 overgeslagen item(s) terug in de queue gezet (%2/%3).")
+					.arg(skippedQueueItems.size())
+					.arg(extractQueue.size())
+					.arg(requestedCount);
+			if(droppedCount > 0)
+			{
+				requeueStatus += tr(" %1 item(s) over limiet.").arg(droppedCount);
+			}
+			ui->queueBatchStatusLabel->setText(requeueStatus);
 		}
 		else if(requeueAllUnsuccessfulButton &&
 				batchWarn.clickedButton() == requeueAllUnsuccessfulButton)
@@ -9127,21 +9149,32 @@ void MainWindow::on_queueExtractButton_clicked()
 					skippedQueueItems.begin(),
 					skippedQueueItems.end());
 			merged.insert(merged.end(), extractQueue.begin(), extractQueue.end());
+			const size_t requestedCount = merged.size();
+			size_t droppedCount = 0;
 			if(merged.size() > 5)
 			{
+				droppedCount = merged.size() - 5;
 				merged.resize(5);
 				QMessageBox::information(
 						this,
 						tr("Queue limiet"),
-						tr("Alleen de eerste 5 items konden in de queue worden gezet."));
+						tr("Queue toegevoegd: %1 item(s). %2 item(s) niet toegevoegd door queue-limiet.")
+								.arg(merged.size())
+								.arg(droppedCount));
 			}
 			extractQueue = merged;
 			failedQueueItems.clear();
 			UpdateQueueWidgets();
-			ui->queueBatchStatusLabel->setText(
-					tr("Batch status: %1 gefaalde en %2 overgeslagen item(s) terug in de queue gezet.")
-							.arg(failedRequeueCount)
-							.arg(skippedRequeueCount));
+			QString requeueAllStatus = tr("Batch status: %1 gefaalde en %2 overgeslagen item(s) terug in de queue gezet (%3/%4).")
+					.arg(failedRequeueCount)
+					.arg(skippedRequeueCount)
+					.arg(extractQueue.size())
+					.arg(requestedCount);
+			if(droppedCount > 0)
+			{
+				requeueAllStatus += tr(" %1 item(s) over limiet.").arg(droppedCount);
+			}
+			ui->queueBatchStatusLabel->setText(requeueAllStatus);
 		}
 	}
 	queueBatchPaused = false;
