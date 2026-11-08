@@ -3125,6 +3125,7 @@ void MainWindow::WriteQueueBatchReport(
 		size_t failedCount,
 		size_t pendingCount,
 		double elapsedSec,
+		const QMap<QString, int> &failureReasonCounts,
 		const QStringList &itemLines) const
 {
 	const int mode = ClampRangeInt(
@@ -3167,6 +3168,27 @@ void MainWindow::WriteQueueBatchReport(
 							elapsedSec / std::max<double>(1.0, double(totalCount)),
 							'f',
 							3) << "\n";
+			if(!failureReasonCounts.isEmpty())
+			{
+				QString topReason;
+				int topReasonCount = 0;
+				out << "Failure reason counts:\n";
+				for(auto it = failureReasonCounts.constBegin();
+						it != failureReasonCounts.constEnd(); ++it)
+				{
+					out << " - " << it.key() << " = " << it.value() << "\n";
+					if(it.value() > topReasonCount)
+					{
+						topReason = it.key();
+						topReasonCount = it.value();
+					}
+				}
+				if(topReasonCount > 0)
+				{
+					out << "Top failure reason = " << topReason
+						<< " (" << topReasonCount << "x)\n";
+				}
+			}
 			out << "\nItems:\n";
 			for(const QString &line : itemLines)
 				out << " - " << line << "\n";
@@ -3191,6 +3213,27 @@ void MainWindow::WriteQueueBatchReport(
 			root.insert(
 					"avgSecondsPerItem",
 					elapsedSec / std::max<double>(1.0, double(totalCount)));
+			QJsonObject reasonCountsObj;
+			QString topReason;
+			int topReasonCount = 0;
+			for(auto it = failureReasonCounts.constBegin();
+					it != failureReasonCounts.constEnd(); ++it)
+			{
+				reasonCountsObj.insert(it.key(), it.value());
+				if(it.value() > topReasonCount)
+				{
+					topReason = it.key();
+					topReasonCount = it.value();
+				}
+			}
+			root.insert("failureReasonCounts", reasonCountsObj);
+			if(topReasonCount > 0)
+			{
+				QJsonObject topFailure;
+				topFailure.insert("reason", topReason);
+				topFailure.insert("count", topReasonCount);
+				root.insert("topFailureReason", topFailure);
+			}
 			QJsonArray items;
 			for(const QString &line : itemLines)
 				items.append(line);
@@ -8599,6 +8642,7 @@ void MainWindow::on_queueExtractButton_clicked()
 			failedCount,
 			pendingCount,
 			batchElapsedSec,
+			failureReasonCounts,
 			batchItemLines);
 	const QString reportSuffix = (queueBatchReportMode == QUEUE_BATCH_REPORT_OFF) ?
 			QString() :

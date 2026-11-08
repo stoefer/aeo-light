@@ -463,6 +463,7 @@ private:
 			size_t failedCount,
 			size_t pendingCount,
 			double elapsedSec,
+			const QMap<QString, int> &failureReasonCounts,
 			const QStringList &itemLines) const;
 	void WriteSingleExportReport(
 			const QString &audioPath,
