@@ -463,7 +463,7 @@ private:
 	void LoadQueuePreset();
 	void DeleteQueuePreset();
 	void RetryFailedQueueItems();
-	void WriteQueueBatchReport(
+	QStringList WriteQueueBatchReport(
 			size_t totalCount,
 			size_t successCount,
 			size_t failedCount,

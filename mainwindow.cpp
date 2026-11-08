@@ -3122,7 +3122,7 @@ void MainWindow::RetryFailedQueueItems()
 	on_queueExtractButton_clicked();
 }
 
-void MainWindow::WriteQueueBatchReport(
+QStringList MainWindow::WriteQueueBatchReport(
 		size_t totalCount,
 		size_t successCount,
 		size_t failedCount,
@@ -3173,7 +3173,7 @@ void MainWindow::WriteQueueBatchReport(
 			QUEUE_BATCH_REPORT_OFF,
 			QUEUE_BATCH_REPORT_BOTH);
 	if(mode == QUEUE_BATCH_REPORT_OFF)
-		return;
+		return QStringList();
 
 	QString baseDir = prevExportDir;
 	if(baseDir.isEmpty())
@@ -3305,10 +3305,11 @@ void MainWindow::WriteQueueBatchReport(
 	}
 
 	if(generatedFiles.isEmpty())
-		return;
+		return generatedFiles;
 
 	Log() << "Batch report saved: "
 		  << generatedFiles.join(", ") << "\n";
+	return generatedFiles;
 }
 
 void MainWindow::WriteSingleExportReport(
@@ -8772,7 +8773,7 @@ void MainWindow::on_queueExtractButton_clicked()
 	const double maxSecPerItem = itemDurationsSec.isEmpty() ?
 			0.0 :
 			*std::max_element(itemDurationsSec.constBegin(), itemDurationsSec.constEnd());
-	WriteQueueBatchReport(
+	const QStringList generatedBatchReports = WriteQueueBatchReport(
 			initialTotal,
 			successCount,
 			failedCount,
@@ -8783,7 +8784,7 @@ void MainWindow::on_queueExtractButton_clicked()
 			itemDurationsSec,
 			skippedDetailLines,
 			batchItemLines);
-	const QString reportSuffix = (queueBatchReportMode == QUEUE_BATCH_REPORT_OFF) ?
+	const QString reportSuffix = generatedBatchReports.isEmpty() ?
 			QString() :
 			tr(" Rapport opgeslagen.");
 	QList<QPair<QString, int>> sortedFailureReasons;
@@ -8936,6 +8937,13 @@ void MainWindow::on_queueExtractButton_clicked()
 		QPushButton *copyJsonButton = batchWarn.addButton(
 				tr("Kopieer JSON"),
 				QMessageBox::ActionRole);
+		QPushButton *openReportFolderButton = nullptr;
+		if(!generatedBatchReports.isEmpty())
+		{
+			openReportFolderButton = batchWarn.addButton(
+					tr("Open rapportmap"),
+					QMessageBox::ActionRole);
+		}
 		batchWarn.addButton(QMessageBox::Ok);
 		batchWarn.exec();
 		if(retryFailedButton && batchWarn.clickedButton() == retryFailedButton)
@@ -9019,6 +9027,20 @@ void MainWindow::on_queueExtractButton_clicked()
 					this,
 					tr("JSON gekopieerd"),
 					tr("Batch-resultaatdetails (JSON) zijn naar het klembord gekopieerd."));
+		}
+		else if(openReportFolderButton &&
+				batchWarn.clickedButton() == openReportFolderButton)
+		{
+			const QString reportDir =
+					QFileInfo(generatedBatchReports.first()).absolutePath();
+			if(!QDesktopServices::openUrl(QUrl::fromLocalFile(reportDir)))
+			{
+				QMessageBox::warning(
+						this,
+						tr("Map openen mislukt"),
+						tr("Kon rapportmap niet openen:\n%1")
+								.arg(QDir::toNativeSeparators(reportDir)));
+			}
 		}
 	}
 	queueBatchPaused = false;
