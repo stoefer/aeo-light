@@ -473,7 +473,7 @@ private:
 			const QMap<QString, int> &failureReasonCounts,
 			const QList<double> &itemDurationsSec,
 			const QStringList &skippedItemLines,
-			const QStringList &itemLines) const;
+			const QStringList &itemLines);
 	void WriteSingleExportReport(
 			const QString &audioPath,
 			const QString &videoPath,
@@ -483,7 +483,7 @@ private:
 			long numFrames,
 			double elapsedSec,
 			const QString &timingMsg,
-			const QString &processMsg) const;
+			const QString &processMsg);
 	void ApplyThemeFromSettings();
 	void PositionPreviewWindowBesideMainWindow();
 

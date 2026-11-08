@@ -3144,7 +3144,7 @@ QStringList MainWindow::WriteQueueBatchReport(
 		const QMap<QString, int> &failureReasonCounts,
 		const QList<double> &itemDurationsSec,
 		const QStringList &skippedItemLines,
-		const QStringList &itemLines) const
+		const QStringList &itemLines)
 {
 	double minItemSec = 0.0;
 	double maxItemSec = 0.0;
@@ -3333,7 +3333,7 @@ void MainWindow::WriteSingleExportReport(
 		long numFrames,
 		double elapsedSec,
 		const QString &timingMsg,
-		const QString &processMsg) const
+		const QString &processMsg)
 {
 	const int mode = ClampRangeInt(
 			exportReportMode,

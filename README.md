@@ -1,8 +1,13 @@
-# AEO-Light 3.1.37 (fork release)
+# AEO-Light 3.1.38 (fork release)
 
-Deze 3.1.37 patchrelease herstelt de Windows package-build in de release-workflow.
+Deze 3.1.38 patchrelease rondt de Windows package-buildfix af.
 
-## Nieuw in 3.1.37
+## Nieuw in 3.1.38
+- CI buildfix voor Windows/Qt5 strict compile:
+  - report-schrijfmethodes niet langer `const` zodat intern loggen (`Log()`) geldig compileert
+  - lost de CI-fout op (`passing 'const MainWindow' as 'this' argument discards qualifiers`)
+
+## Eerder toegevoegd in 3.1.37
 - Qt5-compatibiliteitsfix in `mainwindow.ui`:
   - `contentsMargins`-blok vervangen door expliciete `left/top/right/bottomMargin` properties
   - lost de CI-fout op (`uic: Unexpected element left`) tijdens Windows package-build
