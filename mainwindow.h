@@ -472,6 +472,7 @@ private:
 			double elapsedSec,
 			const QMap<QString, int> &failureReasonCounts,
 			const QList<double> &itemDurationsSec,
+			const QStringList &skippedItemLines,
 			const QStringList &itemLines) const;
 	void WriteSingleExportReport(
 			const QString &audioPath,

@@ -3131,6 +3131,7 @@ void MainWindow::WriteQueueBatchReport(
 		double elapsedSec,
 		const QMap<QString, int> &failureReasonCounts,
 		const QList<double> &itemDurationsSec,
+		const QStringList &skippedItemLines,
 		const QStringList &itemLines) const
 {
 	double minItemSec = 0.0;
@@ -3231,6 +3232,12 @@ void MainWindow::WriteQueueBatchReport(
 					<< sortedFailureReasons.first().second
 					<< "x)\n";
 			}
+			if(!skippedItemLines.isEmpty())
+			{
+				out << "\nSkipped items:\n";
+				for(const QString &line : skippedItemLines)
+					out << " - " << line << "\n";
+			}
 			out << "\nItems:\n";
 			for(const QString &line : itemLines)
 				out << " - " << line << "\n";
@@ -3282,6 +3289,10 @@ void MainWindow::WriteQueueBatchReport(
 				topFailure.insert("count", sortedFailureReasons.first().second);
 				root.insert("topFailureReason", topFailure);
 			}
+			QJsonArray skippedItems;
+			for(const QString &line : skippedItemLines)
+				skippedItems.append(line);
+			root.insert("skippedItems", skippedItems);
 			QJsonArray items;
 			for(const QString &line : itemLines)
 				items.append(line);
@@ -8589,6 +8600,7 @@ void MainWindow::on_queueExtractButton_clicked()
 	size_t processedCount = 0;
 	QStringList batchItemLines;
 	QStringList failedDetailLines;
+	QStringList skippedDetailLines;
 	QMap<QString, int> failureReasonCounts;
 	QList<double> itemDurationsSec;
 	QElapsedTimer batchTimer;
@@ -8717,6 +8729,16 @@ void MainWindow::on_queueExtractButton_clicked()
 		else if(skippedByUser)
 		{
 			++skippedCount;
+			QString skipLine = QString("%1 | frames %2-%3 | %4 | %5s | %6")
+					.arg(QFileInfo(task.source).fileName())
+					.arg(task.params.frameIn)
+					.arg(task.params.frameOut)
+					.arg(QDir::toNativeSeparators(task.output))
+					.arg(QString::number(itemElapsedSec, 'f', 2))
+					.arg(failureReason.trimmed().isEmpty() ?
+							tr("Handmatig overgeslagen door gebruiker.") :
+							failureReason.trimmed());
+			skippedDetailLines << skipLine;
 		}
 		else
 		{
@@ -8759,6 +8781,7 @@ void MainWindow::on_queueExtractButton_clicked()
 			batchElapsedSec,
 			failureReasonCounts,
 			itemDurationsSec,
+			skippedDetailLines,
 			batchItemLines);
 	const QString reportSuffix = (queueBatchReportMode == QUEUE_BATCH_REPORT_OFF) ?
 			QString() :
@@ -8804,9 +8827,10 @@ void MainWindow::on_queueExtractButton_clicked()
 			.arg(QString::number(maxSecPerItem, 'f', 2))
 			.arg(reportSuffix)
 			.arg(topFailureSuffix));
-	if(!failedDetailLines.isEmpty())
+	if(!failedDetailLines.isEmpty() || !skippedDetailLines.isEmpty())
 	{
 		const QString failureDetailsText = failedDetailLines.join("\n");
+		const QString skippedDetailsText = skippedDetailLines.join("\n");
 		QStringList reasonLines;
 		for(const QPair<QString, int> &entry : sortedFailureReasons)
 		{
@@ -8818,30 +8842,58 @@ void MainWindow::on_queueExtractButton_clicked()
 				QString() :
 				tr("Fouttypes:\n- %1").arg(reasonLines.join("\n- "));
 		const QString batchTimestamp = QDateTime::currentDateTime().toString(Qt::ISODate);
-		QString copyText = tr("Batch fouten (%1)\nTimestamp: %2\n%3")
+		QString copyText = tr("Batch resultaten (fouten: %1, overgeslagen: %2)\nTimestamp: %3\n%4")
 				.arg(failedDetailLines.size())
+				.arg(skippedDetailLines.size())
 				.arg(batchTimestamp)
 				.arg(batchSummaryHeader);
 		if(!reasonSummary.isEmpty())
 			copyText += QString("\n%1").arg(reasonSummary);
-		copyText += QString("\n\n%1").arg(failureDetailsText);
+		if(!failureDetailsText.isEmpty())
+			copyText += QString("\n\nMislukte items:\n%1").arg(failureDetailsText);
+		if(!skippedDetailsText.isEmpty())
+			copyText += QString("\n\nOvergeslagen items:\n%1").arg(skippedDetailsText);
 		QMessageBox batchWarn(this);
-		batchWarn.setIcon(this->requestCancel ?
+		const bool hasFailures = !failedDetailLines.isEmpty();
+		batchWarn.setIcon((this->requestCancel || !hasFailures) ?
 				QMessageBox::Information :
 				QMessageBox::Warning);
 		batchWarn.setWindowTitle(this->requestCancel ?
 				tr("Batch onderbroken") :
-				tr("Batch voltooid met fouten"));
-		batchWarn.setText(tr("%1 item(s) gefaald. Open Details voor foutredenen.")
-				.arg(failedDetailLines.size()));
+				(hasFailures ? tr("Batch voltooid met fouten") :
+					tr("Batch voltooid met overgeslagen items")));
+		if(hasFailures)
+		{
+			batchWarn.setText(tr("%1 item(s) gefaald, %2 overgeslagen. Open Details voor uitsplitsing.")
+					.arg(failedDetailLines.size())
+					.arg(skippedDetailLines.size()));
+		}
+		else
+		{
+			batchWarn.setText(tr("%1 item(s) overgeslagen. Open Details voor uitsplitsing.")
+					.arg(skippedDetailLines.size()));
+		}
 		QString informative = batchSummaryHeader;
 		if(!reasonSummary.isEmpty())
 			informative += QString("\n%1").arg(reasonSummary);
 		batchWarn.setInformativeText(informative);
-		batchWarn.setDetailedText(failureDetailsText);
-		QPushButton *retryFailedButton = batchWarn.addButton(
-				tr("Retry gefaalde items"),
-				QMessageBox::AcceptRole);
+		QString detailsText;
+		if(!failureDetailsText.isEmpty())
+			detailsText += tr("Mislukte items:\n%1").arg(failureDetailsText);
+		if(!skippedDetailsText.isEmpty())
+		{
+			if(!detailsText.isEmpty())
+				detailsText += "\n\n";
+			detailsText += tr("Overgeslagen items:\n%1").arg(skippedDetailsText);
+		}
+		batchWarn.setDetailedText(detailsText);
+		QPushButton *retryFailedButton = nullptr;
+		if(hasFailures)
+		{
+			retryFailedButton = batchWarn.addButton(
+					tr("Retry gefaalde items"),
+					QMessageBox::AcceptRole);
+		}
 		QPushButton *saveDetailsButton = batchWarn.addButton(
 				tr("Bewaar details..."),
 				QMessageBox::ActionRole);
@@ -8850,7 +8902,7 @@ void MainWindow::on_queueExtractButton_clicked()
 				QMessageBox::ActionRole);
 		batchWarn.addButton(QMessageBox::Ok);
 		batchWarn.exec();
-		if(batchWarn.clickedButton() == retryFailedButton)
+		if(retryFailedButton && batchWarn.clickedButton() == retryFailedButton)
 		{
 			retryFailedAfterDialog = true;
 		}
@@ -8895,6 +8947,7 @@ void MainWindow::on_queueExtractButton_clicked()
 						root.insert("timestamp", batchTimestamp);
 						root.insert("successCount", static_cast<int>(successCount));
 						root.insert("failedCount", static_cast<int>(failedCount));
+						root.insert("skippedCount", static_cast<int>(skippedCount));
 						root.insert("pendingCount", static_cast<int>(pendingCount));
 						root.insert("elapsedSeconds", batchElapsedSec);
 						root.insert("avgSecondsPerItem", avgSecPerItem);
@@ -8912,6 +8965,10 @@ void MainWindow::on_queueExtractButton_clicked()
 						for(const QString &line : failedDetailLines)
 							failedItems.append(line);
 						root.insert("failedItems", failedItems);
+						QJsonArray skippedItems;
+						for(const QString &line : skippedDetailLines)
+							skippedItems.append(line);
+						root.insert("skippedItems", skippedItems);
 						outFile.write(
 								QJsonDocument(root).toJson(QJsonDocument::Indented));
 					}
