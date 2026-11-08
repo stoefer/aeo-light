@@ -8942,6 +8942,7 @@ void MainWindow::on_queueExtractButton_clicked()
 		QPushButton *openReportFolderButton = nullptr;
 		QPushButton *openReportFileButton = nullptr;
 		QPushButton *requeueSkippedButton = nullptr;
+		QPushButton *requeueAllUnsuccessfulButton = nullptr;
 		if(!generatedBatchReports.isEmpty())
 		{
 			openReportFileButton = batchWarn.addButton(
@@ -8955,6 +8956,12 @@ void MainWindow::on_queueExtractButton_clicked()
 		{
 			requeueSkippedButton = batchWarn.addButton(
 					tr("Zet overgeslagen terug in queue"),
+					QMessageBox::ActionRole);
+		}
+		if(!failedQueueItems.empty() && !skippedQueueItems.empty())
+		{
+			requeueAllUnsuccessfulButton = batchWarn.addButton(
+					tr("Zet alle niet-gelukte terug in queue"),
 					QMessageBox::ActionRole);
 		}
 		batchWarn.addButton(QMessageBox::Ok);
@@ -9086,6 +9093,33 @@ void MainWindow::on_queueExtractButton_clicked()
 			ui->queueBatchStatusLabel->setText(
 					tr("Batch status: %1 overgeslagen item(s) terug in de queue gezet.")
 							.arg(skippedQueueItems.size()));
+		}
+		else if(requeueAllUnsuccessfulButton &&
+				batchWarn.clickedButton() == requeueAllUnsuccessfulButton)
+		{
+			const size_t failedRequeueCount = failedQueueItems.size();
+			const size_t skippedRequeueCount = skippedQueueItems.size();
+			std::vector<ExtractTask> merged = failedQueueItems;
+			merged.insert(
+					merged.end(),
+					skippedQueueItems.begin(),
+					skippedQueueItems.end());
+			merged.insert(merged.end(), extractQueue.begin(), extractQueue.end());
+			if(merged.size() > 5)
+			{
+				merged.resize(5);
+				QMessageBox::information(
+						this,
+						tr("Queue limiet"),
+						tr("Alleen de eerste 5 items konden in de queue worden gezet."));
+			}
+			extractQueue = merged;
+			failedQueueItems.clear();
+			UpdateQueueWidgets();
+			ui->queueBatchStatusLabel->setText(
+					tr("Batch status: %1 gefaalde en %2 overgeslagen item(s) terug in de queue gezet.")
+							.arg(failedRequeueCount)
+							.arg(skippedRequeueCount));
 		}
 	}
 	queueBatchPaused = false;
