@@ -60,6 +60,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSysInfo>
 #include <QStorageInfo>
 #include <QScreen>
 #include <QSpinBox>
@@ -8864,9 +8865,17 @@ void MainWindow::on_queueExtractButton_clicked()
 					.arg(reasonLines.join("\n- "));
 		}
 		const QString batchTimestamp = QDateTime::currentDateTime().toString(Qt::ISODate);
+		const QString appVersion = Version();
+		const QString qtVersion = QString::fromLatin1(qVersion());
+		const QString osName = QSysInfo::prettyProductName();
+		const QString runtimeInfoText = tr("Runtime: %1 | Qt %2 | OS %3")
+				.arg(appVersion)
+				.arg(qtVersion)
+				.arg(osName);
 		QString summaryCopyText = tr("Batch samenvatting\nTimestamp: %1\n%2")
 				.arg(batchTimestamp)
 				.arg(batchSummaryHeader);
+		summaryCopyText += QString("\n%1").arg(runtimeInfoText);
 		if(!reasonSummary.isEmpty())
 			summaryCopyText += QString("\n%1").arg(reasonSummary);
 		QStringList reportPathsNative;
@@ -8883,6 +8892,7 @@ void MainWindow::on_queueExtractButton_clicked()
 				.arg(skippedDetailLines.size())
 				.arg(batchTimestamp)
 				.arg(batchSummaryHeader);
+		copyText += QString("\n%1").arg(runtimeInfoText);
 		if(!reasonSummary.isEmpty())
 			copyText += QString("\n%1").arg(reasonSummary);
 		if(!failureDetailsText.isEmpty())
@@ -8922,6 +8932,9 @@ void MainWindow::on_queueExtractButton_clicked()
 			root.insert("elapsedSeconds", batchElapsedSec);
 			root.insert("avgSecondsPerItem", avgSecPerItem);
 			root.insert("summary", batchSummaryHeader);
+			root.insert("appVersion", appVersion);
+			root.insert("qtVersion", qtVersion);
+			root.insert("os", osName);
 			if(!reasonSummary.isEmpty())
 				root.insert("reasonSummary", reasonSummary);
 			QJsonObject reasonCountsObj;
