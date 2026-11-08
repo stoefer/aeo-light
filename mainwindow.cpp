@@ -8855,6 +8855,13 @@ void MainWindow::on_queueExtractButton_clicked()
 		const QString reasonSummary = reasonLines.isEmpty() ?
 				QString() :
 				tr("Fouttypes:\n- %1").arg(reasonLines.join("\n- "));
+		QString reasonCopyText;
+		if(!reasonLines.isEmpty())
+		{
+			reasonCopyText = tr("Fouttypes (%1)\n- %2")
+					.arg(reasonLines.size())
+					.arg(reasonLines.join("\n- "));
+		}
 		const QString batchTimestamp = QDateTime::currentDateTime().toString(Qt::ISODate);
 		QString summaryCopyText = tr("Batch samenvatting\nTimestamp: %1\n%2")
 				.arg(batchTimestamp)
@@ -8886,6 +8893,22 @@ void MainWindow::on_queueExtractButton_clicked()
 			copyText += tr("\n\nRapportbestanden (%1):\n- %2")
 					.arg(reportPathsNative.size())
 					.arg(reportPathsNative.join("\n- "));
+		}
+		QString failedOnlyCopyText;
+		if(!failureDetailsText.isEmpty())
+		{
+			failedOnlyCopyText = tr("Mislukte items (%1)\nTimestamp: %2\n\n%3")
+					.arg(failedDetailLines.size())
+					.arg(batchTimestamp)
+					.arg(failureDetailsText);
+		}
+		QString skippedOnlyCopyText;
+		if(!skippedDetailsText.isEmpty())
+		{
+			skippedOnlyCopyText = tr("Overgeslagen items (%1)\nTimestamp: %2\n\n%3")
+					.arg(skippedDetailLines.size())
+					.arg(batchTimestamp)
+					.arg(skippedDetailsText);
 		}
 		const auto buildBatchDetailsJson = [&]() -> QJsonObject
 		{
@@ -8979,6 +9002,13 @@ void MainWindow::on_queueExtractButton_clicked()
 		QPushButton *copySummaryButton = batchWarn.addButton(
 				tr("Kopieer samenvatting"),
 				QMessageBox::ActionRole);
+		QPushButton *copyReasonsButton = nullptr;
+		if(!reasonLines.isEmpty())
+		{
+			copyReasonsButton = batchWarn.addButton(
+					tr("Kopieer fouttypes (%1)").arg(reasonLines.size()),
+					QMessageBox::ActionRole);
+		}
 		QPushButton *copyFailedOnlyButton = nullptr;
 		if(!failedDetailLines.isEmpty())
 		{
@@ -9116,10 +9146,19 @@ void MainWindow::on_queueExtractButton_clicked()
 					tr("Samenvatting gekopieerd"),
 					tr("Batch-samenvatting is naar het klembord gekopieerd."));
 		}
+		else if(copyReasonsButton &&
+				batchWarn.clickedButton() == copyReasonsButton)
+		{
+			QApplication::clipboard()->setText(reasonCopyText);
+			QMessageBox::information(
+					this,
+					tr("Fouttypes gekopieerd"),
+					tr("De fouttype-samenvatting is naar het klembord gekopieerd."));
+		}
 		else if(copyFailedOnlyButton &&
 				batchWarn.clickedButton() == copyFailedOnlyButton)
 		{
-			QApplication::clipboard()->setText(failureDetailsText);
+			QApplication::clipboard()->setText(failedOnlyCopyText);
 			QMessageBox::information(
 					this,
 					tr("Mislukte items gekopieerd"),
@@ -9128,7 +9167,7 @@ void MainWindow::on_queueExtractButton_clicked()
 		else if(copySkippedOnlyButton &&
 				batchWarn.clickedButton() == copySkippedOnlyButton)
 		{
-			QApplication::clipboard()->setText(skippedDetailsText);
+			QApplication::clipboard()->setText(skippedOnlyCopyText);
 			QMessageBox::information(
 					this,
 					tr("Overgeslagen items gekopieerd"),
