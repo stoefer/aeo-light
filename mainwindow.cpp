@@ -8519,6 +8519,10 @@ void MainWindow::on_queueExtractButton_clicked()
 
 	queueBatchRunning = true;
 	UpdateQueueWidgets();
+	bool retryFailedAfterDialog = false;
+
+	try
+	{
 	const bool stopAfterCurrent = ui->queueStopAfterCurrentCheckBox->isChecked();
 	failedQueueItems.clear();
 
@@ -8529,7 +8533,6 @@ void MainWindow::on_queueExtractButton_clicked()
 	QStringList batchItemLines;
 	QStringList failedDetailLines;
 	QMap<QString, int> failureReasonCounts;
-	bool retryFailedAfterDialog = false;
 	QElapsedTimer batchTimer;
 	batchTimer.start();
 
@@ -8831,6 +8834,30 @@ void MainWindow::on_queueExtractButton_clicked()
 	if(retryFailedAfterDialog)
 	{
 		QTimer::singleShot(0, this, [this]() { this->RetryFailedQueueItems(); });
+	}
+	}
+	catch(const std::exception &e)
+	{
+		queueBatchRunning = false;
+		UpdateQueueWidgets();
+		ui->queueBatchStatusLabel->setText(
+				tr("Batch status: afgebroken door onverwachte fout."));
+		QMessageBox::warning(
+				this,
+				tr("Batch afgebroken"),
+				tr("Onverwachte fout tijdens batch:\n%1")
+						.arg(QString::fromLocal8Bit(e.what())));
+	}
+	catch(...)
+	{
+		queueBatchRunning = false;
+		UpdateQueueWidgets();
+		ui->queueBatchStatusLabel->setText(
+				tr("Batch status: afgebroken door onverwachte fout."));
+		QMessageBox::warning(
+				this,
+				tr("Batch afgebroken"),
+				tr("Onverwachte fout tijdens batch (onbekende oorzaak)."));
 	}
 }
 
