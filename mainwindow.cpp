@@ -8830,17 +8830,18 @@ void MainWindow::on_queueExtractButton_clicked()
 					.arg(pendingCount)
 					.arg(FormatEtaSeconds(batchElapsedSec))
 					.arg(QString::number(avgSecPerItem, 'f', 2));
-	ui->queueBatchStatusLabel->setText(
+	const QString batchDoneStatusLine =
 			tr("Batch klaar: %1 gelukt, %2 gefaald, %3 overgeslagen, %4 wachtend, duur %5, gem. %6s/item, max %7s/item.%8%9")
-			.arg(successCount)
-			.arg(failedCount)
-			.arg(skippedCount)
-			.arg(pendingCount)
-			.arg(FormatEtaSeconds(batchElapsedSec))
-			.arg(QString::number(avgSecPerItem, 'f', 2))
-			.arg(QString::number(maxSecPerItem, 'f', 2))
-			.arg(reportSuffix)
-			.arg(topFailureSuffix));
+					.arg(successCount)
+					.arg(failedCount)
+					.arg(skippedCount)
+					.arg(pendingCount)
+					.arg(FormatEtaSeconds(batchElapsedSec))
+					.arg(QString::number(avgSecPerItem, 'f', 2))
+					.arg(QString::number(maxSecPerItem, 'f', 2))
+					.arg(reportSuffix)
+					.arg(topFailureSuffix);
+	ui->queueBatchStatusLabel->setText(batchDoneStatusLine);
 	if(!failedDetailLines.isEmpty() || !skippedDetailLines.isEmpty())
 	{
 		const QString failureDetailsText = failedDetailLines.join("\n");
@@ -8999,6 +9000,9 @@ void MainWindow::on_queueExtractButton_clicked()
 		QPushButton *saveDetailsButton = batchWarn.addButton(
 				tr("Bewaar details..."),
 				QMessageBox::ActionRole);
+		QPushButton *copyStatusLineButton = batchWarn.addButton(
+				tr("Kopieer statusregel"),
+				QMessageBox::ActionRole);
 		QPushButton *copySummaryButton = batchWarn.addButton(
 				tr("Kopieer samenvatting"),
 				QMessageBox::ActionRole);
@@ -9128,6 +9132,14 @@ void MainWindow::on_queueExtractButton_clicked()
 									.arg(QDir::toNativeSeparators(finalSavePath)));
 				}
 			}
+		}
+		else if(batchWarn.clickedButton() == copyStatusLineButton)
+		{
+			QApplication::clipboard()->setText(batchDoneStatusLine);
+			QMessageBox::information(
+					this,
+					tr("Statusregel gekopieerd"),
+					tr("De batch-statusregel is naar het klembord gekopieerd."));
 		}
 		else if(batchWarn.clickedButton() == copyDetailsButton)
 		{
