@@ -8549,6 +8549,10 @@ void MainWindow::on_queueExtractButton_clicked()
 				(100.0 * double(processedCount)) /
 				std::max<size_t>(1, initialTotal)));
 		QString etaText = "--:--";
+		const QString currentSourceName = QFileInfo(task.source).fileName();
+		const QString currentRangeText = QString("%1-%2")
+				.arg(task.params.frameIn)
+				.arg(task.params.frameOut);
 		if(processedCount > 0)
 		{
 			const double avgSecPerItem = elapsedSec / double(processedCount);
@@ -8557,12 +8561,19 @@ void MainWindow::on_queueExtractButton_clicked()
 			etaText = FormatEtaSeconds(remainingSec);
 		}
 		ui->queueBatchStatusLabel->setText(
-				tr("Batch bezig: item %1/%2 (%3%) - ETA %4")
+				tr("Batch bezig: item %1/%2 (%3%) - ETA %4 - %5 [%6]")
 				.arg(processedCount + 1)
 				.arg(initialTotal)
 				.arg(progressPct)
-				.arg(etaText));
+				.arg(etaText)
+				.arg(currentSourceName)
+				.arg(currentRangeText));
 		qApp->processEvents();
+		Log() << "Batch start item: "
+			  << currentSourceName
+			  << " ["
+			  << currentRangeText
+			  << "]\n";
 
 		bool sourceReady = this->NewSource(task.source, task.srcFormat);
 		bool success = false;
