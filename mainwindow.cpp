@@ -8856,6 +8856,11 @@ void MainWindow::on_queueExtractButton_clicked()
 				QString() :
 				tr("Fouttypes:\n- %1").arg(reasonLines.join("\n- "));
 		const QString batchTimestamp = QDateTime::currentDateTime().toString(Qt::ISODate);
+		QString summaryCopyText = tr("Batch samenvatting\nTimestamp: %1\n%2")
+				.arg(batchTimestamp)
+				.arg(batchSummaryHeader);
+		if(!reasonSummary.isEmpty())
+			summaryCopyText += QString("\n%1").arg(reasonSummary);
 		QString copyText = tr("Batch resultaten (fouten: %1, overgeslagen: %2)\nTimestamp: %3\n%4")
 				.arg(failedDetailLines.size())
 				.arg(skippedDetailLines.size())
@@ -8944,6 +8949,9 @@ void MainWindow::on_queueExtractButton_clicked()
 		}
 		QPushButton *saveDetailsButton = batchWarn.addButton(
 				tr("Bewaar details..."),
+				QMessageBox::ActionRole);
+		QPushButton *copySummaryButton = batchWarn.addButton(
+				tr("Kopieer samenvatting"),
 				QMessageBox::ActionRole);
 		QPushButton *copyDetailsButton = batchWarn.addButton(
 				tr("Kopieer details"),
@@ -9059,6 +9067,14 @@ void MainWindow::on_queueExtractButton_clicked()
 					this,
 					tr("Details gekopieerd"),
 					tr("Batch-resultaatdetails zijn naar het klembord gekopieerd."));
+		}
+		else if(batchWarn.clickedButton() == copySummaryButton)
+		{
+			QApplication::clipboard()->setText(summaryCopyText);
+			QMessageBox::information(
+					this,
+					tr("Samenvatting gekopieerd"),
+					tr("Batch-samenvatting is naar het klembord gekopieerd."));
 		}
 		else if(batchWarn.clickedButton() == copyJsonButton)
 		{
