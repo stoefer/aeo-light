@@ -8955,6 +8955,11 @@ void MainWindow::on_queueExtractButton_clicked()
 		const QByteArray copyJsonBytes =
 				QJsonDocument(buildBatchDetailsJson()).toJson(QJsonDocument::Indented);
 		const QString copyJsonText = QString::fromUtf8(copyJsonBytes);
+		QString supportBundleText = tr("AEO-Light batch support-pakket\nTimestamp: %1\n\nStatusregel:\n%2\n\n%3")
+				.arg(batchTimestamp)
+				.arg(batchDoneStatusLine)
+				.arg(copyText);
+		supportBundleText += tr("\n\nJSON details:\n%1").arg(copyJsonText);
 		QMessageBox batchWarn(this);
 		const bool hasFailures = !failedDetailLines.isEmpty();
 		batchWarn.setIcon((this->requestCancel || !hasFailures) ?
@@ -9005,6 +9010,9 @@ void MainWindow::on_queueExtractButton_clicked()
 				QMessageBox::ActionRole);
 		QPushButton *copySummaryButton = batchWarn.addButton(
 				tr("Kopieer samenvatting"),
+				QMessageBox::ActionRole);
+		QPushButton *copySupportBundleButton = batchWarn.addButton(
+				tr("Kopieer support-pakket"),
 				QMessageBox::ActionRole);
 		QPushButton *copyReasonsButton = nullptr;
 		if(!reasonLines.isEmpty())
@@ -9157,6 +9165,14 @@ void MainWindow::on_queueExtractButton_clicked()
 					this,
 					tr("Samenvatting gekopieerd"),
 					tr("Batch-samenvatting is naar het klembord gekopieerd."));
+		}
+		else if(batchWarn.clickedButton() == copySupportBundleButton)
+		{
+			QApplication::clipboard()->setText(supportBundleText);
+			QMessageBox::information(
+					this,
+					tr("Support-pakket gekopieerd"),
+					tr("Het batch support-pakket is naar het klembord gekopieerd."));
 		}
 		else if(copyReasonsButton &&
 				batchWarn.clickedButton() == copyReasonsButton)
