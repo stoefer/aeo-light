@@ -207,6 +207,13 @@ Deze 3.1.38 patchrelease rondt de Windows package-buildfix af.
 3. Start `AEO-Light.exe`.
 4. Als SmartScreen waarschuwt: klik **Meer informatie** → **Toch uitvoeren**.
 
+## Ultra-korte package checklist (5 punten)
+- [ ] Release-tag = `v3.1.38`.
+- [ ] Asset `AEO-Light-Windows-x64.zip` staat op de release.
+- [ ] ZIP uitgepakt naar een lokale map.
+- [ ] `AEO-Light.exe` start en toont versie **3.1.38**.
+- [ ] Korte **Test Run** slaagt en maakt output aan.
+
 ## Package checklist (v3.1.38, Windows x64)
 - [ ] Release-tag is `v3.1.38`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` is aanwezig op de releasepagina.
