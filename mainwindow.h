@@ -393,6 +393,7 @@ private:
 	bool applyingWindowLayout;
 	bool audioQualityPresetSyncLock;
 	bool audioOnlyQualityPresetSyncLock;
+	bool queueBatchRunning;
 	std::vector<ExtractTask> failedQueueItems;
 	QString lastExtractFailureReason;
 	bool autoOptimizeFramesEnabled;

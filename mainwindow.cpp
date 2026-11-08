@@ -1261,6 +1261,7 @@ MainWindow::MainWindow(QWidget *parent) :
 	applyingWindowLayout = false;
 	audioQualityPresetSyncLock = false;
 	audioOnlyQualityPresetSyncLock = false;
+	queueBatchRunning = false;
 	lastExtractFailureReason.clear();
 	autoOptimizeFramesEnabled = false;
 	autoOptimizeVideoEnabled = false;
@@ -3082,6 +3083,15 @@ void MainWindow::DeleteQueuePreset()
 
 void MainWindow::RetryFailedQueueItems()
 {
+	if(queueBatchRunning)
+	{
+		QMessageBox::information(
+				this,
+				tr("Batch bezig"),
+				tr("Wacht tot de huidige batch klaar is voor je Retry uitvoert."));
+		return;
+	}
+
 	if(failedQueueItems.empty())
 	{
 		QMessageBox::information(
@@ -7967,6 +7977,7 @@ void MainWindow::on_enqueueButton_clicked()
 void MainWindow::UpdateQueueWidgets(void)
 {
 	size_t i;
+	const bool queueIdle = !queueBatchRunning;
 
 	QLabel *label[5];
 	label[0] = ui->queue1Label;
@@ -8025,14 +8036,16 @@ void MainWindow::UpdateQueueWidgets(void)
 				arg(extractQueue[i].params.frameOut).
 				arg(QFileInfo(extractQueue[i].source).fileName()));
 		label[i]->setEnabled(true);
-		btn[i]->setEnabled(true);
-        loadBtn[i]->setEnabled(true);
-        updateBtn[i]->setEnabled(true);
-		duplicateBtn[i]->setEnabled(this->extractQueue.size() < 5);
-		upBtn[i]->setEnabled(i > 0);
-		downBtn[i]->setEnabled(i + 1 < this->extractQueue.size());
+		btn[i]->setEnabled(queueIdle);
+        loadBtn[i]->setEnabled(queueIdle);
+        updateBtn[i]->setEnabled(queueIdle);
+		duplicateBtn[i]->setEnabled(
+				queueIdle && this->extractQueue.size() < 5);
+		upBtn[i]->setEnabled(queueIdle && i > 0);
+		downBtn[i]->setEnabled(
+				queueIdle && i + 1 < this->extractQueue.size());
 	}
-	ui->queueExtractButton->setEnabled(i > 0);
+	ui->queueExtractButton->setEnabled(queueIdle && i > 0);
 	for(i=this->extractQueue.size(); i<5; ++i)
 	{
 		label[i]->setText("Not Set");
@@ -8044,8 +8057,14 @@ void MainWindow::UpdateQueueWidgets(void)
 		upBtn[i]->setEnabled(false);
 		downBtn[i]->setEnabled(false);
     }
-	ui->queueStopAfterCurrentCheckBox->setEnabled(!this->extractQueue.empty());
-	ui->queueRetryFailedButton->setEnabled(!failedQueueItems.empty());
+	ui->queueStopAfterCurrentCheckBox->setEnabled(
+			queueIdle && !this->extractQueue.empty());
+	ui->queueRetryFailedButton->setEnabled(
+			queueIdle && !failedQueueItems.empty());
+	ui->queueImportVFBClipsButton->setEnabled(queueIdle);
+	ui->queueSavePresetButton->setEnabled(queueIdle);
+	ui->queueLoadPresetButton->setEnabled(queueIdle);
+	ui->queueDeletePresetButton->setEnabled(queueIdle);
 }
 
 
@@ -8439,6 +8458,15 @@ void MainWindow::QueueImportVFB()
 
 void MainWindow::on_queueExtractButton_clicked()
 {
+	if(queueBatchRunning)
+	{
+		QMessageBox::information(
+				this,
+				tr("Batch bezig"),
+				tr("Er is al een batch bezig. Wacht tot die klaar is."));
+		return;
+	}
+
 	if(this->extractQueue.empty())
 	{
 		ui->queueBatchStatusLabel->setText(
@@ -8446,6 +8474,8 @@ void MainWindow::on_queueExtractButton_clicked()
 		return;
 	}
 
+	queueBatchRunning = true;
+	UpdateQueueWidgets();
 	const bool stopAfterCurrent = ui->queueStopAfterCurrentCheckBox->isChecked();
 	failedQueueItems.clear();
 
@@ -8456,6 +8486,7 @@ void MainWindow::on_queueExtractButton_clicked()
 	QStringList batchItemLines;
 	QStringList failedDetailLines;
 	QMap<QString, int> failureReasonCounts;
+	bool retryFailedAfterDialog = false;
 	QElapsedTimer batchTimer;
 	batchTimer.start();
 
@@ -8656,7 +8687,7 @@ void MainWindow::on_queueExtractButton_clicked()
 		batchWarn.exec();
 		if(batchWarn.clickedButton() == retryFailedButton)
 		{
-			RetryFailedQueueItems();
+			retryFailedAfterDialog = true;
 		}
 		else if(batchWarn.clickedButton() == saveDetailsButton)
 		{
@@ -8751,7 +8782,12 @@ void MainWindow::on_queueExtractButton_clicked()
 					tr("Foutdetails zijn naar het klembord gekopieerd."));
 		}
 	}
+	queueBatchRunning = false;
 	UpdateQueueWidgets();
+	if(retryFailedAfterDialog)
+	{
+		QTimer::singleShot(0, this, [this]() { this->RetryFailedQueueItems(); });
+	}
 }
 
 void MainWindow::on_soundtrackDefaultsButton_clicked()
