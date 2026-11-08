@@ -8979,6 +8979,20 @@ void MainWindow::on_queueExtractButton_clicked()
 		QPushButton *copySummaryButton = batchWarn.addButton(
 				tr("Kopieer samenvatting"),
 				QMessageBox::ActionRole);
+		QPushButton *copyFailedOnlyButton = nullptr;
+		if(!failedDetailLines.isEmpty())
+		{
+			copyFailedOnlyButton = batchWarn.addButton(
+					tr("Kopieer mislukte items (%1)").arg(failedDetailLines.size()),
+					QMessageBox::ActionRole);
+		}
+		QPushButton *copySkippedOnlyButton = nullptr;
+		if(!skippedDetailLines.isEmpty())
+		{
+			copySkippedOnlyButton = batchWarn.addButton(
+					tr("Kopieer overgeslagen items (%1)").arg(skippedDetailLines.size()),
+					QMessageBox::ActionRole);
+		}
 		QPushButton *copyDetailsButton = batchWarn.addButton(
 				tr("Kopieer details"),
 				QMessageBox::ActionRole);
@@ -9101,6 +9115,24 @@ void MainWindow::on_queueExtractButton_clicked()
 					this,
 					tr("Samenvatting gekopieerd"),
 					tr("Batch-samenvatting is naar het klembord gekopieerd."));
+		}
+		else if(copyFailedOnlyButton &&
+				batchWarn.clickedButton() == copyFailedOnlyButton)
+		{
+			QApplication::clipboard()->setText(failureDetailsText);
+			QMessageBox::information(
+					this,
+					tr("Mislukte items gekopieerd"),
+					tr("De mislukte items zijn naar het klembord gekopieerd."));
+		}
+		else if(copySkippedOnlyButton &&
+				batchWarn.clickedButton() == copySkippedOnlyButton)
+		{
+			QApplication::clipboard()->setText(skippedDetailsText);
+			QMessageBox::information(
+					this,
+					tr("Overgeslagen items gekopieerd"),
+					tr("De overgeslagen items zijn naar het klembord gekopieerd."));
 		}
 		else if(batchWarn.clickedButton() == copyJsonButton)
 		{
