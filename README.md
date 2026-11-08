@@ -1,8 +1,13 @@
-# AEO-Light 3.1.36 (fork release)
+# AEO-Light 3.1.37 (fork release)
 
-Deze 3.1.36 patchrelease bouwt verder op hoofdstuk-7 met extra queue-batch workflow, rapportering en supportdiagnose.
+Deze 3.1.37 patchrelease herstelt de Windows package-build in de release-workflow.
 
-## Nieuw in 3.1.36
+## Nieuw in 3.1.37
+- Qt5-compatibiliteitsfix in `mainwindow.ui`:
+  - `contentsMargins`-blok vervangen door expliciete `left/top/right/bottomMargin` properties
+  - lost de CI-fout op (`uic: Unexpected element left`) tijdens Windows package-build
+
+## Eerder toegevoegd in 3.1.36
 - Queue batch processing:
   - **Pause/Resume** tijdens lopende batch
   - **Skip current** item zonder batch volledig te stoppen
