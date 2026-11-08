@@ -1,8 +1,26 @@
-# AEO-Light 3.1.35 (fork release)
+# AEO-Light 3.1.36 (fork release)
 
-Deze 3.1.35 patchrelease bundelt de hoofdstuk-7 workflowverbeteringen rond queue-diagnose, exportprofielen, rapportering en betrouwbaarheid.
+Deze 3.1.36 patchrelease bouwt verder op hoofdstuk-7 met extra queue-batch workflow, rapportering en supportdiagnose.
 
-## Nieuw in 3.1.35
+## Nieuw in 3.1.36
+- Queue batch processing:
+  - **Pause/Resume** tijdens lopende batch
+  - **Skip current** item zonder batch volledig te stoppen
+  - veiligere batch-afhandeling met guard tegen dubbel starten en exception-safe reset
+- Uitgebreide batchrapportering:
+  - status + rapporten met **processed/pending/success/failed/skipped**
+  - **min/max/gemiddelde** tijd per item + topsnelheidsindicatie
+  - fouttypes met aantallen, gesorteerd op frequentie, inclusief **top failure**
+- Veel rijkere batch-resultaten popup:
+  - acties voor **retry/requeue** (gefaalde, overgeslagen, of alle niet-gelukte)
+  - directe acties: **open laatste rapport**, **open rapportmap**, **kopieer rapportpaden**
+  - kopieeracties: **statusregel**, samenvatting, fouttypes, details, JSON en volledig **support-pakket**
+- Betere support-output:
+  - JSON en tekst bevatten nu rapportpaden + rapportmap
+  - runtime metadata toegevoegd: **appversie, Qt-versie, OS**
+  - duidelijkere feedback bij queue-limiet (geaccepteerd vs. afgevallen items)
+
+## Eerder toegevoegd in 3.1.35
 - Nieuwe voorkeur in **Preferences**: **License agreement na eerste acceptatie niet meer tonen**.
 - Nieuwe **Exportprofielen per doel** in Video instellingen:
   - **Snelle review**
