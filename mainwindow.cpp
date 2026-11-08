@@ -8853,6 +8853,39 @@ void MainWindow::on_queueExtractButton_clicked()
 			copyText += QString("\n\nMislukte items:\n%1").arg(failureDetailsText);
 		if(!skippedDetailsText.isEmpty())
 			copyText += QString("\n\nOvergeslagen items:\n%1").arg(skippedDetailsText);
+		const auto buildBatchDetailsJson = [&]() -> QJsonObject
+		{
+			QJsonObject root;
+			root.insert("timestamp", batchTimestamp);
+			root.insert("successCount", static_cast<int>(successCount));
+			root.insert("failedCount", static_cast<int>(failedCount));
+			root.insert("skippedCount", static_cast<int>(skippedCount));
+			root.insert("pendingCount", static_cast<int>(pendingCount));
+			root.insert("elapsedSeconds", batchElapsedSec);
+			root.insert("avgSecondsPerItem", avgSecPerItem);
+			root.insert("summary", batchSummaryHeader);
+			if(!reasonSummary.isEmpty())
+				root.insert("reasonSummary", reasonSummary);
+			QJsonObject reasonCountsObj;
+			for(auto it = failureReasonCounts.constBegin();
+					it != failureReasonCounts.constEnd(); ++it)
+			{
+				reasonCountsObj.insert(it.key(), it.value());
+			}
+			root.insert("failureReasonCounts", reasonCountsObj);
+			QJsonArray failedItems;
+			for(const QString &line : failedDetailLines)
+				failedItems.append(line);
+			root.insert("failedItems", failedItems);
+			QJsonArray skippedItems;
+			for(const QString &line : skippedDetailLines)
+				skippedItems.append(line);
+			root.insert("skippedItems", skippedItems);
+			return root;
+		};
+		const QByteArray copyJsonBytes =
+				QJsonDocument(buildBatchDetailsJson()).toJson(QJsonDocument::Indented);
+		const QString copyJsonText = QString::fromUtf8(copyJsonBytes);
 		QMessageBox batchWarn(this);
 		const bool hasFailures = !failedDetailLines.isEmpty();
 		batchWarn.setIcon((this->requestCancel || !hasFailures) ?
@@ -8900,6 +8933,9 @@ void MainWindow::on_queueExtractButton_clicked()
 		QPushButton *copyDetailsButton = batchWarn.addButton(
 				tr("Kopieer details"),
 				QMessageBox::ActionRole);
+		QPushButton *copyJsonButton = batchWarn.addButton(
+				tr("Kopieer JSON"),
+				QMessageBox::ActionRole);
 		batchWarn.addButton(QMessageBox::Ok);
 		batchWarn.exec();
 		if(retryFailedButton && batchWarn.clickedButton() == retryFailedButton)
@@ -8916,12 +8952,12 @@ void MainWindow::on_queueExtractButton_clicked()
 						QStandardPaths::writableLocation(
 								QStandardPaths::DocumentsLocation));
 			}
-			const QString suggestName = QString("aeo-batch-failures-%1.txt")
+			const QString suggestName = QString("aeo-batch-resultaten-%1.txt")
 					.arg(QDateTime::currentDateTime().toString("yyyyMMdd-HHmmss"));
 			QString selectedFilter;
 			const QString savePath = QFileDialog::getSaveFileName(
 					this,
-					tr("Bewaar batch-foutdetails"),
+					tr("Bewaar batch-resultaatdetails"),
 					QDir(baseDir).filePath(suggestName),
 					tr("Text files (*.txt);;JSON files (*.json)"),
 					&selectedFilter);
@@ -8943,34 +8979,7 @@ void MainWindow::on_queueExtractButton_clicked()
 				{
 					if(saveAsJson)
 					{
-						QJsonObject root;
-						root.insert("timestamp", batchTimestamp);
-						root.insert("successCount", static_cast<int>(successCount));
-						root.insert("failedCount", static_cast<int>(failedCount));
-						root.insert("skippedCount", static_cast<int>(skippedCount));
-						root.insert("pendingCount", static_cast<int>(pendingCount));
-						root.insert("elapsedSeconds", batchElapsedSec);
-						root.insert("avgSecondsPerItem", avgSecPerItem);
-						root.insert("summary", batchSummaryHeader);
-						if(!reasonSummary.isEmpty())
-							root.insert("reasonSummary", reasonSummary);
-						QJsonObject reasonCountsObj;
-						for(auto it = failureReasonCounts.constBegin();
-								it != failureReasonCounts.constEnd(); ++it)
-						{
-							reasonCountsObj.insert(it.key(), it.value());
-						}
-						root.insert("failureReasonCounts", reasonCountsObj);
-						QJsonArray failedItems;
-						for(const QString &line : failedDetailLines)
-							failedItems.append(line);
-						root.insert("failedItems", failedItems);
-						QJsonArray skippedItems;
-						for(const QString &line : skippedDetailLines)
-							skippedItems.append(line);
-						root.insert("skippedItems", skippedItems);
-						outFile.write(
-								QJsonDocument(root).toJson(QJsonDocument::Indented));
+						outFile.write(copyJsonBytes);
 					}
 					else
 					{
@@ -8981,7 +8990,7 @@ void MainWindow::on_queueExtractButton_clicked()
 					QMessageBox::information(
 							this,
 							tr("Details bewaard"),
-							tr("Batch-foutdetails opgeslagen naar:\n%1")
+							tr("Batch-resultaatdetails opgeslagen naar:\n%1")
 									.arg(QDir::toNativeSeparators(finalSavePath)));
 				}
 				else
@@ -8989,7 +8998,7 @@ void MainWindow::on_queueExtractButton_clicked()
 					QMessageBox::warning(
 							this,
 							tr("Opslaan mislukt"),
-							tr("Kon batch-foutdetails niet opslaan naar:\n%1")
+							tr("Kon batch-resultaatdetails niet opslaan naar:\n%1")
 									.arg(QDir::toNativeSeparators(finalSavePath)));
 				}
 			}
@@ -9001,7 +9010,15 @@ void MainWindow::on_queueExtractButton_clicked()
 			QMessageBox::information(
 					this,
 					tr("Details gekopieerd"),
-					tr("Foutdetails zijn naar het klembord gekopieerd."));
+					tr("Batch-resultaatdetails zijn naar het klembord gekopieerd."));
+		}
+		else if(batchWarn.clickedButton() == copyJsonButton)
+		{
+			QApplication::clipboard()->setText(copyJsonText);
+			QMessageBox::information(
+					this,
+					tr("JSON gekopieerd"),
+					tr("Batch-resultaatdetails (JSON) zijn naar het klembord gekopieerd."));
 		}
 	}
 	queueBatchPaused = false;
