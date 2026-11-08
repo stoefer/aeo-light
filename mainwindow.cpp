@@ -8900,6 +8900,17 @@ void MainWindow::on_queueExtractButton_clicked()
 			for(const QString &line : skippedDetailLines)
 				skippedItems.append(line);
 			root.insert("skippedItems", skippedItems);
+			QJsonArray reportFiles;
+			for(const QString &path : generatedBatchReports)
+				reportFiles.append(QDir::toNativeSeparators(path));
+			root.insert("reportFiles", reportFiles);
+			if(!generatedBatchReports.isEmpty())
+			{
+				root.insert(
+						"reportDirectory",
+						QDir::toNativeSeparators(
+								QFileInfo(generatedBatchReports.first()).absolutePath()));
+			}
 			return root;
 		};
 		const QByteArray copyJsonBytes =
