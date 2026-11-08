@@ -3128,6 +3128,22 @@ void MainWindow::WriteQueueBatchReport(
 		const QMap<QString, int> &failureReasonCounts,
 		const QStringList &itemLines) const
 {
+	QList<QPair<QString, int>> sortedFailureReasons;
+	for(auto it = failureReasonCounts.constBegin();
+			it != failureReasonCounts.constEnd(); ++it)
+	{
+		sortedFailureReasons.append(qMakePair(it.key(), it.value()));
+	}
+	std::sort(
+			sortedFailureReasons.begin(),
+			sortedFailureReasons.end(),
+			[](const QPair<QString, int> &a, const QPair<QString, int> &b)
+	{
+		if(a.second != b.second)
+			return a.second > b.second;
+		return a.first.toLower() < b.first.toLower();
+	});
+
 	const int mode = ClampRangeInt(
 			queueBatchReportMode,
 			QUEUE_BATCH_REPORT_OFF,
@@ -3168,26 +3184,18 @@ void MainWindow::WriteQueueBatchReport(
 							elapsedSec / std::max<double>(1.0, double(totalCount)),
 							'f',
 							3) << "\n";
-			if(!failureReasonCounts.isEmpty())
+			if(!sortedFailureReasons.isEmpty())
 			{
-				QString topReason;
-				int topReasonCount = 0;
 				out << "Failure reason counts:\n";
-				for(auto it = failureReasonCounts.constBegin();
-						it != failureReasonCounts.constEnd(); ++it)
+				for(const QPair<QString, int> &entry : sortedFailureReasons)
 				{
-					out << " - " << it.key() << " = " << it.value() << "\n";
-					if(it.value() > topReasonCount)
-					{
-						topReason = it.key();
-						topReasonCount = it.value();
-					}
+					out << " - " << entry.first << " = " << entry.second << "\n";
 				}
-				if(topReasonCount > 0)
-				{
-					out << "Top failure reason = " << topReason
-						<< " (" << topReasonCount << "x)\n";
-				}
+				out << "Top failure reason = "
+					<< sortedFailureReasons.first().first
+					<< " ("
+					<< sortedFailureReasons.first().second
+					<< "x)\n";
 			}
 			out << "\nItems:\n";
 			for(const QString &line : itemLines)
@@ -3214,24 +3222,22 @@ void MainWindow::WriteQueueBatchReport(
 					"avgSecondsPerItem",
 					elapsedSec / std::max<double>(1.0, double(totalCount)));
 			QJsonObject reasonCountsObj;
-			QString topReason;
-			int topReasonCount = 0;
-			for(auto it = failureReasonCounts.constBegin();
-					it != failureReasonCounts.constEnd(); ++it)
+			QJsonArray reasonCountsOrdered;
+			for(const QPair<QString, int> &entry : sortedFailureReasons)
 			{
-				reasonCountsObj.insert(it.key(), it.value());
-				if(it.value() > topReasonCount)
-				{
-					topReason = it.key();
-					topReasonCount = it.value();
-				}
+				reasonCountsObj.insert(entry.first, entry.second);
+				QJsonObject orderedEntry;
+				orderedEntry.insert("reason", entry.first);
+				orderedEntry.insert("count", entry.second);
+				reasonCountsOrdered.append(orderedEntry);
 			}
 			root.insert("failureReasonCounts", reasonCountsObj);
-			if(topReasonCount > 0)
+			root.insert("failureReasonCountsOrdered", reasonCountsOrdered);
+			if(!sortedFailureReasons.isEmpty())
 			{
 				QJsonObject topFailure;
-				topFailure.insert("reason", topReason);
-				topFailure.insert("count", topReasonCount);
+				topFailure.insert("reason", sortedFailureReasons.first().first);
+				topFailure.insert("count", sortedFailureReasons.first().second);
 				root.insert("topFailureReason", topFailure);
 			}
 			QJsonArray items;
@@ -8661,26 +8667,27 @@ void MainWindow::on_queueExtractButton_clicked()
 	const QString reportSuffix = (queueBatchReportMode == QUEUE_BATCH_REPORT_OFF) ?
 			QString() :
 			tr(" Rapport opgeslagen.");
-	QString topFailureSuffix;
-	if(failedCount > 0 && !failureReasonCounts.isEmpty())
+	QList<QPair<QString, int>> sortedFailureReasons;
+	for(auto it = failureReasonCounts.constBegin();
+			it != failureReasonCounts.constEnd(); ++it)
 	{
-		QString topReason;
-		int topReasonCount = 0;
-		for(auto it = failureReasonCounts.constBegin();
-				it != failureReasonCounts.constEnd(); ++it)
-		{
-			if(it.value() > topReasonCount)
-			{
-				topReason = it.key();
-				topReasonCount = it.value();
-			}
-		}
-		if(!topReason.isEmpty() && topReasonCount > 0)
-		{
-			topFailureSuffix = tr(" Top fout: %1 (%2x).")
-					.arg(topReason)
-					.arg(topReasonCount);
-		}
+		sortedFailureReasons.append(qMakePair(it.key(), it.value()));
+	}
+	std::sort(
+			sortedFailureReasons.begin(),
+			sortedFailureReasons.end(),
+			[](const QPair<QString, int> &a, const QPair<QString, int> &b)
+	{
+		if(a.second != b.second)
+			return a.second > b.second;
+		return a.first.toLower() < b.first.toLower();
+	});
+	QString topFailureSuffix;
+	if(failedCount > 0 && !sortedFailureReasons.isEmpty())
+	{
+		topFailureSuffix = tr(" Top fout: %1 (%2x).")
+				.arg(sortedFailureReasons.first().first)
+				.arg(sortedFailureReasons.first().second);
 	}
 	const QString batchSummaryHeader =
 			tr("Batch samenvatting: %1 gelukt, %2 gefaald, %3 wachtend, duur %4, gem. %5s/item.")
@@ -8702,10 +8709,11 @@ void MainWindow::on_queueExtractButton_clicked()
 	{
 		const QString failureDetailsText = failedDetailLines.join("\n");
 		QStringList reasonLines;
-		for(auto it = failureReasonCounts.constBegin();
-				it != failureReasonCounts.constEnd(); ++it)
+		for(const QPair<QString, int> &entry : sortedFailureReasons)
 		{
-			reasonLines << QString("%1 (%2x)").arg(it.key()).arg(it.value());
+			reasonLines << QString("%1 (%2x)")
+					.arg(entry.first)
+					.arg(entry.second);
 		}
 		const QString reasonSummary = reasonLines.isEmpty() ?
 				QString() :
