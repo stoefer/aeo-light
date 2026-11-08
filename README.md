@@ -207,6 +207,23 @@ Deze 3.1.38 patchrelease rondt de Windows package-buildfix af.
 3. Start `AEO-Light.exe`.
 4. Als SmartScreen waarschuwt: klik **Meer informatie** → **Toch uitvoeren**.
 
+## Package checklist (v3.1.38, Windows x64)
+- [ ] Release-tag is `v3.1.38`.
+- [ ] Asset `AEO-Light-Windows-x64.zip` is aanwezig op de releasepagina.
+- [ ] ZIP uitgepakt naar een lokale map (niet rechtstreeks uit de ZIP starten).
+- [ ] In de uitgepakte map staan minimaal:
+  - `AEO-Light.exe`
+  - `LICENSE.txt`
+  - `ffmpeg.exe`
+- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.38**.
+- [ ] Snelle rooktest:
+  - bron laden
+  - korte **Test Run** uitvoeren
+  - outputbestand wordt aangemaakt
+- [ ] (Optioneel) checksumcontrole van download:
+  - `certutil -hashfile AEO-Light-Windows-x64.zip SHA256`
+  - verwacht: `4a70af7a3b4d4529802c3d39b6c9e9d644efe84b161efdee5bb971472b1f273c`
+
 ## Snelle start (aanbevolen)
 - Container: **MP4**
 - Preset: **Standaard**
