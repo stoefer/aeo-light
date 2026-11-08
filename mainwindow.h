@@ -28,6 +28,8 @@
 #include <QMoveEvent>
 #include <QResizeEvent>
 #include <QHash>
+#include <QMap>
+#include <QList>
 #include <QSoundEffect>
 #include <QDate>
 #include <QProgressDialog>
@@ -464,6 +466,7 @@ private:
 			size_t pendingCount,
 			double elapsedSec,
 			const QMap<QString, int> &failureReasonCounts,
+			const QList<double> &itemDurationsSec,
 			const QStringList &itemLines) const;
 	void WriteSingleExportReport(
 			const QString &audioPath,

@@ -79,6 +79,7 @@
 #include <cmath>
 #include <stdexcept>
 #include <cstdint>
+#include <limits>
 
 #include <fcntl.h>
 #include <stdlib.h>
@@ -3126,8 +3127,27 @@ void MainWindow::WriteQueueBatchReport(
 		size_t pendingCount,
 		double elapsedSec,
 		const QMap<QString, int> &failureReasonCounts,
+		const QList<double> &itemDurationsSec,
 		const QStringList &itemLines) const
 {
+	double minItemSec = 0.0;
+	double maxItemSec = 0.0;
+	double avgItemSec = 0.0;
+	if(!itemDurationsSec.isEmpty())
+	{
+		double sum = 0.0;
+		minItemSec = std::numeric_limits<double>::max();
+		maxItemSec = 0.0;
+		for(double seconds : itemDurationsSec)
+		{
+			const double safeSeconds = std::max(0.0, seconds);
+			sum += safeSeconds;
+			minItemSec = std::min(minItemSec, safeSeconds);
+			maxItemSec = std::max(maxItemSec, safeSeconds);
+		}
+		avgItemSec = sum / std::max(1, itemDurationsSec.size());
+	}
+
 	QList<QPair<QString, int>> sortedFailureReasons;
 	for(auto it = failureReasonCounts.constBegin();
 			it != failureReasonCounts.constEnd(); ++it)
@@ -3178,12 +3198,22 @@ void MainWindow::WriteQueueBatchReport(
 			out << "Success = " << successCount << "\n";
 			out << "Failed = " << failedCount << "\n";
 			out << "Pending = " << pendingCount << "\n";
+			out << "Processed = " << itemDurationsSec.size() << "\n";
 			out << "Elapsed seconds = " << QString::number(elapsedSec, 'f', 3) << "\n";
 			out << "Average seconds per item = " <<
 					QString::number(
 							elapsedSec / std::max<double>(1.0, double(totalCount)),
 							'f',
 							3) << "\n";
+			if(!itemDurationsSec.isEmpty())
+			{
+				out << "Min seconds per processed item = "
+					<< QString::number(minItemSec, 'f', 3) << "\n";
+				out << "Max seconds per processed item = "
+					<< QString::number(maxItemSec, 'f', 3) << "\n";
+				out << "Avg seconds per processed item = "
+					<< QString::number(avgItemSec, 'f', 3) << "\n";
+			}
 			if(!sortedFailureReasons.isEmpty())
 			{
 				out << "Failure reason counts:\n";
@@ -3217,10 +3247,17 @@ void MainWindow::WriteQueueBatchReport(
 			root.insert("success", static_cast<int>(successCount));
 			root.insert("failed", static_cast<int>(failedCount));
 			root.insert("pending", static_cast<int>(pendingCount));
+			root.insert("processed", itemDurationsSec.size());
 			root.insert("elapsedSeconds", elapsedSec);
 			root.insert(
 					"avgSecondsPerItem",
 					elapsedSec / std::max<double>(1.0, double(totalCount)));
+			if(!itemDurationsSec.isEmpty())
+			{
+				root.insert("minSecondsPerProcessedItem", minItemSec);
+				root.insert("maxSecondsPerProcessedItem", maxItemSec);
+				root.insert("avgSecondsPerProcessedItem", avgItemSec);
+			}
 			QJsonObject reasonCountsObj;
 			QJsonArray reasonCountsOrdered;
 			for(const QPair<QString, int> &entry : sortedFailureReasons)
@@ -8539,6 +8576,7 @@ void MainWindow::on_queueExtractButton_clicked()
 	QStringList batchItemLines;
 	QStringList failedDetailLines;
 	QMap<QString, int> failureReasonCounts;
+	QList<double> itemDurationsSec;
 	QElapsedTimer batchTimer;
 	batchTimer.start();
 
@@ -8610,6 +8648,7 @@ void MainWindow::on_queueExtractButton_clicked()
 			failureReason = tr("Bron kon niet geladen worden.");
 		}
 		const double itemElapsedSec = std::max(0.0, itemTimer.elapsed() / 1000.0);
+		itemDurationsSec.append(itemElapsedSec);
 
 		++processedCount;
 		QString itemLine = QString("%1 | %2 | frames %3-%4 | %5 | %6s")
@@ -8656,6 +8695,9 @@ void MainWindow::on_queueExtractButton_clicked()
 	const double batchElapsedSec = std::max(0.0, batchTimer.elapsed() / 1000.0);
 	const double avgSecPerItem =
 			batchElapsedSec / std::max<double>(1.0, double(processedCount));
+	const double maxSecPerItem = itemDurationsSec.isEmpty() ?
+			0.0 :
+			*std::max_element(itemDurationsSec.constBegin(), itemDurationsSec.constEnd());
 	WriteQueueBatchReport(
 			initialTotal,
 			successCount,
@@ -8663,6 +8705,7 @@ void MainWindow::on_queueExtractButton_clicked()
 			pendingCount,
 			batchElapsedSec,
 			failureReasonCounts,
+			itemDurationsSec,
 			batchItemLines);
 	const QString reportSuffix = (queueBatchReportMode == QUEUE_BATCH_REPORT_OFF) ?
 			QString() :
@@ -8697,12 +8740,13 @@ void MainWindow::on_queueExtractButton_clicked()
 					.arg(FormatEtaSeconds(batchElapsedSec))
 					.arg(QString::number(avgSecPerItem, 'f', 2));
 	ui->queueBatchStatusLabel->setText(
-			tr("Batch klaar: %1 gelukt, %2 gefaald, %3 wachtend, duur %4, gem. %5s/item.%6%7")
+			tr("Batch klaar: %1 gelukt, %2 gefaald, %3 wachtend, duur %4, gem. %5s/item, max %6s/item.%7%8")
 			.arg(successCount)
 			.arg(failedCount)
 			.arg(pendingCount)
 			.arg(FormatEtaSeconds(batchElapsedSec))
 			.arg(QString::number(avgSecPerItem, 'f', 2))
+			.arg(QString::number(maxSecPerItem, 'f', 2))
 			.arg(reportSuffix)
 			.arg(topFailureSuffix));
 	if(!failedDetailLines.isEmpty())
