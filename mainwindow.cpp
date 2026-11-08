@@ -8861,6 +8861,15 @@ void MainWindow::on_queueExtractButton_clicked()
 				.arg(batchSummaryHeader);
 		if(!reasonSummary.isEmpty())
 			summaryCopyText += QString("\n%1").arg(reasonSummary);
+		QStringList reportPathsNative;
+		for(const QString &path : generatedBatchReports)
+			reportPathsNative << QDir::toNativeSeparators(path);
+		if(!reportPathsNative.isEmpty())
+		{
+			summaryCopyText += tr("\nRapportbestanden (%1):\n- %2")
+					.arg(reportPathsNative.size())
+					.arg(reportPathsNative.join("\n- "));
+		}
 		QString copyText = tr("Batch resultaten (fouten: %1, overgeslagen: %2)\nTimestamp: %3\n%4")
 				.arg(failedDetailLines.size())
 				.arg(skippedDetailLines.size())
@@ -8872,6 +8881,12 @@ void MainWindow::on_queueExtractButton_clicked()
 			copyText += QString("\n\nMislukte items:\n%1").arg(failureDetailsText);
 		if(!skippedDetailsText.isEmpty())
 			copyText += QString("\n\nOvergeslagen items:\n%1").arg(skippedDetailsText);
+		if(!reportPathsNative.isEmpty())
+		{
+			copyText += tr("\n\nRapportbestanden (%1):\n- %2")
+					.arg(reportPathsNative.size())
+					.arg(reportPathsNative.join("\n- "));
+		}
 		const auto buildBatchDetailsJson = [&]() -> QJsonObject
 		{
 			QJsonObject root;
@@ -9125,10 +9140,7 @@ void MainWindow::on_queueExtractButton_clicked()
 		else if(copyReportPathsButton &&
 				batchWarn.clickedButton() == copyReportPathsButton)
 		{
-			QStringList reportPaths;
-			for(const QString &path : generatedBatchReports)
-				reportPaths << QDir::toNativeSeparators(path);
-			const QString reportPathsText = reportPaths.join("\n");
+			const QString reportPathsText = reportPathsNative.join("\n");
 			QApplication::clipboard()->setText(reportPathsText);
 			QMessageBox::information(
 					this,
