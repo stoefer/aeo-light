@@ -23,8 +23,9 @@ fi
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -r requirements.txt
 touch .venv/.telecine-ready
-if ! .venv/bin/python -m pip install -r requirements-uvr.txt; then
+if ! .venv/bin/python -m pip install --only-binary=diffq-fixed -r requirements-uvr.txt; then
   echo "UVR is niet geinstalleerd. Het programma start wel; vink stemscheiding uit."
+  echo "Het bronpakket diffq-fixed mist bitpack.pyx. Alleen een kant-en-klaar pakket wordt gebruikt."
 fi
 .venv/bin/python telecine_setup.py voices || echo "Stemmen zijn niet volledig gedownload."
 .venv/bin/python telecine_setup.py argos || echo "Vertaalpakketten volgen bij de eerste vertaling."

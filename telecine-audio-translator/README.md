@@ -1,12 +1,14 @@
 # TeleCine Audio Translator
 
+Versie **0.9.01**. Het venster toont het nummer uit het bestand `VERSION`.
+
 Vensterprogramma dat een Franse of Engelse WAV omzet naar Vlaamse spraak. Het behoudt de originele timing en kan de achtergrondmuziek laten staan.
 
 Je hoeft geen IDE te openen en geen `python`-commando te typen. Na de eenmalige installatie start je het met een dubbelklik.
 
 ## Windows
 
-1. Installeer [Python 3.10 of nieuwer](https://www.python.org/downloads/) en vink **Add python.exe to PATH** en **tcl/tk** aan.
+1. Installeer [Python 3.12.10, 64-bit](https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe) en vink **Add python.exe to PATH** en **tcl/tk** aan. Python 3.14 kan de stemscheiding niet installeren: daarvoor bestaat geen kant-en-klaar pakket, en de broncode mist `bitpack.pyx`.
 2. Installeer [eSpeak NG](https://github.com/espeak-ng/espeak-ng/releases). De Vlaamse stem heeft dat nodig voor de uitspraak.
 3. Pak de zip uit naar een gewone map, bijvoorbeeld het Bureaublad. Dubbelklik `installeer.bat` niet vanuit het zip-bestand.
 
@@ -64,10 +66,23 @@ Wil je het wel bij elke aanmelding:
 - Windows: dubbelklik `start-bij-aanmelden.bat`. Haal de snelkoppeling weg uit de map Opstarten om het uit te zetten.
 - Linux: `./start-bij-aanmelden.sh`. Verwijder `~/.config/autostart/telecine-audio-translator.desktop` om het uit te zetten.
 
+## Versie en releases
+
+Het nummer staat in `VERSION`. Het venster en de GitHub-release gebruiken datzelfde nummer. Een tag verhoogt zichzelf niet.
+
+De eerste release is `v0.9.01`. Een volgende release:
+
+1. Draai `python verhoog_versie.py`. Dat maakt van `0.9.01` bijvoorbeeld `0.9.02`, in `VERSION` en in de eerste regel hierboven.
+2. Publiceer tag `v` plus de inhoud van `VERSION`, bijvoorbeeld `v0.9.02`, op `main`.
+
+De release staat daarna op [Releases](https://github.com/stoefer/TeleCineAudioTranslator/releases). Een tag die met `v` begint publiceert de release ook via GitHub Actions.
+
 ## Onderdelen
 
 | Bestand | Rol |
 | --- | --- |
+| `VERSION` | Huidige versie, ook zichtbaar in het venster |
+| `verhoog_versie.py` | Verhoogt het laatste deel van `VERSION` voor de volgende release |
 | `installeer.bat` / `installeer.sh` | Eenmalige installatie |
 | `start.vbs` | Windows-start zonder opdrachtvenster |
 | `start.sh` | Linux/macOS-start, installeert de eerste keer zelf |

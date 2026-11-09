@@ -23,27 +23,64 @@ if not exist "%ROOT%\requirements.txt" (
   exit /b 1
 )
 
+set "APPVER=onbekend"
+if exist "%ROOT%\VERSION" set /p APPVER=<"%ROOT%\VERSION"
 echo.
 echo TeleCine Audio Translator installeren
 echo =====================================
+echo Versie %APPVER%
 echo Dit maakt een programma dat je daarna met een dubbelklik start.
 echo Er verschijnt dan geen zwart opdrachtvenster.
 echo.
 
+rem Stemscheiding heeft een kant-en-klaar pakket voor Python 3.12.
+rem Python 3.14 probeert diffq-fixed te compileren en mist dan bitpack.pyx.
+set "PY="
+set "HAVE312=0"
 where py >nul 2>&1
 if %errorlevel%==0 (
-  set "PY=py -3"
+  py -3.12 -c "import sys" >nul 2>&1
+  if not errorlevel 1 set "HAVE312=1"
+)
+if "%HAVE312%"=="1" (
+  set "PY=py -3.12"
+  echo Python 3.12 gevonden. De omgeving gebruikt die versie.
 ) else (
-  where python >nul 2>&1
-  if errorlevel 1 (
-    echo Python 3 is niet gevonden.
-    echo Installeer Python 3 van https://www.python.org/downloads/
-    echo en vink "Add python.exe to PATH" aan.
+  echo Python 3.12 is niet gevonden.
+  echo Stemscheiding ^(UVR^) heeft Python 3.12 nodig. Python 3.14 heeft geen kant-en-klaar pakket.
+  echo Installeer Python 3.12.10, 64-bit, en vink "Add python.exe to PATH" en tcl/tk aan:
+  echo https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe
+  echo Voer installeer.bat daarna opnieuw uit. Tot dan: vink in het venster stemscheiding uit.
+  echo.
+  where py >nul 2>&1
+  if %errorlevel%==0 (
+    set "PY=py -3"
+  ) else (
+    where python >nul 2>&1
+    if errorlevel 1 (
+      echo Python 3 is niet gevonden.
+      echo Installeer Python 3.12 van de link hierboven.
+      pause
+      exit /b 1
+    )
+    set "PY=python"
+  )
+)
+
+rem De python-regel staat buiten haakjes: een sluitend haakje zou anders het if-blok sluiten.
+if not "%HAVE312%"=="1" goto skip_rebuild
+if not exist "%ROOT%\.venv\Scripts\python.exe" goto skip_rebuild
+"%ROOT%\.venv\Scripts\python.exe" -c "import sys; raise SystemExit(0 if sys.version_info[0]==3 and sys.version_info[1]==12 else 1)"
+if errorlevel 1 (
+  echo De bestaande omgeving is geen Python 3.12 en wordt opnieuw gemaakt.
+  rmdir /s /q "%ROOT%\.venv"
+  if exist "%ROOT%\.venv\Scripts\python.exe" (
+    echo De oude omgeving is nog in gebruik. Sluit TeleCine Audio Translator en voer installeer.bat opnieuw uit.
     pause
     exit /b 1
   )
-  set "PY=python"
 )
+:skip_rebuild
 
 if not exist "%ROOT%\.venv\Scripts\python.exe" (
   echo Virtuele omgeving aanmaken...
@@ -58,7 +95,7 @@ if not exist "%ROOT%\.venv\Scripts\python.exe" (
 "%ROOT%\.venv\Scripts\python.exe" -c "import tkinter" >nul 2>&1
 if errorlevel 1 (
   echo Tkinter ontbreekt, daardoor kan het venster niet openen.
-  echo Herinstalleer Python en vink tcl/tk aan.
+  echo Herinstalleer Python 3.12 en vink tcl/tk aan.
   pause
   exit /b 1
 )
@@ -74,10 +111,11 @@ if errorlevel 1 (
 
 echo.
 echo Stemscheiding ^(UVR^) installeren. Dit is een grote download...
-"%ROOT%\.venv\Scripts\python.exe" -m pip install -r "%ROOT%\requirements-uvr.txt"
+"%ROOT%\.venv\Scripts\python.exe" -m pip install --only-binary=diffq-fixed -r "%ROOT%\requirements-uvr.txt"
 if errorlevel 1 (
   echo UVR is niet geinstalleerd. Het programma start wel.
-  echo Vink in het venster "Stem met UVR scheiden" uit, of voer installeer.bat later opnieuw uit.
+  echo Op Python 3.14 ontbreekt het kant-en-klare pakket. Gebruik Python 3.12 en voer installeer.bat opnieuw uit.
+  echo Tot dan: vink in het venster "Stem met UVR scheiden" uit.
 )
 
 echo.
