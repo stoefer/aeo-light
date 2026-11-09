@@ -12,6 +12,9 @@ import hashlib, json, os, queue, re, shutil, subprocess, sys, threading, time, w
 from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
+from telecine_media import (
+    MediaStopped, extract_wav, ffmpeg_missing_message, find_ffmpeg, is_video_file, write_mp4,
+)
 
 APP_TITLE = "TeleCine Audio Translator"
 BASE_DIR = Path(__file__).resolve().parent
@@ -315,6 +318,7 @@ class App(tk.Tk):
         self.language=tk.StringVar(value="Frans"); self.whisper=tk.StringVar(value="small")
         self.voice_choice=tk.StringVar(value=DEFAULT_VOICE_LABEL)
         self.use_uvr=tk.BooleanVar(value=True); self.keep_stems=tk.BooleanVar(value=True)
+        self.write_mp4=tk.BooleanVar(value=True)
         self.sync_timing=tk.BooleanVar(value=True); self.max_speed=tk.IntVar(value=15)
         self.bg_volume=tk.DoubleVar(value=100); self.voice_volume=tk.DoubleVar(value=100)
         self.bg_volume_text=tk.StringVar(value="100%"); self.voice_volume_text=tk.StringVar(value="100%")
@@ -392,13 +396,15 @@ class App(tk.Tk):
             widget.bind("<Button-5>",on_wheel,add="+")
             for child in widget.winfo_children(): bind_wheel(child)
         ttk.Label(m,text=f"{APP_TITLE}  {APP_VERSION}",font=self._ui_font(16,True)).grid(row=0,column=0,columnspan=3,sticky="w",pady=(0,8))
-        ttk.Label(m,text="Bronbestand (WAV):").grid(row=1,column=0,sticky="w")
+        ttk.Label(m,text="Bronbestand (WAV of MP4):").grid(row=1,column=0,sticky="w")
         self.source_entry=ttk.Entry(m,textvariable=self.source); self.source_entry.grid(row=1,column=1,sticky="ew",padx=8)
         self.source_button=ttk.Button(m,text="Kiezen...",command=self.choose_source); self.source_button.grid(row=1,column=2)
-        ttk.Label(m,text="Uitvoermap:").grid(row=2,column=0,sticky="w",pady=6)
-        self.out_entry=ttk.Entry(m,textvariable=self.outdir); self.out_entry.grid(row=2,column=1,sticky="ew",padx=8)
-        self.out_button=ttk.Button(m,text="Kiezen...",command=self.choose_out); self.out_button.grid(row=2,column=2)
-        opt=ttk.LabelFrame(m,text="Vertaling",padding=8); opt.grid(row=3,column=0,columnspan=3,sticky="ew",pady=(4,6))
+        self.mp4_check=ttk.Checkbutton(m,text="Bij een MP4 het beeld behouden en de vertaling als MP4 opslaan",variable=self.write_mp4)
+        self.mp4_check.grid(row=2,column=0,columnspan=3,sticky="w",pady=(4,0))
+        ttk.Label(m,text="Uitvoermap:").grid(row=3,column=0,sticky="w",pady=6)
+        self.out_entry=ttk.Entry(m,textvariable=self.outdir); self.out_entry.grid(row=3,column=1,sticky="ew",padx=8)
+        self.out_button=ttk.Button(m,text="Kiezen...",command=self.choose_out); self.out_button.grid(row=3,column=2)
+        opt=ttk.LabelFrame(m,text="Vertaling",padding=8); opt.grid(row=4,column=0,columnspan=3,sticky="ew",pady=(4,6))
         for c in range(3): opt.columnconfigure(c,weight=1)
         ttk.Label(opt,text="Brontaal").grid(row=0,column=0,sticky="w"); ttk.Label(opt,text="Whisper-kwaliteit").grid(row=0,column=1,sticky="w"); ttk.Label(opt,text="Vlaamse stem").grid(row=0,column=2,sticky="w")
         self.lang=ttk.Combobox(opt,textvariable=self.language,values=list(LANGUAGES),state="readonly"); self.lang.grid(row=1,column=0,sticky="ew")
@@ -407,7 +413,7 @@ class App(tk.Tk):
         self.voice=ttk.Combobox(opt,textvariable=self.voice_choice,values=list(VOICES),state="readonly"); self.voice.current(0); self.voice.grid(row=1,column=2,sticky="ew")
         self.route_inline=tk.StringVar(value="")
         ttk.Label(opt,textvariable=self.route_inline,foreground="#555").grid(row=2,column=0,columnspan=3,sticky="w",pady=(6,0))
-        u=ttk.LabelFrame(m,text="UVR: volumes en losse sporen",padding=8); u.grid(row=4,column=0,columnspan=3,sticky="ew",pady=6)
+        u=ttk.LabelFrame(m,text="UVR: volumes en losse sporen",padding=8); u.grid(row=5,column=0,columnspan=3,sticky="ew",pady=6)
         u.columnconfigure(1,weight=1)
         self.keep_stems_check=ttk.Checkbutton(u,text="Losse UVR-sporen ook naar de uitvoermap kopiëren",variable=self.keep_stems); self.keep_stems_check.grid(row=0,column=0,columnspan=3,sticky="w",pady=(0,8))
         ttk.Label(u,text="Achtergrondvolume:").grid(row=1,column=0,sticky="w")
@@ -416,7 +422,7 @@ class App(tk.Tk):
         ttk.Label(u,text="Vlaamse stemvolume:").grid(row=2,column=0,sticky="w")
         self.voice_scale=ttk.Scale(u,from_=0,to=150,variable=self.voice_volume,orient="horizontal"); self.voice_scale.grid(row=2,column=1,sticky="ew",padx=8)
         ttk.Label(u,textvariable=self.voice_volume_text,width=5).grid(row=2,column=2)
-        sy=ttk.LabelFrame(m,text="Synchronisatie met originele timing",padding=8); sy.grid(row=5,column=0,columnspan=3,sticky="ew",pady=6)
+        sy=ttk.LabelFrame(m,text="Synchronisatie met originele timing",padding=8); sy.grid(row=6,column=0,columnspan=3,sticky="ew",pady=6)
         sy.columnconfigure(1,weight=1)
         self.sync_check=ttk.Checkbutton(sy,text="Oorspronkelijke starttijden en stiltes behouden",variable=self.sync_timing); self.sync_check.grid(row=0,column=0,columnspan=3,sticky="w")
         ttk.Label(sy,text="Maximale versnelling van Vlaamse segmenten:").grid(row=1,column=0,sticky="w",pady=(6,0))
@@ -524,7 +530,7 @@ class App(tk.Tk):
         if notes:
             self.hint.set(" · ".join(notes))
         else:
-            self.hint.set("Klaar om te starten. Kies een WAV en druk op AUDIO VERTALEN.")
+            self.hint.set("Klaar om te starten. Kies een WAV of MP4 en druk op AUDIO VERTALEN.")
         if hasattr(self,"hint_label"):
             self.hint_label.configure(fg="#8a3b00" if warning else "#333333")
         if self.worker and self.worker.is_alive(): return
@@ -541,15 +547,17 @@ class App(tk.Tk):
     def refresh_environment_status(self):
         if self.worker and self.worker.is_alive(): return
         self._env_gen+=1; gen=self._env_gen
-        voice_label=self.voice_choice.get(); use_uvr=bool(self.use_uvr.get())
+        voice_label=self.voice_choice.get(); use_uvr=bool(self.use_uvr.get()); source_name=self.source.get()
         def work():
-            try: notes=self._environment_notes(voice_label,use_uvr)
+            try: notes=self._environment_notes(voice_label,use_uvr,source_name)
             except Exception as exc: notes=[f"Controle van de installatie mislukt: {exc}"]
             self.q.put(("env",gen,notes))
         threading.Thread(target=work,daemon=True).start()
 
-    def _environment_notes(self,voice_label,use_uvr):
+    def _environment_notes(self,voice_label,use_uvr,source_name=""):
         notes=[]
+        if source_name and is_video_file(source_name) and find_ffmpeg() is None:
+            notes.append("FFmpeg ontbreekt. Dat is nodig om een MP4 te lezen en terug te schrijven.")
         voice_name=VOICES.get(voice_label)
         if not voice_name:
             notes.append("Kies een Vlaamse stem.")
@@ -597,7 +605,8 @@ class App(tk.Tk):
         if not source or not Path(source).is_file(): return {}
         p=self.paths(source); st=self.load(p) or self.state or {}
         final=Path(st.get("output_file","")) if st.get("output_file") else p["mixed"]
-        tracks={"input":Path(source),"voice":p["voice"],"output":final}
+        original=p["extracted"] if is_video_file(source) and p["extracted"].is_file() else Path(source)
+        tracks={"input":original,"voice":p["voice"],"output":final}
         if st.get("use_uvr",self.use_uvr.get()): tracks["background"]=p["background"]
         return {k:v for k,v in tracks.items() if v and Path(v).is_file()}
 
@@ -706,10 +715,10 @@ class App(tk.Tk):
         self.play_status.set("Nieuwe afspeelpositie ingesteld")
 
     def choose_source(self):
-        f=filedialog.askopenfilename(title="Kies WAV",filetypes=[("WAV-audio","*.wav"),("Alle bestanden","*.*")])
+        f=filedialog.askopenfilename(title="Kies WAV of MP4",filetypes=[("WAV of MP4","*.wav *.mp4 *.m4v"),("WAV-audio","*.wav"),("MP4-video","*.mp4 *.m4v"),("Alle bestanden","*.*")])
         if not f: return
         self.file_levels.clear(); self.level_values.clear(); self.stop_audio()
-        self.source.set(f); self.play_status.set("Nog geen eindresultaat gekozen"); self.inspect_resume()
+        self.source.set(f); self.play_status.set("Nog geen eindresultaat gekozen"); self.inspect_resume(); self.refresh_environment_status()
     def choose_out(self):
         f=filedialog.askdirectory(title="Kies uitvoermap")
         if f: self.outdir.set(f)
@@ -720,9 +729,9 @@ class App(tk.Tk):
             messagebox.showerror(APP_TITLE, "De uitvoermap kon niet geopend worden:\n"+str(e))
     def paths(self, source):
         s=Path(source).resolve(); sig=f"{s}|{s.stat().st_mtime_ns}|{s.stat().st_size}"; jid=hashlib.sha256(sig.encode()).hexdigest()[:16]; d=JOB_DIR/f"{safe_name(s.stem)}_{jid}"
-        return {"folder":d,"state":d/"state.json","transcript":d/"transcript.txt","translation":d/"translation_nl.txt","vocals":d/"uvr_vocals.wav","background":d/"uvr_background.wav","voice":d/"vlaamse_stem.wav","mixed":d/"vlaams_met_achtergrond.wav","uvr_out":d/"uvr_output","segments":d/"segments.json","translated_segments":d/"segments_nl.json","segment_audio":d/"segment_audio"}
+        return {"folder":d,"state":d/"state.json","transcript":d/"transcript.txt","translation":d/"translation_nl.txt","extracted":d/"bron_audio.wav","vocals":d/"uvr_vocals.wav","background":d/"uvr_background.wav","voice":d/"vlaamse_stem.wav","mixed":d/"vlaams_met_achtergrond.wav","uvr_out":d/"uvr_output","segments":d/"segments.json","translated_segments":d/"segments_nl.json","segment_audio":d/"segment_audio"}
     def default_state(self,s):
-        return {"source":str(Path(s).resolve()),"source_language":LANGUAGES.get(self.language.get(),"fr"),"model":self.whisper.get(),"voice":VOICES[self.voice_choice.get()],"voice_label":self.voice_choice.get(),"use_uvr":bool(self.use_uvr.get()),"keep_stems":bool(self.keep_stems.get()),"bg_volume":int(round(float(self.bg_volume.get()))),"voice_volume":int(round(float(self.voice_volume.get()))),"sync_timing":bool(self.sync_timing.get()),"max_speed":int(self.max_speed.get()),"completed_steps":0,"elapsed":0.,"status":"nieuw","output_dir":str(Path(self.outdir.get() or BASE_DIR/"Output").resolve()),"output_file":"","last_error":""}
+        return {"source":str(Path(s).resolve()),"source_language":LANGUAGES.get(self.language.get(),"fr"),"model":self.whisper.get(),"voice":VOICES[self.voice_choice.get()],"voice_label":self.voice_choice.get(),"use_uvr":bool(self.use_uvr.get()),"keep_stems":bool(self.keep_stems.get()),"write_mp4":bool(self.write_mp4.get()),"bg_volume":int(round(float(self.bg_volume.get()))),"voice_volume":int(round(float(self.voice_volume.get()))),"sync_timing":bool(self.sync_timing.get()),"max_speed":int(self.max_speed.get()),"completed_steps":0,"elapsed":0.,"status":"nieuw","output_dir":str(Path(self.outdir.get() or BASE_DIR/"Output").resolve()),"output_file":"","output_video":"","last_error":""}
     def load(self,p):
         try:return json.loads(p["state"].read_text(encoding="utf-8"))
         except:return None
@@ -730,7 +739,11 @@ class App(tk.Tk):
         p["folder"].mkdir(parents=True,exist_ok=True); tmp=p["state"].with_suffix(".tmp"); tmp.write_text(json.dumps(s,ensure_ascii=False,indent=2),encoding="utf-8"); tmp.replace(p["state"])
     def validate(self):
         s=Path(self.source.get().strip())
-        if not s.is_file(): messagebox.showerror(APP_TITLE,"Kies eerst een geldig WAV-bestand."); return None
+        if not s.is_file(): messagebox.showerror(APP_TITLE,"Kies eerst een WAV- of MP4-bestand."); return None
+        if s.suffix.lower() not in {".wav",".mp4",".m4v"}:
+            messagebox.showerror(APP_TITLE,"Kies een WAV- of MP4-bestand."); return None
+        if is_video_file(s) and find_ffmpeg() is None:
+            messagebox.showerror(APP_TITLE,ffmpeg_missing_message()); return None
         voice_name=VOICES.get(self.voice_choice.get())
         if not voice_name:
             messagebox.showerror(APP_TITLE,"Kies eerst een geldige Vlaamse stem."); return None
@@ -786,6 +799,7 @@ class App(tk.Tk):
             voice_label=next((name for name,key in VOICES.items() if key==st.get("voice")),None)
         if voice_label in VOICES: self.voice_choice.set(voice_label)
         self.use_uvr.set(bool(st.get("use_uvr",False))); self.keep_stems.set(bool(st.get("keep_stems",True))); self.sync_timing.set(bool(st.get("sync_timing",True)))
+        if "write_mp4" in st: self.write_mp4.set(bool(st.get("write_mp4")))
         try:
             self.bg_volume.set(float(st.get("bg_volume",100))); self.voice_volume.set(float(st.get("voice_volume",100)))
             speed=int(st.get("max_speed",15))
@@ -796,7 +810,7 @@ class App(tk.Tk):
     def resume_job(self):
         raw=self.source.get().strip()
         if not raw or not Path(raw).is_file():
-            messagebox.showerror(APP_TITLE,"Kies eerst een geldig WAV-bestand."); return
+            messagebox.showerror(APP_TITLE,"Kies eerst een WAV- of MP4-bestand."); return
         p=self.paths(raw); st=self.load(p)
         if not st or st.get("completed_steps",0)>=len(STEPS): messagebox.showinfo(APP_TITLE,"Geen gestopte taak gevonden."); return
         self.apply_job_state(st)
@@ -809,7 +823,7 @@ class App(tk.Tk):
     def running(self,on):
         self.start.config(state="disabled" if on else "normal"); self.stop.config(state="normal" if on else "disabled")
         if on: self.resume.config(state="disabled")
-        for widget in (self.source_entry,self.out_entry,self.source_button,self.out_button,self.uvr_check,self.keep_stems_check,self.sync_check,self.bg_scale,self.voice_scale):
+        for widget in (self.source_entry,self.out_entry,self.source_button,self.out_button,self.uvr_check,self.keep_stems_check,self.sync_check,self.mp4_check,self.bg_scale,self.voice_scale):
             widget.config(state="disabled" if on else "normal")
         for widget in (self.lang,self.model,self.voice,self.speed_box):
             widget.config(state="disabled" if on else "readonly")
@@ -839,13 +853,27 @@ class App(tk.Tk):
         self.check_stop(); st["completed_steps"]=n; st["elapsed"]=self.elapsed_now(); st["status"]="bezig"; self.save(p,st); self.stage(n-1,1,f"Voltooid: {STEPS[n-1]}")
     def elapsed_now(self):return self.elapsed_before+(time.monotonic()-self.started if self.started else 0)
 
+    def work_audio(self,p,st):
+        """WAV om te vertalen. Bij een MP4 is dat het uitgehaalde audiospoor."""
+        source=Path(st["source"])
+        if not is_video_file(source):
+            return source
+        extracted=p["extracted"]
+        if extracted.is_file() and extracted.stat().st_size>=44:
+            return extracted
+        self.stage(0,.35,"Audio uit MP4 halen...")
+        extract_wav(source,extracted,self.stop_event,lambda proc:setattr(self,"child",proc))
+        st["audio_wav"]=str(extracted); self.save(p,st)
+        return extracted
+
     def pipeline(self,p,st):
         try:
             p["folder"].mkdir(parents=True,exist_ok=True); source=Path(st["source"]); done=int(st.get("completed_steps",0))
+            audio=self.work_audio(p,st)
             if done<1:
                 self.stage(0,.2,"Bestand en installatie controleren..."); self.check_stop()
                 if not source.exists():raise FileNotFoundError(source)
-                self.queue_measure("input",source)
+                self.queue_measure("input",audio)
                 self.finish(p,st,1); done=1
             if done<2:
                 if not st.get("use_uvr",False):
@@ -856,7 +884,7 @@ class App(tk.Tk):
                     self.stage(1,.02,"UVR-model laden en stem van achtergrond scheiden..."); p["uvr_out"].mkdir(exist_ok=True); MODEL_DIR.mkdir(exist_ok=True)
                     for f in p["uvr_out"].glob("*"):
                         if f.is_file(): f.unlink()
-                    cmd=[exe,str(source),"--model_filename",UVR_MODEL,"--output_format","WAV","--output_dir",str(p["uvr_out"]),"--model_file_dir",str(MODEL_DIR)]
+                    cmd=[exe,str(audio),"--model_filename",UVR_MODEL,"--output_format","WAV","--output_dir",str(p["uvr_out"]),"--model_file_dir",str(MODEL_DIR)]
                     self.child=popen_hidden(cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,encoding="utf-8",errors="replace")
                     uvr_out=self.child.stdout; lines=[]
                     def _read_uvr():
@@ -874,7 +902,7 @@ class App(tk.Tk):
                     files=list(p["uvr_out"].glob("*.wav")); vocals=next((f for f in files if "vocal" in f.name.lower()),None); instr=next((f for f in files if any(x in f.name.lower() for x in ("instrumental","no_vocal","karaoke"))),None)
                     if not vocals or not instr: raise RuntimeError("UVR-uitvoer bevat niet zowel Vocals als Instrumental: "+", ".join(f.name for f in files))
                     shutil.copy2(vocals,p["vocals"]); shutil.copy2(instr,p["background"]); self.queue_measure("background",p["background"],"background_raw"); self.stage(1,1,"UVR-scheiding voltooid."); self.finish(p,st,2); done=2
-            recognition_source=p["vocals"] if st.get("use_uvr") else source
+            recognition_source=p["vocals"] if st.get("use_uvr") else audio
             if done<3:
                 self.stage(2,0,"Whisper-model laden...")
                 try:
@@ -907,7 +935,7 @@ class App(tk.Tk):
                 self.stage(4,.01,"Gesynchroniseerde Vlaamse segmenten genereren..."); p["voice"].unlink(missing_ok=True)
                 translated=json.loads(p["translated_segments"].read_text(encoding="utf-8"))
                 if st.get("sync_timing",True):
-                    src_duration=read_wav_duration(source)
+                    src_duration=read_wav_duration(audio)
                     warnings=build_synchronized_voice(translated,p["voice"],p["segment_audio"],st["voice"],int(st.get("max_speed",15)),src_duration,self.stop_event,lambda f:self.stage(4,f,"Vlaamse segmenten op tijdcode plaatsen..."),lambda proc:setattr(self,"child",proc))
                     st["timing_warnings"]=warnings
                 else:
@@ -926,9 +954,18 @@ class App(tk.Tk):
                 shutil.copy2(p["transcript"],out/f"{stem}_transcript_{st['source_language']}.txt"); shutil.copy2(p["translation"],out/f"{stem}_vertaling_nl.txt")
                 if st.get("use_uvr") and st.get("keep_stems"):
                     shutil.copy2(p["vocals"],out/f"{stem}_UVR_stem.wav"); shutil.copy2(p["background"],out/f"{stem}_UVR_achtergrond.wav")
-                st["output_file"]=str(final); self.finish(p,st,7)
-            st["status"]="voltooid"; st["elapsed"]=self.elapsed_now(); self.save(p,st); self.q.put(("completed",st["output_file"]))
-        except StoppedByUser:
+                st["output_file"]=str(final); st["output_video"]=""
+                if is_video_file(source) and st.get("write_mp4",True):
+                    self.stage(6,.65,"Vertaalde audio in de MP4 schrijven...")
+                    final_mp4=out/f"{stem}_Vlaams_met_achtergrond.mp4" if st.get("use_uvr") else out/f"{stem}_Vlaams.mp4"
+                    write_mp4(source,final,final_mp4,self.stop_event,lambda proc:setattr(self,"child",proc))
+                    st["output_video"]=str(final_mp4)
+                self.finish(p,st,7)
+            shown=st.get("output_video") or st.get("output_file")
+            if st.get("output_video") and st.get("output_file"):
+                shown=st["output_video"]+"\n\nWAV-mix:\n"+st["output_file"]
+            st["status"]="voltooid"; st["elapsed"]=self.elapsed_now(); self.save(p,st); self.q.put(("completed",shown))
+        except (StoppedByUser, MediaStopped):
             st["status"]="gestopt"; st["elapsed"]=self.elapsed_now(); self.save(p,st); self.q.put(("stopped",st.get("completed_steps",0)))
         except Exception as e:
             st["status"]="fout"; st["last_error"]=str(e); st["elapsed"]=self.elapsed_now(); self.save(p,st); self.q.put(("error",str(e),st.get("completed_steps",0)))

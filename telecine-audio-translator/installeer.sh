@@ -63,3 +63,9 @@ echo "Klaar. Start het programma met:"
 echo "  $APP_DIR/start.sh"
 echo "of zoek in het programmamenu naar TeleCine Audio Translator."
 echo "Bij aanmelden starten: ./start-bij-aanmelden.sh"
+if command -v ffmpeg >/dev/null 2>&1; then
+  echo "FFmpeg is gevonden. Een MP4 kan als bron en als resultaat."
+else
+  echo "FFmpeg is niet gevonden. WAV werkt wel."
+  echo "Voor MP4: sudo apt install ffmpeg"
+fi
