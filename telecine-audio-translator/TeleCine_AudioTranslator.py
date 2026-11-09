@@ -284,7 +284,7 @@ def mix_wavs(background, voice, output, bg_gain=1.0, voice_gain=1.0):
 
 class App(tk.Tk):
     def __init__(self):
-        super().__init__(); self.title(APP_TITLE); self.geometry("1180x920"); self.minsize(920,760)
+        super().__init__(); self.title(APP_TITLE); self.geometry("1180x900"); self.minsize(920,640)
         self.q=queue.Queue(); self.stop_event=threading.Event(); self.worker=None; self.child=None
         self.started=None; self.elapsed_before=0.; self.progress=0.; self.state=None
         self.source=tk.StringVar(); self.outdir=tk.StringVar(value=str(BASE_DIR/"Output"))
@@ -467,14 +467,20 @@ class App(tk.Tk):
             self._fitting=False
 
     def _place_on_screen(self):
+        """Hoogte past op 1080p: taakbalk en titelbalk blijven vrij."""
         self.update_idletasks()
         screen_w=max(1,self.winfo_screenwidth()); screen_h=max(1,self.winfo_screenheight())
-        width=min(1180,max(640,screen_w))
-        wanted=max(760,getattr(self,"_pinned_height",700)+160)
-        height=min(screen_h-8,max(wanted,screen_h-12))
-        x=max(0,(screen_w-width)//2); y=max(0,(screen_h-height)//2)
+        # 1920x1080 minus een Windows-taakbalk (~48) en de titelbalk (~40).
+        margin=88
+        max_h=max(520,min(screen_h-margin,1080-margin))
+        width=min(1180,max(640,screen_w-16))
+        wanted=getattr(self,"_pinned_height",700)+150
+        height=min(max_h,max(640,wanted))
+        x=max(0,(screen_w-width)//2)
+        y=max(0,min(24,(screen_h-margin-height)//2))
         self.geometry(f"{width}x{height}+{x}+{y}")
-        self.minsize(min(860,screen_w),min(620,max(520,screen_h-8)))
+        self.minsize(min(860,screen_w),min(620,max_h))
+        self.maxsize(max(width,screen_w),max_h)
 
     def _on_volume_change(self,*_):
         try:
