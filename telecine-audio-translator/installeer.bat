@@ -24,7 +24,9 @@ if not exist "%ROOT%\requirements.txt" (
 )
 
 set "APPVER=onbekend"
-if exist "%ROOT%\VERSION" set /p APPVER=<"%ROOT%\VERSION"
+if not exist "%ROOT%\VERSION" goto version_done
+for /f "usebackq delims=" %%V in ("%ROOT%\VERSION") do set "APPVER=%%V"
+:version_done
 echo.
 echo TeleCine Audio Translator installeren
 echo =====================================

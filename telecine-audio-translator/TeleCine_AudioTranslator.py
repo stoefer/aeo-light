@@ -43,7 +43,7 @@ def translation_route_note(source):
     return ""
 
 WHISPER_MODELS = ["tiny", "base", "small", "medium"]
-STEPS = ["Bestand controleren", "Franse stem scheiden (UVR)", "Spraak herkennen",
+STEPS = ["Bestand controleren", "Stem scheiden (UVR)", "Spraak herkennen",
          "Naar Nederlands vertalen", "Vlaamse WAV genereren", "Achtergrond mengen", "Resultaten opslaan"]
 WEIGHTS = [0.02, 0.28, 0.35, 0.10, 0.17, 0.06, 0.02]
 
@@ -163,6 +163,20 @@ def popen_hidden(cmd, **kwargs):
         kwargs["creationflags"] = kwargs.get("creationflags", 0) | subprocess.CREATE_NO_WINDOW
     return subprocess.Popen(cmd, **kwargs)
 
+def console_python(executable=None):
+    """Python voor Piper en andere hulpmiddelen.
+
+    Het bureaublad-icoon start het venster met pythonw.exe. Dat programma heeft
+    geen console; Piper krijgt dan geen bruikbare standaarduitvoer. python.exe
+    in dezelfde map wel, en popen_hidden verbergt dat venster.
+    """
+    exe = Path(executable or sys.executable)
+    if exe.name.lower() == "pythonw.exe":
+        console = exe.with_name("python.exe")
+        if console.exists():
+            return str(console)
+    return str(exe)
+
 def fit_channels(audio, channels):
     """Maak een audioblok exact `channels` kanalen breed."""
     import numpy as np
@@ -219,7 +233,7 @@ def translate_segments(segments, source, stop, callback):
 def run_piper(text, output, voice_name, stop, child_setter):
     env=os.environ.copy(); es=find_espeak_data()
     if es: env["ESPEAK_DATA_PATH"]=es
-    cmd=[sys.executable,"-m","piper","--data-dir",str(VOICE_DIR),"-m",voice_name,"-f",str(output)]
+    cmd=[console_python(),"-m","piper","--data-dir",str(VOICE_DIR),"-m",voice_name,"-f",str(output)]
     proc=popen_hidden(cmd,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,
                       encoding="utf-8",errors="replace",env=env)
     child_setter(proc)
