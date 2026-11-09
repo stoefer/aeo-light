@@ -17,6 +17,15 @@ $sc.TargetPath = Join-Path $env:SystemRoot "System32\wscript.exe"
 $sc.Arguments = '"' + $vbs + '"'
 $sc.WorkingDirectory = $here
 $sc.WindowStyle = 1
-$sc.Description = "TeleCine Audio Translator"
+$versionFile = Join-Path $here "VERSION"
+$version = ""
+if (Test-Path $versionFile) {
+  $version = (Get-Content -LiteralPath $versionFile -TotalCount 1).Trim()
+}
+if ($version) {
+  $sc.Description = "TeleCine Audio Translator $version"
+} else {
+  $sc.Description = "TeleCine Audio Translator"
+}
 $sc.Save()
 Write-Host "Snelkoppeling geplaatst: $lnk"
