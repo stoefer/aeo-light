@@ -12,6 +12,8 @@ Je hoeft geen IDE te openen en geen `python`-commando te typen. Na de eenmalige 
 
 De eerste keer heeft internet nodig. Het script maakt een virtuele omgeving, installeert de onderdelen, downloadt de stemmen Nathalie en RDH, en zet **TeleCine Audio Translator** op het bureaublad.
 
+Engels wordt rechtstreeks naar het Nederlands vertaald. Frans gaat via Engels, omdat Argos geen rechtstreeks Frans-Nederlands pakket meer aanbiedt.
+
 Daarna: dubbelklik dat bureaublad-icoon. Er opent geen zwart opdrachtvenster.
 
 ## Linux

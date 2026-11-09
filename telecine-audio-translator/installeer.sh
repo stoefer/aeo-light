@@ -9,6 +9,10 @@ if ! "$PY" -c "import tkinter" >/dev/null 2>&1; then
   echo "Op Ubuntu/Debian: sudo apt install python3-tk python3-venv"
   exit 1
 fi
+if [ -x .venv/bin/python ] && ! .venv/bin/python -m pip --version >/dev/null 2>&1; then
+  echo "De virtuele omgeving is onvolledig en wordt opnieuw aangemaakt."
+  rm -rf .venv
+fi
 if [ ! -x .venv/bin/python ]; then
   if ! "$PY" -m venv .venv; then
     echo "De virtuele omgeving kon niet aangemaakt worden."

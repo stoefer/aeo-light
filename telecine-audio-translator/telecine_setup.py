@@ -67,26 +67,57 @@ def _voice_file_ok(path, final_name=None):
 
 def _argos_ready(source):
     import argostranslate.translate as tr
+    # Argos onthoudt talen in een cache én in een lijst van al gebouwde
+    # vertalingen. Na een installatie in hetzelfde proces moeten beide leeg,
+    # anders ontbreekt de koppeling Frans -> Engels -> Nederlands.
+    tr.installed_translates.clear()
+    tr.get_installed_languages.cache_clear()
     installed = tr.get_installed_languages()
     src = next((lang for lang in installed if lang.code == source), None)
     dst = next((lang for lang in installed if lang.code == "nl"), None)
     return bool(src and dst and src.get_translation(dst))
 
 
-def ensure_argos_package(source):
-    """Installeer het Argos-pakket source -> nl als het nog ontbreekt."""
+def _install_pair(source, target):
+    """Download en installeer één Argos-pakket source -> target."""
     import argostranslate.package as pkg
-    if _argos_ready(source):
-        return
-    pkg.update_package_index()
     match = next((item for item in pkg.get_available_packages()
-                  if item.from_code == source and item.to_code == "nl"), None)
+                  if item.from_code == source and item.to_code == target), None)
     if match is None:
         raise RuntimeError(
-            f"Geen Argos-vertaalpakket gevonden van '{source}' naar Nederlands.\n"
+            f"Geen Argos-vertaalpakket gevonden van '{source}' naar '{target}'.\n"
             "Controleer de internetverbinding en voer installeer.bat opnieuw uit."
         )
+    print(f"Installeren: {source} -> {target}")
     pkg.install_from_path(match.download())
+
+
+def ensure_argos_package(source):
+    """Zorg dat source naar Nederlands vertaald kan worden.
+
+    Argos publiceert vaak geen rechtstreeks pakket, bijvoorbeeld geen Frans naar
+    Nederlands. Dan worden de pakketten via Engels geinstalleerd. Argos koppelt
+    die zelf tot één vertaling.
+    """
+    import argostranslate.package as pkg
+    if source == "nl" or _argos_ready(source):
+        return
+    pkg.update_package_index()
+    direct = next((item for item in pkg.get_available_packages()
+                   if item.from_code == source and item.to_code == "nl"), None)
+    if direct is not None:
+        print(f"Installeren: {source} -> nl")
+        pkg.install_from_path(direct.download())
+    elif source != "en":
+        _install_pair(source, "en")
+        if not _argos_ready("en"):
+            _install_pair("en", "nl")
+    else:
+        _install_pair("en", "nl")
+    if not _argos_ready(source):
+        raise RuntimeError(
+            f"Vertalen van '{source}' naar Nederlands lukt nog niet na het installeren van de pakketten."
+        )
 
 
 def install_argos():
