@@ -93,7 +93,7 @@ class LevelMeter(ttk.Frame):
         p=dbfs(peak); r=dbfs(rms)
         if reset_hold: self.peak_hold=p
         else: self.peak_hold=max(self.peak_hold,p)
-        self.peak_text.config(text=f"Peak {p:6.1f} dBFS"); self.rms_text.config(text=f"RMS  {r:6.1f} dBFS")
+        self.peak_text.config(text=f"Peak {p:6.1f} dBFS".replace(".", ",")); self.rms_text.config(text=f"RMS  {r:6.1f} dBFS".replace(".", ","))
         self.clip.config(text="CLIP" if peak>=0.999 else "",foreground="#c00000")
         self.redraw()
     def clear(self):
@@ -139,10 +139,44 @@ def open_folder(path):
     opener = "open" if sys.platform == "darwin" else "xdg-open"
     if shutil.which(opener) is None:
         raise FileNotFoundError("Geen bestandsverkenner gevonden (" + opener + "). Map: " + target)
-    subprocess.Popen([opener, target], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.Popen([opener, target], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+
+def install_command_hint():
+    """Korte aanwijzing die klopt op Windows én Linux."""
+    if os.name == "nt":
+        return "Voer installeer.bat opnieuw uit."
+    return "Voer ./installeer.sh opnieuw uit."
+
+def popen_hidden(cmd, **kwargs):
+    """Start een hulpprogramma. Op Windows zonder extra consolevenster."""
+    if os.name == "nt":
+        kwargs["creationflags"] = kwargs.get("creationflags", 0) | subprocess.CREATE_NO_WINDOW
+    return subprocess.Popen(cmd, **kwargs)
+
+def fit_channels(audio, channels):
+    """Maak een audioblok exact `channels` kanalen breed."""
+    import numpy as np
+    if audio.size == 0:
+        return np.zeros((audio.shape[0], channels), dtype=audio.dtype)
+    current = int(audio.shape[1])
+    if current == channels:
+        return audio
+    if current == 1:
+        return np.repeat(audio, channels, axis=1)
+    if channels == 1:
+        return np.mean(audio, axis=1, keepdims=True).astype(audio.dtype)
+    fitted = np.zeros((audio.shape[0], channels), dtype=audio.dtype)
+    count = min(current, channels)
+    fitted[:, :count] = audio[:, :count]
+    return fitted
 
 def read_wav_duration(path):
-    with wave.open(str(path), "rb") as w: return w.getnframes() / max(1, w.getframerate())
+    try:
+        import soundfile as sf
+        return float(sf.info(str(path)).duration)
+    except Exception:
+        with wave.open(str(path), "rb") as w:
+            return w.getnframes() / max(1, w.getframerate())
 
 def translate_chunks(text, source, stop, callback):
     import argostranslate.translate as tr
@@ -176,16 +210,22 @@ def run_piper(text, output, voice_name, stop, child_setter):
     env=os.environ.copy(); es=find_espeak_data()
     if es: env["ESPEAK_DATA_PATH"]=es
     cmd=[sys.executable,"-m","piper","--data-dir",str(VOICE_DIR),"-m",voice_name,"-f",str(output)]
-    flags=subprocess.CREATE_NO_WINDOW if os.name=="nt" else 0
-    proc=subprocess.Popen(cmd,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,
-                          encoding="utf-8",errors="replace",env=env,creationflags=flags)
+    proc=popen_hidden(cmd,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,
+                      encoding="utf-8",errors="replace",env=env)
     child_setter(proc)
     try:
         _,err=proc.communicate(input=text)
     finally:
         child_setter(None)
     if stop.is_set(): raise StoppedByUser
-    if proc.returncode!=0 or not Path(output).exists(): raise RuntimeError("Piper-fout:\n"+err)
+    if proc.returncode!=0 or not Path(output).exists():
+        extra=""
+        if not es:
+            if os.name=="nt":
+                extra="\n\neSpeak NG is niet gevonden. Installeer het en start het programma opnieuw.\nhttps://github.com/espeak-ng/espeak-ng/releases"
+            else:
+                extra="\n\neSpeak NG is niet gevonden. Installeer het met:\nsudo apt install espeak-ng"
+        raise RuntimeError("De Vlaamse stem kon niet gemaakt worden.\n"+(err or "").strip()+extra)
 
 def build_synchronized_voice(segments, output, temp_dir, voice_name, max_speed_pct, source_duration, stop, callback, child_setter):
     try:
@@ -235,10 +275,7 @@ def mix_wavs(background, voice, output, bg_gain=1.0, voice_gain=1.0):
         new = np.linspace(0, max(0,len(vc)-1), new_len)
         vc = np.column_stack([np.interp(new, old, vc[:,c]) for c in range(vc.shape[1])]).astype("float32")
     channels=max(bg.shape[1], vc.shape[1])
-    if bg.shape[1] == 1 and channels == 2: bg=np.repeat(bg,2,axis=1)
-    if vc.shape[1] == 1 and channels == 2: vc=np.repeat(vc,2,axis=1)
-    if bg.shape[1] > channels: bg=bg[:,:channels]
-    if vc.shape[1] > channels: vc=vc[:,:channels]
+    bg=fit_channels(bg, channels); vc=fit_channels(vc, channels)
     length=max(len(bg),len(vc)); mixed=np.zeros((length,channels),dtype="float32")
     mixed[:len(bg)] += bg*bg_gain; mixed[:len(vc)] += vc*voice_gain
     peak=float(np.max(np.abs(mixed))) if mixed.size else 0
@@ -247,7 +284,7 @@ def mix_wavs(background, voice, output, bg_gain=1.0, voice_gain=1.0):
 
 class App(tk.Tk):
     def __init__(self):
-        super().__init__(); self.title(APP_TITLE); self.geometry("1000x900"); self.minsize(860,640)
+        super().__init__(); self.title(APP_TITLE); self.geometry("1180x920"); self.minsize(920,760)
         self.q=queue.Queue(); self.stop_event=threading.Event(); self.worker=None; self.child=None
         self.started=None; self.elapsed_before=0.; self.progress=0.; self.state=None
         self.source=tk.StringVar(); self.outdir=tk.StringVar(value=str(BASE_DIR/"Output"))
@@ -255,8 +292,10 @@ class App(tk.Tk):
         self.voice_choice=tk.StringVar(value=DEFAULT_VOICE_LABEL)
         self.use_uvr=tk.BooleanVar(value=True); self.keep_stems=tk.BooleanVar(value=True)
         self.sync_timing=tk.BooleanVar(value=True); self.max_speed=tk.IntVar(value=15)
-        self.bg_volume=tk.IntVar(value=100); self.voice_volume=tk.IntVar(value=100)
-        self.level_values={}; self.meters={}
+        self.bg_volume=tk.DoubleVar(value=100); self.voice_volume=tk.DoubleVar(value=100)
+        self.bg_volume_text=tk.StringVar(value="100%"); self.voice_volume_text=tk.StringVar(value="100%")
+        self.hint=tk.StringVar(value="Installatie controleren...")
+        self.level_values={}; self.file_levels={}; self.meters={}; self._env_gen=0; self._env_notes=[]; self._env_ready=False
         # Live afspelen en meteranalyse
         self.play_stream=None; self.play_files={}; self.play_path=None
         self.play_position=0; self.play_total_frames=0; self.play_samplerate=0
@@ -268,77 +307,206 @@ class App(tk.Tk):
         self.status=tk.StringVar(value="Klaar om te starten"); self.step=tk.StringVar(value="Stap: nog niet gestart")
         self.resume_text=tk.StringVar(value="Hervatten vanaf: niet van toepassing")
         self.percent=tk.StringVar(value="0%"); self.elapsed=tk.StringVar(value="00:00:00"); self.remaining=tk.StringVar(value="Nog niet beschikbaar")
-        self.build(); self.show_route_note(); self.after(100,self.process_queue); self.after(500,self.clock); self.protocol("WM_DELETE_WINDOW",self.close)
+        self.build(); self._place_on_screen(); self.after(100,self.process_queue); self.after(500,self.clock); self.protocol("WM_DELETE_WINDOW",self.close)
+        self.bg_volume.trace_add("write",self._on_volume_change); self.voice_volume.trace_add("write",self._on_volume_change)
+        self.voice_choice.trace_add("write",lambda *_:self.refresh_environment_status()); self.use_uvr.trace_add("write",lambda *_:self.refresh_environment_status())
+        self.show_route_note(); self.refresh_environment_status()
+
+    def _ui_font(self,size,bold=False):
+        import tkinter.font as tkfont
+        families=set(tkfont.families())
+        chosen="TkDefaultFont"
+        for name in ("Segoe UI","Ubuntu","Noto Sans","DejaVu Sans","Liberation Sans"):
+            if name in families:
+                chosen=name; break
+        return (chosen,size,"bold") if bold else (chosen,size)
+
+    def _mono_font(self,size):
+        import tkinter.font as tkfont
+        families=set(tkfont.families())
+        for name in ("Consolas","DejaVu Sans Mono","Liberation Mono","Noto Sans Mono"):
+            if name in families: return (name,size)
+        return ("TkFixedFont",size)
 
     def build(self):
-        outer=ttk.Frame(self); outer.pack(fill="both",expand=True)
-        outer.rowconfigure(0,weight=1); outer.columnconfigure(0,weight=1)
-        canvas=tk.Canvas(outer,highlightthickness=0,borderwidth=0)
-        scroll=ttk.Scrollbar(outer,orient="vertical",command=canvas.yview)
+        """Instellingen schuiven. Meters, speler, knoppen en voortgang blijven staan."""
+        style=ttk.Style(); bg=style.lookup("TFrame","background") or self.cget("bg")
+        outer=ttk.Frame(self,padding=(12,8,12,8)); outer.pack(fill="both",expand=True)
+        outer.columnconfigure(0,weight=1); outer.rowconfigure(0,weight=1,minsize=110)
+        self._outer=outer
+        scroll_host=ttk.Frame(outer); scroll_host.grid(row=0,column=0,sticky="nsew")
+        scroll_host.rowconfigure(0,weight=1); scroll_host.columnconfigure(0,weight=1)
+        canvas=tk.Canvas(scroll_host,highlightthickness=0,borderwidth=0,background=bg)
+        scroll=tk.Scrollbar(scroll_host,orient="vertical",command=canvas.yview,width=16,troughcolor="#e4e4e4",background="#5c5c5c",activebackground="#333333")
         canvas.configure(yscrollcommand=scroll.set)
         canvas.grid(row=0,column=0,sticky="nsew"); scroll.grid(row=0,column=1,sticky="ns")
-        bottom=ttk.Frame(outer,padding=(16,0,16,12)); bottom.grid(row=1,column=0,columnspan=2,sticky="ew")
-        bottom.columnconfigure(0,weight=1); bottom.rowconfigure(1,weight=1)
-        m=ttk.Frame(canvas,padding=16); m.columnconfigure(1,weight=1)
+        m=ttk.Frame(canvas,padding=(4,0,8,4)); m.columnconfigure(1,weight=1)
         window=canvas.create_window((0,0),window=m,anchor="nw")
         def fit(_event=None):
-            canvas.configure(scrollregion=canvas.bbox("all"))
+            canvas.configure(scrollregion=canvas.bbox("all") or (0,0,0,0))
             canvas.itemconfigure(window,width=max(1,canvas.winfo_width()))
         m.bind("<Configure>",fit); canvas.bind("<Configure>",fit)
-        canvas.bind_all("<MouseWheel>",lambda e: canvas.yview_scroll(int(-e.delta/120) or (-1 if e.delta>0 else 1),"units"))
-        canvas.bind_all("<Button-4>",lambda e: canvas.yview_scroll(-3,"units"))
-        canvas.bind_all("<Button-5>",lambda e: canvas.yview_scroll(3,"units"))
-        ttk.Label(m,text=APP_TITLE,font=("Segoe UI",18,"bold")).grid(row=0,column=0,columnspan=3,sticky="w",pady=(0,14))
-        ttk.Label(m,text="Bronbestand (WAV):").grid(row=1,column=0,sticky="w"); ttk.Entry(m,textvariable=self.source).grid(row=1,column=1,sticky="ew",padx=8)
-        ttk.Button(m,text="Kiezen...",command=self.choose_source).grid(row=1,column=2)
-        ttk.Label(m,text="Uitvoermap:").grid(row=2,column=0,sticky="w",pady=6); ttk.Entry(m,textvariable=self.outdir).grid(row=2,column=1,sticky="ew",padx=8)
-        ttk.Button(m,text="Kiezen...",command=self.choose_out).grid(row=2,column=2)
-        opt=ttk.LabelFrame(m,text="Vertaling",padding=10); opt.grid(row=3,column=0,columnspan=3,sticky="ew",pady=8)
+        def on_wheel(event):
+            try:
+                if getattr(event,"delta",0):
+                    step=int(-event.delta/120) or (-1 if event.delta>0 else 1)
+                    canvas.yview_scroll(step,"units")
+                elif getattr(event,"num",None)==4: canvas.yview_scroll(-3,"units")
+                elif getattr(event,"num",None)==5: canvas.yview_scroll(3,"units")
+            except tk.TclError: pass
+        def bind_wheel(widget):
+            widget.bind("<MouseWheel>",on_wheel,add="+")
+            widget.bind("<Button-4>",on_wheel,add="+")
+            widget.bind("<Button-5>",on_wheel,add="+")
+            for child in widget.winfo_children(): bind_wheel(child)
+        ttk.Label(m,text=APP_TITLE,font=self._ui_font(16,True)).grid(row=0,column=0,columnspan=3,sticky="w",pady=(0,8))
+        ttk.Label(m,text="Bronbestand (WAV):").grid(row=1,column=0,sticky="w")
+        self.source_entry=ttk.Entry(m,textvariable=self.source); self.source_entry.grid(row=1,column=1,sticky="ew",padx=8)
+        self.source_button=ttk.Button(m,text="Kiezen...",command=self.choose_source); self.source_button.grid(row=1,column=2)
+        ttk.Label(m,text="Uitvoermap:").grid(row=2,column=0,sticky="w",pady=6)
+        self.out_entry=ttk.Entry(m,textvariable=self.outdir); self.out_entry.grid(row=2,column=1,sticky="ew",padx=8)
+        self.out_button=ttk.Button(m,text="Kiezen...",command=self.choose_out); self.out_button.grid(row=2,column=2)
+        opt=ttk.LabelFrame(m,text="Vertaling",padding=8); opt.grid(row=3,column=0,columnspan=3,sticky="ew",pady=(4,6))
         for c in range(3): opt.columnconfigure(c,weight=1)
         ttk.Label(opt,text="Brontaal").grid(row=0,column=0,sticky="w"); ttk.Label(opt,text="Whisper-kwaliteit").grid(row=0,column=1,sticky="w"); ttk.Label(opt,text="Vlaamse stem").grid(row=0,column=2,sticky="w")
         self.lang=ttk.Combobox(opt,textvariable=self.language,values=list(LANGUAGES),state="readonly"); self.lang.grid(row=1,column=0,sticky="ew")
         self.lang.bind("<<ComboboxSelected>>",lambda _e:self.show_route_note())
         self.model=ttk.Combobox(opt,textvariable=self.whisper,values=WHISPER_MODELS,state="readonly"); self.model.grid(row=1,column=1,sticky="ew",padx=8)
         self.voice=ttk.Combobox(opt,textvariable=self.voice_choice,values=list(VOICES),state="readonly"); self.voice.current(0); self.voice.grid(row=1,column=2,sticky="ew")
-        u=ttk.LabelFrame(m,text="UVR: Franse/Engelse stem verwijderen en achtergrond behouden",padding=10); u.grid(row=4,column=0,columnspan=3,sticky="ew",pady=8)
+        self.route_inline=tk.StringVar(value="")
+        ttk.Label(opt,textvariable=self.route_inline,foreground="#555").grid(row=2,column=0,columnspan=3,sticky="w",pady=(6,0))
+        u=ttk.LabelFrame(m,text="UVR: volumes en losse sporen",padding=8); u.grid(row=4,column=0,columnspan=3,sticky="ew",pady=6)
         u.columnconfigure(1,weight=1)
-        self.uvr_check=ttk.Checkbutton(u,text="Stem met UVR scheiden en originele achtergrond/muziek behouden",variable=self.use_uvr); self.uvr_check.grid(row=0,column=0,columnspan=3,sticky="w")
-        ttk.Checkbutton(u,text="Losse UVR-sporen ook naar de uitvoermap kopiëren",variable=self.keep_stems).grid(row=1,column=0,columnspan=3,sticky="w",pady=(3,8))
-        ttk.Label(u,text="Achtergrondvolume:").grid(row=2,column=0,sticky="w"); ttk.Scale(u,from_=0,to=150,variable=self.bg_volume,orient="horizontal",command=lambda v:self.preview_gain_levels()).grid(row=2,column=1,sticky="ew",padx=8); ttk.Label(u,textvariable=self.bg_volume,width=4).grid(row=2,column=2)
-        ttk.Label(u,text="Vlaamse stemvolume:").grid(row=3,column=0,sticky="w"); ttk.Scale(u,from_=0,to=150,variable=self.voice_volume,orient="horizontal",command=lambda v:self.preview_gain_levels()).grid(row=3,column=1,sticky="ew",padx=8); ttk.Label(u,textvariable=self.voice_volume,width=4).grid(row=3,column=2)
-        sy=ttk.LabelFrame(m,text="Synchronisatie met originele timing",padding=10); sy.grid(row=5,column=0,columnspan=3,sticky="ew",pady=8)
+        self.keep_stems_check=ttk.Checkbutton(u,text="Losse UVR-sporen ook naar de uitvoermap kopiëren",variable=self.keep_stems); self.keep_stems_check.grid(row=0,column=0,columnspan=3,sticky="w",pady=(0,8))
+        ttk.Label(u,text="Achtergrondvolume:").grid(row=1,column=0,sticky="w")
+        self.bg_scale=ttk.Scale(u,from_=0,to=150,variable=self.bg_volume,orient="horizontal"); self.bg_scale.grid(row=1,column=1,sticky="ew",padx=8)
+        ttk.Label(u,textvariable=self.bg_volume_text,width=5).grid(row=1,column=2)
+        ttk.Label(u,text="Vlaamse stemvolume:").grid(row=2,column=0,sticky="w")
+        self.voice_scale=ttk.Scale(u,from_=0,to=150,variable=self.voice_volume,orient="horizontal"); self.voice_scale.grid(row=2,column=1,sticky="ew",padx=8)
+        ttk.Label(u,textvariable=self.voice_volume_text,width=5).grid(row=2,column=2)
+        sy=ttk.LabelFrame(m,text="Synchronisatie met originele timing",padding=8); sy.grid(row=5,column=0,columnspan=3,sticky="ew",pady=6)
         sy.columnconfigure(1,weight=1)
         self.sync_check=ttk.Checkbutton(sy,text="Oorspronkelijke starttijden en stiltes behouden",variable=self.sync_timing); self.sync_check.grid(row=0,column=0,columnspan=3,sticky="w")
         ttk.Label(sy,text="Maximale versnelling van Vlaamse segmenten:").grid(row=1,column=0,sticky="w",pady=(6,0))
-        ttk.Combobox(sy,textvariable=self.max_speed,values=[0,5,10,15,20,25,30],state="readonly",width=8).grid(row=1,column=1,sticky="w",padx=8,pady=(6,0))
+        self.speed_box=ttk.Combobox(sy,textvariable=self.max_speed,values=[0,5,10,15,20,25,30],state="readonly",width=8); self.speed_box.grid(row=1,column=1,sticky="w",padx=8,pady=(6,0))
         ttk.Label(sy,text="%").grid(row=1,column=2,sticky="w",pady=(6,0))
-        meterbox=ttk.LabelFrame(m,text="Audioniveaus: Peak, RMS en Peak Hold",padding=10); meterbox.grid(row=6,column=0,columnspan=3,sticky="ew",pady=8)
+        bind_wheel(m); bind_wheel(canvas)
+        uvr_bar=ttk.Frame(outer); uvr_bar.grid(row=1,column=0,sticky="ew",pady=(6,0))
+        self.uvr_check=ttk.Checkbutton(uvr_bar,text="Stem met UVR scheiden en originele achtergrond/muziek behouden",variable=self.use_uvr)
+        self.uvr_check.pack(side="left",anchor="w")
+        meterbox=ttk.LabelFrame(outer,text="Audioniveaus: Peak, RMS en Peak Hold",padding=8); meterbox.grid(row=2,column=0,sticky="ew",pady=(6,4))
         meterbox.columnconfigure(0,weight=1)
         for row,(key,label) in enumerate((("input","IN origineel"),("background","UVR-achtergrond"),("voice","Vlaamse stem"),("output","OUT eindmix"))):
-            meter=LevelMeter(meterbox,label); meter.grid(row=row,column=0,sticky="ew",pady=2); self.meters[key]=meter
-        ttk.Label(meterbox,text="Groen: normaal   Geel: hoog   Rood: dicht bij 0 dBFS   Witte lijn: Peak Hold",foreground="#555").grid(row=4,column=0,sticky="w",pady=(6,0))
-        player=ttk.LabelFrame(meterbox,text="Resultaat afspelen met live meters",padding=8); player.grid(row=5,column=0,sticky="ew",pady=(10,0)); player.columnconfigure(3,weight=1)
+            meter=LevelMeter(meterbox,label); meter.grid(row=row,column=0,sticky="ew",pady=1); self.meters[key]=meter
+        ttk.Label(meterbox,text="Groen: normaal   Geel: hoog   Rood: dicht bij 0 dBFS   Witte lijn: Peak Hold",foreground="#555").grid(row=4,column=0,sticky="w",pady=(4,0))
+        player=ttk.LabelFrame(meterbox,text="Resultaat afspelen met live meters",padding=6); player.grid(row=5,column=0,sticky="ew",pady=(8,0)); player.columnconfigure(3,weight=1)
         self.play_button=ttk.Button(player,text="▶ Afspelen",command=self.play_audio); self.play_button.grid(row=0,column=0,padx=(0,5))
         self.pause_button=ttk.Button(player,text="⏸ Pauze",command=self.pause_audio,state="disabled"); self.pause_button.grid(row=0,column=1,padx=5)
         self.play_stop_button=ttk.Button(player,text="⏹ Stop",command=self.stop_audio,state="disabled"); self.play_stop_button.grid(row=0,column=2,padx=5)
         self.timeline=ttk.Scale(player,from_=0,to=100,variable=self.play_slider,orient="horizontal",command=self.preview_seek); self.timeline.grid(row=0,column=3,sticky="ew",padx=8)
         self.timeline.bind("<ButtonPress-1>",self.seek_begin); self.timeline.bind("<ButtonRelease-1>",self.seek_end)
-        ttk.Label(player,textvariable=self.play_time,width=21).grid(row=0,column=4,padx=(5,0))
-        ttk.Label(player,textvariable=self.play_status).grid(row=1,column=0,columnspan=5,sticky="w",pady=(5,0))
-        b=ttk.Frame(bottom); b.grid(row=0,column=0,pady=(4,8))
+        ttk.Label(player,textvariable=self.play_time).grid(row=1,column=3,sticky="e",padx=(5,0))
+        ttk.Label(player,textvariable=self.play_status).grid(row=1,column=0,columnspan=3,sticky="w",pady=(4,0))
+        self.hint_label=tk.Label(outer,textvariable=self.hint,anchor="w",justify="left",bg=bg,fg="#333333",wraplength=900)
+        self.hint_label.grid(row=3,column=0,sticky="ew",pady=(6,2))
+        outer.bind("<Configure>",lambda e: self.hint_label.configure(wraplength=max(240,e.width-24)),add="+")
+        b=ttk.Frame(outer); b.grid(row=4,column=0,sticky="ew",pady=(2,6))
         self.start=ttk.Button(b,text="AUDIO VERTALEN",command=self.start_new); self.start.pack(side="left",padx=5)
         self.stop=ttk.Button(b,text="STOP",command=self.request_stop,state="disabled"); self.stop.pack(side="left",padx=5)
         self.resume=ttk.Button(b,text="HERVATTEN",command=self.resume_job,state="disabled"); self.resume.pack(side="left",padx=5)
-        ttk.Button(b,text="UITVOERMAP OPENEN",command=self.open_out).pack(side="left",padx=5)
-        p=ttk.LabelFrame(bottom,text="Voortgang",padding=12); p.grid(row=1,column=0,sticky="nsew"); p.columnconfigure(0,weight=1); p.rowconfigure(7,weight=1)
+        self.open_button=ttk.Button(b,text="UITVOERMAP OPENEN",command=self.open_out); self.open_button.pack(side="left",padx=5)
+        p=ttk.LabelFrame(outer,text="Voortgang",padding=8); p.grid(row=5,column=0,sticky="ew"); p.columnconfigure(0,weight=1)
         top=ttk.Frame(p); top.grid(row=0,column=0,sticky="ew"); top.columnconfigure(0,weight=1)
         self.bar=ttk.Progressbar(top,maximum=100); self.bar.grid(row=0,column=0,sticky="ew"); ttk.Label(top,textvariable=self.percent,width=7).grid(row=0,column=1)
-        ttk.Label(p,textvariable=self.status,font=("Segoe UI",11,"bold")).grid(row=1,column=0,sticky="w",pady=(10,2)); ttk.Label(p,textvariable=self.step).grid(row=2,column=0,sticky="w"); ttk.Label(p,textvariable=self.resume_text).grid(row=3,column=0,sticky="w")
-        t=ttk.Frame(p); t.grid(row=4,column=0,sticky="w",pady=8); ttk.Label(t,text="Verstreken:").grid(row=0,column=0); ttk.Label(t,textvariable=self.elapsed).grid(row=0,column=1,padx=8); ttk.Label(t,text="Resterend:").grid(row=1,column=0); ttk.Label(t,textvariable=self.remaining).grid(row=1,column=1,padx=8)
-        self.steps=tk.Text(p,height=7,state="disabled",font=("Consolas",10)); self.steps.grid(row=7,column=0,sticky="nsew"); self.show_steps(0,None)
+        ttk.Label(p,textvariable=self.status,font=self._ui_font(11,True)).grid(row=1,column=0,sticky="w",pady=(6,2)); ttk.Label(p,textvariable=self.step).grid(row=2,column=0,sticky="w"); ttk.Label(p,textvariable=self.resume_text).grid(row=3,column=0,sticky="w")
+        t=ttk.Frame(p); t.grid(row=4,column=0,sticky="w",pady=4); ttk.Label(t,text="Verstreken:").grid(row=0,column=0); ttk.Label(t,textvariable=self.elapsed).grid(row=0,column=1,padx=8); ttk.Label(t,text="Resterend:").grid(row=1,column=0); ttk.Label(t,textvariable=self.remaining).grid(row=1,column=1,padx=8)
+        log=ttk.Frame(p); log.grid(row=5,column=0,sticky="ew"); log.columnconfigure(0,weight=1)
+        self.steps=tk.Text(log,height=7,state="disabled",wrap="none",font=self._mono_font(10))
+        step_scroll=tk.Scrollbar(log,command=self.steps.yview,width=14,troughcolor="#e4e4e4",background="#5c5c5c")
+        self.steps.configure(yscrollcommand=step_scroll.set)
+        self.steps.grid(row=0,column=0,sticky="ew"); step_scroll.grid(row=0,column=1,sticky="ns")
+        self.show_steps(0,None)
+        self.update_idletasks()
+        outer.rowconfigure(1,minsize=uvr_bar.winfo_reqheight())
+        outer.rowconfigure(2,minsize=meterbox.winfo_reqheight())
+        outer.rowconfigure(4,minsize=b.winfo_reqheight())
+        outer.rowconfigure(5,minsize=p.winfo_reqheight())
+        self._pinned_height=uvr_bar.winfo_reqheight()+meterbox.winfo_reqheight()+b.winfo_reqheight()+p.winfo_reqheight()+64
 
-    def set_meter(self,key,values,reset_hold=False):
+    def _place_on_screen(self):
+        self.update_idletasks()
+        screen_w=max(1,self.winfo_screenwidth()); screen_h=max(1,self.winfo_screenheight())
+        width=min(1180,screen_w)
+        wanted=max(760,getattr(self,"_pinned_height",700)+200)
+        height=min(screen_h-8,max(wanted,screen_h-12))
+        x=max(0,(screen_w-width)//2); y=max(0,(screen_h-height)//2)
+        self.geometry(f"{width}x{height}+{x}+{y}")
+        self.minsize(min(920,screen_w),min(height,max(640,screen_h-8)))
+
+    def _on_volume_change(self,*_):
+        try:
+            self.bg_volume_text.set(f"{int(round(float(self.bg_volume.get())))}%")
+            self.voice_volume_text.set(f"{int(round(float(self.voice_volume.get())))}%")
+            self.preview_gain_levels()
+        except Exception: pass
+
+    def _refresh_hint(self):
+        notes=list(self._env_notes)
+        route=translation_route_note(LANGUAGES.get(self.language.get(),""))
+        if route and route not in notes: notes.append(route)
+        if not self._env_ready:
+            self.hint.set("Installatie controleren..."+(f" {route}" if route else ""))
+            return
+        warning=bool(self._env_notes)
+        if notes:
+            self.hint.set(" · ".join(notes))
+        else:
+            self.hint.set("Klaar om te starten. Kies een WAV en druk op AUDIO VERTALEN.")
+        if hasattr(self,"hint_label"):
+            self.hint_label.configure(fg="#8a3b00" if warning else "#333333")
+        if self.worker and self.worker.is_alive(): return
+        if self._env_notes:
+            self.status.set(self._env_notes[0])
+        elif route:
+            self.status.set("Klaar om te starten. "+route)
+        else:
+            self.status.set("Klaar om te starten.")
+
+    def refresh_environment_status(self):
+        if self.worker and self.worker.is_alive(): return
+        self._env_gen+=1; gen=self._env_gen
+        voice_label=self.voice_choice.get(); use_uvr=bool(self.use_uvr.get())
+        def work():
+            try: notes=self._environment_notes(voice_label,use_uvr)
+            except Exception as exc: notes=[f"Controle van de installatie mislukt: {exc}"]
+            self.q.put(("env",gen,notes))
+        threading.Thread(target=work,daemon=True).start()
+
+    def _environment_notes(self,voice_label,use_uvr):
+        notes=[]
+        voice_name=VOICES.get(voice_label)
+        if not voice_name:
+            notes.append("Kies een Vlaamse stem.")
+        else:
+            missing=[name for name in (f"{voice_name}.onnx",f"{voice_name}.onnx.json") if not (VOICE_DIR/name).exists()]
+            if missing: notes.append("Stem ontbreekt ("+", ".join(missing)+"). "+install_command_hint())
+        if find_espeak_data() is None:
+            notes.append("eSpeak NG is niet gevonden. Installeer het voor de Vlaamse uitspraak." if os.name=="nt" else "eSpeak NG ontbreekt. Installeer het met: sudo apt install espeak-ng")
+        if use_uvr and not self.separator_exe():
+            notes.append("Stemscheiding (UVR) is niet geïnstalleerd. Vink die optie uit, of "+install_command_hint()[:1].lower()+install_command_hint()[1:])
+        try:
+            from telecine_setup import argos_can_translate, installed_translation_pairs
+            pairs=installed_translation_pairs()
+            missing=[label for label,code in LANGUAGES.items() if not argos_can_translate(code,pairs)]
+            if missing:
+                notes.append("Vertaalpakket nog niet klaar voor "+" en ".join(missing)+". Dat wordt bij de eerste vertaling gedownload.")
+        except Exception:
+            notes.append("Vertaalonderdeel ontbreekt. "+install_command_hint())
+        return notes
+
+    def set_meter(self,key,values,reset_hold=False,remember=False):
         self.level_values[key]=dict(values)
+        if remember: self.file_levels[key]=dict(values)
         if key in self.meters: self.meters[key].set_levels(values["peak"],values["rms"],reset_hold)
     def preview_gain_levels(self):
         """Toont direct het effect van de volumes op achtergrond en stem.
@@ -373,9 +541,14 @@ class App(tk.Tk):
             except:pass
         self.play_files={}
 
-    def _reset_live_meters(self):
-        for key in ("input","background","voice","output"):
-            self.set_meter(key,{"peak":0.0,"rms":0.0},reset_hold=True)
+    def restore_file_meters(self):
+        """Zet de meters terug op de laatst gemeten bestanden, niet op stilte."""
+        if not self.file_levels:
+            for meter in self.meters.values(): meter.clear()
+            return
+        for key,values in self.file_levels.items():
+            self.set_meter(key,values,reset_hold=True)
+        self.preview_gain_levels()
 
     def _block_levels(self,data):
         import numpy as np
@@ -448,9 +621,12 @@ class App(tk.Tk):
             try:stream.abort(); stream.close()
             except:pass
         self._close_play_files(); self.play_paused=False
-        if reset_position:self.play_position=0; self.play_slider.set(0); self.play_time.set("00:00:00 / "+fmt(self.play_total_frames/self.play_samplerate if self.play_samplerate else 0)); self._reset_live_meters()
+        if reset_position:
+            self.play_position=0; self.play_slider.set(0)
+            total=self.play_total_frames/self.play_samplerate if self.play_samplerate else 0
+            self.play_time.set("00:00:00 / "+(fmt(total) if total else "00:00:00")); self.restore_file_meters()
+            self.play_status.set("Afspelen gestopt")
         self.pause_button.config(state="disabled",text="⏸ Pauze"); self.play_stop_button.config(state="disabled")
-        self.play_status.set("Afspelen gestopt")
 
     def seek_begin(self,event=None): self.play_seeking=True
     def preview_seek(self,value=None):
@@ -465,7 +641,9 @@ class App(tk.Tk):
 
     def choose_source(self):
         f=filedialog.askopenfilename(title="Kies WAV",filetypes=[("WAV-audio","*.wav"),("Alle bestanden","*.*")])
-        if f: self.source.set(f); self.inspect_resume()
+        if not f: return
+        self.file_levels.clear(); self.level_values.clear(); self.stop_audio()
+        self.source.set(f); self.play_status.set("Nog geen eindresultaat gekozen"); self.inspect_resume()
     def choose_out(self):
         f=filedialog.askdirectory(title="Kies uitvoermap")
         if f: self.outdir.set(f)
@@ -478,7 +656,7 @@ class App(tk.Tk):
         s=Path(source).resolve(); sig=f"{s}|{s.stat().st_mtime_ns}|{s.stat().st_size}"; jid=hashlib.sha256(sig.encode()).hexdigest()[:16]; d=JOB_DIR/f"{safe_name(s.stem)}_{jid}"
         return {"folder":d,"state":d/"state.json","transcript":d/"transcript.txt","translation":d/"translation_nl.txt","vocals":d/"uvr_vocals.wav","background":d/"uvr_background.wav","voice":d/"vlaamse_stem.wav","mixed":d/"vlaams_met_achtergrond.wav","uvr_out":d/"uvr_output","segments":d/"segments.json","translated_segments":d/"segments_nl.json","segment_audio":d/"segment_audio"}
     def default_state(self,s):
-        return {"source":str(Path(s).resolve()),"source_language":LANGUAGES[self.language.get()],"model":self.whisper.get(),"voice":VOICES[self.voice_choice.get()],"voice_label":self.voice_choice.get(),"use_uvr":bool(self.use_uvr.get()),"keep_stems":bool(self.keep_stems.get()),"bg_volume":int(self.bg_volume.get()),"voice_volume":int(self.voice_volume.get()),"sync_timing":bool(self.sync_timing.get()),"max_speed":int(self.max_speed.get()),"completed_steps":0,"elapsed":0.,"status":"nieuw","output_dir":str(Path(self.outdir.get() or BASE_DIR/"Output").resolve()),"output_file":"","last_error":""}
+        return {"source":str(Path(s).resolve()),"source_language":LANGUAGES.get(self.language.get(),"fr"),"model":self.whisper.get(),"voice":VOICES[self.voice_choice.get()],"voice_label":self.voice_choice.get(),"use_uvr":bool(self.use_uvr.get()),"keep_stems":bool(self.keep_stems.get()),"bg_volume":int(round(float(self.bg_volume.get()))),"voice_volume":int(round(float(self.voice_volume.get()))),"sync_timing":bool(self.sync_timing.get()),"max_speed":int(self.max_speed.get()),"completed_steps":0,"elapsed":0.,"status":"nieuw","output_dir":str(Path(self.outdir.get() or BASE_DIR/"Output").resolve()),"output_file":"","last_error":""}
     def load(self,p):
         try:return json.loads(p["state"].read_text(encoding="utf-8"))
         except:return None
@@ -494,9 +672,9 @@ class App(tk.Tk):
         if not (VOICE_DIR/f"{voice_name}.onnx").exists(): missing.append(f"{voice_name}.onnx")
         if not (VOICE_DIR/f"{voice_name}.onnx.json").exists(): missing.append(f"{voice_name}.onnx.json")
         if missing:
-            messagebox.showerror(APP_TITLE,"De gekozen Piper-stem ontbreekt in de map voices:\n\n"+"\n".join(missing)); return None
+            messagebox.showerror(APP_TITLE,"De gekozen Piper-stem ontbreekt in de map voices:\n\n"+"\n".join(missing)+"\n\n"+install_command_hint()); return None
         if self.use_uvr.get() and not self.separator_exe():
-            messagebox.showerror(APP_TITLE,'UVR-onderdeel ontbreekt. Voer in de actieve venv uit:\n\npython -m pip install "audio-separator[cpu]"'); return None
+            messagebox.showerror(APP_TITLE,"Stemscheiding (UVR) is niet geïnstalleerd.\n\nVink \"Stem met UVR scheiden\" uit, of:\n"+install_command_hint()); return None
         return s
     def separator_exe(self):
         options=[Path(sys.executable).parent/"audio-separator.exe",Path(sys.executable).parent/"audio-separator",shutil.which("audio-separator")]
@@ -510,23 +688,75 @@ class App(tk.Tk):
         self.launch(p,self.default_state(s))
     def inspect_resume(self):
         s=self.source.get().strip()
-        if not s or not Path(s).is_file():return
+        if not s or not Path(s).is_file():
+            self.resume.config(state="disabled"); return
         st=self.load(self.paths(s))
-        if st and 0<st.get("completed_steps",0)<len(STEPS):
-            n=st["completed_steps"]; self.state=st; self.resume.config(state="normal"); self.resume_text.set(f"Hervatten vanaf stap {n+1}: {STEPS[n]}"); self.set_progress(sum(WEIGHTS[:n])*100); self.show_steps(n,"paused")
+        if not st:
+            self.resume.config(state="disabled"); self.resume_text.set("Hervatten vanaf: niet van toepassing"); self.measure_known_tracks(); return
+        n=int(st.get("completed_steps",0)); self.state=st
+        if 0<n<len(STEPS):
+            self.resume.config(state="normal"); self.resume_text.set(f"Hervatten vanaf stap {n+1}: {STEPS[n]}"); self.set_progress(sum(WEIGHTS[:n])*100); self.show_steps(n,"paused")
+        elif n>=len(STEPS):
+            self.resume.config(state="disabled"); self.resume_text.set("Deze bron is al volledig verwerkt"); self.set_progress(100); self.show_steps(len(STEPS),"completed")
+            if st.get("output_file") and Path(st["output_file"]).is_file():
+                self.play_status.set("Eerdere eindmix gevonden. Je kunt die hieronder afspelen.")
+            else:
+                self.play_status.set("De taak is voltooid, maar de eindmix is niet gevonden.")
+        else:
+            self.resume.config(state="disabled")
+        self.measure_known_tracks()
+    def measure_known_tracks(self):
+        tracks=self.playback_tracks()
+        def work():
+            for key,path in tracks.items():
+                self.queue_measure(key,path,{"background":"background_raw","voice":"voice_raw"}.get(key))
+        if tracks: threading.Thread(target=work,daemon=True).start()
+    def apply_job_state(self,st):
+        label=next((name for name,code in LANGUAGES.items() if code==st.get("source_language")),None)
+        if label: self.language.set(label)
+        if st.get("model") in WHISPER_MODELS: self.whisper.set(st["model"])
+        voice_label=st.get("voice_label")
+        if voice_label not in VOICES:
+            voice_label=next((name for name,key in VOICES.items() if key==st.get("voice")),None)
+        if voice_label in VOICES: self.voice_choice.set(voice_label)
+        self.use_uvr.set(bool(st.get("use_uvr",False))); self.keep_stems.set(bool(st.get("keep_stems",True))); self.sync_timing.set(bool(st.get("sync_timing",True)))
+        try:
+            self.bg_volume.set(float(st.get("bg_volume",100))); self.voice_volume.set(float(st.get("voice_volume",100)))
+            speed=int(st.get("max_speed",15))
+            if speed in (0,5,10,15,20,25,30): self.max_speed.set(speed)
+        except (TypeError,ValueError,tk.TclError): pass
+        if st.get("output_dir"): self.outdir.set(st["output_dir"])
+        self.show_route_note()
     def resume_job(self):
-        s=self.validate()
-        if not s:return
-        p=self.paths(s); st=self.load(p)
+        raw=self.source.get().strip()
+        if not raw or not Path(raw).is_file():
+            messagebox.showerror(APP_TITLE,"Kies eerst een geldig WAV-bestand."); return
+        p=self.paths(raw); st=self.load(p)
         if not st or st.get("completed_steps",0)>=len(STEPS): messagebox.showinfo(APP_TITLE,"Geen gestopte taak gevonden."); return
-        self.voice_choice.set(st.get("voice_label", next((label for label,name in VOICES.items() if name==st.get("voice")), DEFAULT_VOICE_LABEL))); self.use_uvr.set(st.get("use_uvr",False)); self.bg_volume.set(st.get("bg_volume",100)); self.voice_volume.set(st.get("voice_volume",100)); self.sync_timing.set(st.get("sync_timing",True)); self.max_speed.set(st.get("max_speed",15)); self.launch(p,st)
+        self.apply_job_state(st)
+        if not self.validate(): return
+        self.launch(p,st)
     def launch(self,p,st):
         if self.worker and self.worker.is_alive():return
         self.stop_event.clear(); self.started=time.monotonic(); self.elapsed_before=float(st.get("elapsed",0)); self.state=st; self.progress=sum(WEIGHTS[:st.get("completed_steps",0)])*100; self.running(True)
         self.worker=threading.Thread(target=self.pipeline,args=(p,st),daemon=True); self.worker.start()
     def running(self,on):
-        self.start.config(state="disabled" if on else "normal"); self.stop.config(state="normal" if on else "disabled"); self.resume.config(state="disabled" if on else self.resume.cget("state"));
-        for x in (self.lang,self.model,self.voice,self.uvr_check,self.sync_check): x.config(state="disabled" if on else ("readonly" if isinstance(x,ttk.Combobox) else "normal"))
+        self.start.config(state="disabled" if on else "normal"); self.stop.config(state="normal" if on else "disabled")
+        if on: self.resume.config(state="disabled")
+        for widget in (self.source_entry,self.out_entry,self.source_button,self.out_button,self.uvr_check,self.keep_stems_check,self.sync_check,self.bg_scale,self.voice_scale):
+            widget.config(state="disabled" if on else "normal")
+        for widget in (self.lang,self.model,self.voice,self.speed_box):
+            widget.config(state="disabled" if on else "readonly")
+    def _stop_child(self):
+        proc=self.child
+        if not proc or proc.poll() is not None: return
+        try: proc.terminate()
+        except Exception: pass
+        try: proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            try: proc.kill()
+            except Exception: pass
+        except Exception: pass
     def request_stop(self):
         self.stop_event.set(); self.status.set("Stop aangevraagd..."); self.stop.config(state="disabled")
         if self.child and self.child.poll() is None:
@@ -535,10 +765,10 @@ class App(tk.Tk):
     def check_stop(self):
         if self.stop_event.is_set():raise StoppedByUser
     def show_route_note(self):
-        """Toon in de status dat Frans via Engels gaat, zolang er geen taak loopt."""
-        if self.worker and self.worker.is_alive(): return
+        """Toon dat Frans via Engels gaat, naast de taalkeuze en in de status."""
         note=translation_route_note(LANGUAGES.get(self.language.get(),""))
-        self.status.set("Klaar om te starten. "+note if note else "Klaar om te starten.")
+        if hasattr(self,"route_inline"): self.route_inline.set(note)
+        self._refresh_hint()
     def stage(self,i,f,msg):
         f=max(0,min(1,float(f))); val=(sum(WEIGHTS[:i])+WEIGHTS[i]*f)*100; self.progress=val; self.q.put(("progress",val,i,msg))
     def finish(self,p,st,n):
@@ -557,23 +787,36 @@ class App(tk.Tk):
                 if not st.get("use_uvr",False):
                     self.stage(1,1,"UVR overgeslagen."); self.finish(p,st,2); done=2
                 else:
+                    exe=self.separator_exe()
+                    if not exe: raise RuntimeError("Stemscheiding (UVR) is niet geïnstalleerd.\nVink de optie uit, of "+install_command_hint())
                     self.stage(1,.02,"UVR-model laden en stem van achtergrond scheiden..."); p["uvr_out"].mkdir(exist_ok=True); MODEL_DIR.mkdir(exist_ok=True)
-                    for f in p["uvr_out"].glob("*"): f.unlink()
-                    cmd=[self.separator_exe(),str(source),"--model_filename",UVR_MODEL,"--output_format","WAV","--output_dir",str(p["uvr_out"]),"--model_file_dir",str(MODEL_DIR)]
-                    self.child=subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,encoding="utf-8",errors="replace",creationflags=subprocess.CREATE_NO_WINDOW if os.name=="nt" else 0)
-                    lines=[]
+                    for f in p["uvr_out"].glob("*"):
+                        if f.is_file(): f.unlink()
+                    cmd=[exe,str(source),"--model_filename",UVR_MODEL,"--output_format","WAV","--output_dir",str(p["uvr_out"]),"--model_file_dir",str(MODEL_DIR)]
+                    self.child=popen_hidden(cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,encoding="utf-8",errors="replace")
+                    uvr_out=self.child.stdout; lines=[]
+                    def _read_uvr():
+                        try:
+                            for line in uvr_out: lines.append(line)
+                        except Exception: pass
+                    reader=threading.Thread(target=_read_uvr,daemon=True); reader.start()
                     while self.child.poll() is None:
-                        self.check_stop(); line=self.child.stdout.readline()
-                        if line: lines.append(line); self.stage(1,.35,"UVR is bezig; dit kan op CPU lang duren...")
-                        else: time.sleep(.2)
-                    rest=self.child.stdout.read() if self.child.stdout else ""; lines.append(rest); rc=self.child.returncode; self.child=None
+                        if self.stop_event.is_set():
+                            self._stop_child(); raise StoppedByUser
+                        self.stage(1,.35,"UVR is bezig; dit kan op CPU lang duren..."); time.sleep(.2)
+                    reader.join(timeout=2); rc=self.child.returncode; self.child=None
+                    if self.stop_event.is_set(): raise StoppedByUser
                     if rc!=0: raise RuntimeError("UVR kon de audio niet scheiden.\n"+"".join(lines)[-2500:])
                     files=list(p["uvr_out"].glob("*.wav")); vocals=next((f for f in files if "vocal" in f.name.lower()),None); instr=next((f for f in files if any(x in f.name.lower() for x in ("instrumental","no_vocal","karaoke"))),None)
                     if not vocals or not instr: raise RuntimeError("UVR-uitvoer bevat niet zowel Vocals als Instrumental: "+", ".join(f.name for f in files))
                     shutil.copy2(vocals,p["vocals"]); shutil.copy2(instr,p["background"]); self.queue_measure("background",p["background"],"background_raw"); self.stage(1,1,"UVR-scheiding voltooid."); self.finish(p,st,2); done=2
             recognition_source=p["vocals"] if st.get("use_uvr") else source
             if done<3:
-                self.stage(2,0,"Whisper-model laden..."); from faster_whisper import WhisperModel
+                self.stage(2,0,"Whisper-model laden...")
+                try:
+                    from faster_whisper import WhisperModel
+                except ImportError as exc:
+                    raise RuntimeError("Spraakherkenning ontbreekt. "+install_command_hint()) from exc
                 model=WhisperModel(st["model"],device="cpu",compute_type="int8"); segs,info=model.transcribe(str(recognition_source),language=st["source_language"],task="transcribe",beam_size=5,vad_filter=True)
                 dur=max(float(getattr(info,"duration",0) or 0),.01); parts=[]; timed=[]
                 for seg in segs:
@@ -634,8 +877,12 @@ class App(tk.Tk):
                 if kind=="meter":
                     _,key,values,raw_key=x
                     if raw_key: self.level_values[raw_key]=dict(values)
-                    self.set_meter(key,values,reset_hold=True)
+                    self.set_meter(key,values,reset_hold=True,remember=True)
                     if raw_key: self.preview_gain_levels()
+                elif kind=="env":
+                    _,gen,notes=x
+                    if gen==self._env_gen:
+                        self._env_notes=list(notes); self._env_ready=True; self._refresh_hint()
                 elif kind=="live_levels":
                     _,levels,pos,total,sr=x
                     for key,values in levels.items(): self.set_meter(key,values)
@@ -645,7 +892,8 @@ class App(tk.Tk):
                     if self.play_stream or self.play_position>=self.play_total_frames:
                         self.stop_audio(reset_position=True); self.play_status.set("Afspelen voltooid")
                 elif kind=="meter_error":
-                    pass
+                    self.hint.set("Niveau niet gemeten: "+x[2])
+                    if hasattr(self,"hint_label"): self.hint_label.configure(fg="#8a3b00")
                 elif kind=="progress":
                     _,v,i,msg=x; self.set_progress(v); self.status.set(msg); self.step.set(f"Stap {i+1} van {len(STEPS)}: {STEPS[i]}"); self.show_steps(i,"running")
                 elif kind=="stopped":

@@ -35,6 +35,13 @@ if [ ! -f /usr/share/espeak-ng-data/phontab ] && [ ! -f /usr/lib/x86_64-linux-gn
 fi
 
 APP_DIR="$(pwd)"
+exec_field="$APP_DIR/start.sh"
+case "$exec_field" in
+  *[[:space:]\"\\\$\`]*)
+    exec_field=$(printf '%s' "$exec_field" | sed 's/\\/\\\\/g; s/"/\\"/g; s/`/\\`/g; s/\$/\\$/g')
+    exec_field="\"$exec_field\""
+    ;;
+esac
 mkdir -p "$HOME/.local/share/applications"
 cat > "$HOME/.local/share/applications/telecine-audio-translator.desktop" <<EOF
 [Desktop Entry]
@@ -42,7 +49,7 @@ Type=Application
 Version=1.0
 Name=TeleCine Audio Translator
 Comment=Vertaal filmgeluid naar het Vlaams
-Exec=$APP_DIR/start.sh
+Exec=$exec_field
 Path=$APP_DIR
 Icon=audio-x-generic
 Terminal=false

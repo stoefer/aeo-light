@@ -49,9 +49,11 @@ Op Linux start je `./start.sh` in een terminal, zodat de melding zichtbaar blijf
 ## Tijdens het gebruik
 
 - Bron: een WAV-bestand.
-- Resultaat: de map `Output` (knop **Uitvoermap openen**).
+- Resultaat: de map `Output` (knop **UITVOERMAP OPENEN**).
+- De niveaumeters, het vinkje voor stemscheiding, de afspeelknoppen, **AUDIO VERTALEN**, **STOP**, **HERVATTEN**, **UITVOERMAP OPENEN** en het voortgangsvak blijven in beeld. Volumes en synchronisatie schuiven mee als het venster te laag is.
+- Ontbreekt een stem, eSpeak NG, stemscheiding of een vertaalpakket, dan staat dat in het vak boven de knoppen.
 - Stemscheiding (UVR) is standaard aan en is een grote extra download. Lukt die niet, vink **Stem met UVR scheiden** uit. Het programma start dan nog steeds.
-- Een gestopte vertaling kun je hervatten met **Hervatten**.
+- Een gestopte vertaling kun je hervatten met **HERVATTEN**. De taal, de stem en de volumes van die taak komen terug.
 
 ## Starten bij aanmelden
 

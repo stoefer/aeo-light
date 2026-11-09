@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Eenmalige voorbereiding: Vlaamse Piper-stemmen en Argos-vertaalpakketten."""
+import os
 import shutil
 import sys
 import urllib.request
@@ -78,6 +79,35 @@ def _argos_ready(source):
     return bool(src and dst and src.get_translation(dst))
 
 
+def _retry_hint():
+    if os.name == "nt":
+        return "Controleer de internetverbinding en voer installeer.bat opnieuw uit."
+    return "Controleer de internetverbinding en voer ./installeer.sh opnieuw uit."
+
+
+def installed_translation_pairs():
+    """Geïnstalleerde vertaalparen, zonder de Argos-vertaalcache te wissen."""
+    import argostranslate.package as pkg
+    pairs = set()
+    for item in pkg.get_installed_packages():
+        if getattr(item, "type", "translate") != "translate":
+            continue
+        if item.from_code and item.to_code:
+            pairs.add((item.from_code, item.to_code))
+    return pairs
+
+
+def argos_can_translate(source, pairs=None):
+    """Of source naar Nederlands kan, rechtstreeks of via Engels."""
+    if source == "nl":
+        return True
+    if pairs is None:
+        pairs = installed_translation_pairs()
+    if (source, "nl") in pairs:
+        return True
+    return (source, "en") in pairs and ("en", "nl") in pairs
+
+
 def _install_pair(source, target):
     """Download en installeer één Argos-pakket source -> target."""
     import argostranslate.package as pkg
@@ -86,7 +116,7 @@ def _install_pair(source, target):
     if match is None:
         raise RuntimeError(
             f"Geen Argos-vertaalpakket gevonden van '{source}' naar '{target}'.\n"
-            "Controleer de internetverbinding en voer installeer.bat opnieuw uit."
+            + _retry_hint()
         )
     print(f"Installeren: {source} -> {target}")
     pkg.install_from_path(match.download())
@@ -116,7 +146,8 @@ def ensure_argos_package(source):
         _install_pair("en", "nl")
     if not _argos_ready(source):
         raise RuntimeError(
-            f"Vertalen van '{source}' naar Nederlands lukt nog niet na het installeren van de pakketten."
+            f"Vertalen van '{source}' naar Nederlands lukt nog niet na het installeren van de pakketten.\n"
+            + _retry_hint()
         )
 
 
@@ -132,7 +163,7 @@ def install_argos():
             if _argos_ready(source):
                 print(f"Al geinstalleerd: {source} -> nl")
                 continue
-            print(f"Installeren: {source} -> nl")
+            print(f"Nodig: {source} -> nl")
             ensure_argos_package(source)
     except Exception as exc:
         print(f"Vertaalpakketten installeren mislukt: {exc}", file=sys.stderr)
