@@ -1,12 +1,14 @@
 @echo off
-setlocal
+setlocal EnableExtensions
+set "ROOT=%~dp0"
+if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"
+cd /d "%ROOT%"
 chcp 65001 >nul
-cd /d "%~dp0"
-if not exist ".venv\Scripts\python.exe" (
+if not exist "%ROOT%\.venv\Scripts\python.exe" (
   echo De omgeving is nog niet geinstalleerd.
   echo Dubbelklik eerst op installeer.bat.
   pause
   exit /b 1
 )
-".venv\Scripts\python.exe" "%~dp0TeleCine_AudioTranslator.py"
+"%ROOT%\.venv\Scripts\python.exe" "%ROOT%\TeleCine_AudioTranslator.py"
 if errorlevel 1 pause

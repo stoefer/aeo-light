@@ -1,13 +1,15 @@
 @echo off
-setlocal
+setlocal EnableExtensions
+set "ROOT=%~dp0"
+if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"
+cd /d "%ROOT%"
 chcp 65001 >nul
-cd /d "%~dp0"
-if not exist ".venv\Scripts\pythonw.exe" (
+if not exist "%ROOT%\.venv\Scripts\pythonw.exe" (
   echo Dubbelklik eerst op installeer.bat.
   pause
   exit /b 1
 )
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0maak-snelkoppeling.ps1" -Doel Opstarten
+powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%\maak-snelkoppeling.ps1" -Doel Opstarten
 if errorlevel 1 (
   echo De opstartkoppeling kon niet geplaatst worden.
   pause

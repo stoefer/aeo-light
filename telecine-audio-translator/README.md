@@ -8,7 +8,7 @@ Je hoeft geen IDE te openen en geen `python`-commando te typen. Na de eenmalige 
 
 1. Installeer [Python 3.10 of nieuwer](https://www.python.org/downloads/) en vink **Add python.exe to PATH** en **tcl/tk** aan.
 2. Installeer [eSpeak NG](https://github.com/espeak-ng/espeak-ng/releases). De Vlaamse stem heeft dat nodig voor de uitspraak.
-3. Dubbelklik `installeer.bat`.
+3. Pak de zip uit naar een gewone map, bijvoorbeeld het Bureaublad. Dubbelklik `installeer.bat` niet vanuit het zip-bestand.
 
 De eerste keer heeft internet nodig. Het script maakt een virtuele omgeving, installeert de onderdelen, downloadt de stemmen Nathalie en RDH, en zet **TeleCine Audio Translator** op het bureaublad.
 

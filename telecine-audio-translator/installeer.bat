@@ -1,7 +1,27 @@
 @echo off
-setlocal
+setlocal EnableExtensions
+rem Pad vastleggen voor chcp. Een slash vlak voor een aanhalingsteken breekt cmd.
+set "ROOT=%~dp0"
+if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"
+cd /d "%ROOT%"
+if errorlevel 1 (
+  echo De programmamap is niet bereikbaar:
+  echo %ROOT%
+  pause
+  exit /b 1
+)
 chcp 65001 >nul
-cd /d "%~dp0"
+if not exist "%ROOT%\requirements.txt" (
+  echo requirements.txt staat niet naast installeer.bat.
+  echo Gevonden map:
+  echo %ROOT%
+  echo.
+  echo Pak de zip helemaal uit naar een gewone map, bijvoorbeeld je Bureaublad.
+  echo Dubbelklik installeer.bat niet vanuit het zip-bestand of vanuit Directory Opus.
+  echo In die weergave komt het bestand in een tijdelijke dtemp-map terecht.
+  pause
+  exit /b 1
+)
 
 echo.
 echo TeleCine Audio Translator installeren
@@ -25,9 +45,9 @@ if %errorlevel%==0 (
   set "PY=python"
 )
 
-if not exist ".venv\Scripts\python.exe" (
+if not exist "%ROOT%\.venv\Scripts\python.exe" (
   echo Virtuele omgeving aanmaken...
-  %PY% -m venv .venv
+  %PY% -m venv "%ROOT%\.venv"
   if errorlevel 1 (
     echo De virtuele omgeving kon niet aangemaakt worden.
     pause
@@ -35,7 +55,7 @@ if not exist ".venv\Scripts\python.exe" (
   )
 )
 
-".venv\Scripts\python.exe" -c "import tkinter" >nul 2>&1
+"%ROOT%\.venv\Scripts\python.exe" -c "import tkinter" >nul 2>&1
 if errorlevel 1 (
   echo Tkinter ontbreekt, daardoor kan het venster niet openen.
   echo Herinstalleer Python en vink tcl/tk aan.
@@ -44,8 +64,8 @@ if errorlevel 1 (
 )
 
 echo Python-onderdelen installeren. Dit kan enkele minuten duren...
-".venv\Scripts\python.exe" -m pip install --upgrade pip
-".venv\Scripts\python.exe" -m pip install -r "%~dp0requirements.txt"
+"%ROOT%\.venv\Scripts\python.exe" -m pip install --upgrade pip
+"%ROOT%\.venv\Scripts\python.exe" -m pip install -r "%ROOT%\requirements.txt"
 if errorlevel 1 (
   echo Installatie van de Python-onderdelen is mislukt.
   pause
@@ -54,7 +74,7 @@ if errorlevel 1 (
 
 echo.
 echo Stemscheiding ^(UVR^) installeren. Dit is een grote download...
-".venv\Scripts\python.exe" -m pip install -r "%~dp0requirements-uvr.txt"
+"%ROOT%\.venv\Scripts\python.exe" -m pip install -r "%ROOT%\requirements-uvr.txt"
 if errorlevel 1 (
   echo UVR is niet geinstalleerd. Het programma start wel.
   echo Vink in het venster "Stem met UVR scheiden" uit, of voer installeer.bat later opnieuw uit.
@@ -62,21 +82,21 @@ if errorlevel 1 (
 
 echo.
 echo Vlaamse stemmen downloaden...
-".venv\Scripts\python.exe" "%~dp0telecine_setup.py" voices
+"%ROOT%\.venv\Scripts\python.exe" "%ROOT%\telecine_setup.py" voices
 if errorlevel 1 (
   echo De stemmen zijn niet volledig gedownload. Controleer de internetverbinding en voer installeer.bat opnieuw uit.
 )
 
 echo.
 echo Vertaalpakketten Frans en Engels naar Nederlands...
-".venv\Scripts\python.exe" "%~dp0telecine_setup.py" argos
+"%ROOT%\.venv\Scripts\python.exe" "%ROOT%\telecine_setup.py" argos
 if errorlevel 1 (
   echo De vertaalpakketten zijn nog niet geinstalleerd. Het programma probeert ze bij de eerste vertaling opnieuw.
 )
 
 echo.
 echo Snelkoppeling op het bureaublad plaatsen...
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0maak-snelkoppeling.ps1" -Doel Bureaublad
+powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%\maak-snelkoppeling.ps1" -Doel Bureaublad
 if errorlevel 1 (
   echo De snelkoppeling kon niet aangemaakt worden.
   echo Je kunt start.vbs in deze map nog wel dubbelklikken.
