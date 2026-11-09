@@ -331,8 +331,16 @@ class App(tk.Tk):
     def build(self):
         """Instellingen schuiven. Meters, speler, knoppen en voortgang blijven staan."""
         style=ttk.Style(); bg=style.lookup("TFrame","background") or self.cget("bg")
-        outer=ttk.Frame(self,padding=(12,8,12,8)); outer.pack(fill="both",expand=True)
-        outer.columnconfigure(0,weight=1); outer.rowconfigure(0,weight=1,minsize=110)
+        # Knoppen en de melding vast onderaan: die mogen nooit buiten het venster vallen.
+        b=ttk.Frame(self,padding=(12,2,12,8)); b.pack(side="bottom",fill="x")
+        self.start=ttk.Button(b,text="AUDIO VERTALEN",command=self.start_new); self.start.pack(side="left",padx=5)
+        self.stop=ttk.Button(b,text="STOP",command=self.request_stop,state="disabled"); self.stop.pack(side="left",padx=5)
+        self.resume=ttk.Button(b,text="HERVATTEN",command=self.resume_job,state="disabled"); self.resume.pack(side="left",padx=5)
+        self.open_button=ttk.Button(b,text="UITVOERMAP OPENEN",command=self.open_out); self.open_button.pack(side="left",padx=5)
+        self.hint_label=tk.Label(self,textvariable=self.hint,anchor="w",justify="left",bg=bg,fg="#333333",wraplength=900)
+        self.hint_label.pack(side="bottom",fill="x",padx=12,pady=(4,0))
+        outer=ttk.Frame(self,padding=(12,8,12,4)); outer.pack(side="top",fill="both",expand=True)
+        outer.columnconfigure(0,weight=1); outer.rowconfigure(0,weight=1,minsize=72)
         self._outer=outer
         scroll_host=ttk.Frame(outer); scroll_host.grid(row=0,column=0,sticky="nsew")
         scroll_host.rowconfigure(0,weight=1); scroll_host.columnconfigure(0,weight=1)
@@ -407,15 +415,7 @@ class App(tk.Tk):
         self.timeline.bind("<ButtonPress-1>",self.seek_begin); self.timeline.bind("<ButtonRelease-1>",self.seek_end)
         ttk.Label(player,textvariable=self.play_time).grid(row=1,column=3,sticky="e",padx=(5,0))
         ttk.Label(player,textvariable=self.play_status).grid(row=1,column=0,columnspan=3,sticky="w",pady=(4,0))
-        self.hint_label=tk.Label(outer,textvariable=self.hint,anchor="w",justify="left",bg=bg,fg="#333333",wraplength=900)
-        self.hint_label.grid(row=3,column=0,sticky="ew",pady=(6,2))
-        outer.bind("<Configure>",lambda e: self.hint_label.configure(wraplength=max(240,e.width-24)),add="+")
-        b=ttk.Frame(outer); b.grid(row=4,column=0,sticky="ew",pady=(2,6))
-        self.start=ttk.Button(b,text="AUDIO VERTALEN",command=self.start_new); self.start.pack(side="left",padx=5)
-        self.stop=ttk.Button(b,text="STOP",command=self.request_stop,state="disabled"); self.stop.pack(side="left",padx=5)
-        self.resume=ttk.Button(b,text="HERVATTEN",command=self.resume_job,state="disabled"); self.resume.pack(side="left",padx=5)
-        self.open_button=ttk.Button(b,text="UITVOERMAP OPENEN",command=self.open_out); self.open_button.pack(side="left",padx=5)
-        p=ttk.LabelFrame(outer,text="Voortgang",padding=8); p.grid(row=5,column=0,sticky="ew"); p.columnconfigure(0,weight=1)
+        p=ttk.LabelFrame(outer,text="Voortgang",padding=8); p.grid(row=3,column=0,sticky="ew",pady=(4,0)); p.columnconfigure(0,weight=1)
         top=ttk.Frame(p); top.grid(row=0,column=0,sticky="ew"); top.columnconfigure(0,weight=1)
         self.bar=ttk.Progressbar(top,maximum=100); self.bar.grid(row=0,column=0,sticky="ew"); ttk.Label(top,textvariable=self.percent,width=7).grid(row=0,column=1)
         ttk.Label(p,textvariable=self.status,font=self._ui_font(11,True)).grid(row=1,column=0,sticky="w",pady=(6,2)); ttk.Label(p,textvariable=self.step).grid(row=2,column=0,sticky="w"); ttk.Label(p,textvariable=self.resume_text).grid(row=3,column=0,sticky="w")
@@ -429,19 +429,52 @@ class App(tk.Tk):
         self.update_idletasks()
         outer.rowconfigure(1,minsize=uvr_bar.winfo_reqheight())
         outer.rowconfigure(2,minsize=meterbox.winfo_reqheight())
-        outer.rowconfigure(4,minsize=b.winfo_reqheight())
-        outer.rowconfigure(5,minsize=p.winfo_reqheight())
-        self._pinned_height=uvr_bar.winfo_reqheight()+meterbox.winfo_reqheight()+b.winfo_reqheight()+p.winfo_reqheight()+64
+        self._button_bar=b
+        self._pinned_height=uvr_bar.winfo_reqheight()+meterbox.winfo_reqheight()+p.winfo_reqheight()+self.hint_label.winfo_reqheight()+b.winfo_reqheight()+48
+        self.bind("<Configure>",self._on_window_configure)
+
+    def _on_window_configure(self,event):
+        if event.widget is not self: return
+        if hasattr(self,"hint_label"):
+            self.hint_label.configure(wraplength=max(240,event.width-24))
+        self._fit_steps()
+
+    def _fit_steps(self):
+        """Maak het stappenlog korter als het venster te laag is. De knoppen blijven staan."""
+        if getattr(self,"_fitting",False) or not hasattr(self,"steps"): return
+        outer=getattr(self,"_outer",None)
+        if outer is None: return
+        if self.winfo_height()<200: return
+        self._fitting=True
+        try:
+            for _ in range(4):
+                self.update_idletasks()
+                limit=outer.winfo_rooty()+outer.winfo_height()-6
+                lines=max(1,int(float(self.steps.cget("height"))))
+                line_px=max(12,self.steps.winfo_height()/max(1,lines))
+                slack=limit-(self.steps.winfo_rooty()+self.steps.winfo_height())
+                if slack<-2 and lines>1:
+                    drop=max(1,int((-slack+line_px-1)//line_px))
+                    self.steps.configure(height=max(1,lines-drop))
+                    continue
+                if slack>line_px+8 and lines<7:
+                    add=min(7-lines,int(slack//line_px))
+                    if add:
+                        self.steps.configure(height=lines+add)
+                        continue
+                break
+        finally:
+            self._fitting=False
 
     def _place_on_screen(self):
         self.update_idletasks()
         screen_w=max(1,self.winfo_screenwidth()); screen_h=max(1,self.winfo_screenheight())
-        width=min(1180,screen_w)
-        wanted=max(760,getattr(self,"_pinned_height",700)+200)
+        width=min(1180,max(640,screen_w))
+        wanted=max(760,getattr(self,"_pinned_height",700)+160)
         height=min(screen_h-8,max(wanted,screen_h-12))
         x=max(0,(screen_w-width)//2); y=max(0,(screen_h-height)//2)
         self.geometry(f"{width}x{height}+{x}+{y}")
-        self.minsize(min(920,screen_w),min(height,max(640,screen_h-8)))
+        self.minsize(min(860,screen_w),min(620,max(520,screen_h-8)))
 
     def _on_volume_change(self,*_):
         try:
@@ -465,6 +498,9 @@ class App(tk.Tk):
         if hasattr(self,"hint_label"):
             self.hint_label.configure(fg="#8a3b00" if warning else "#333333")
         if self.worker and self.worker.is_alive(): return
+        current=self.status.get()
+        idle=current.startswith("Klaar om te starten") or current.startswith("Installatie") or current.startswith("Stem") or current.startswith("eSpeak") or current.startswith("Vertaal") or current.startswith("Controle")
+        if not idle: return
         if self._env_notes:
             self.status.set(self._env_notes[0])
         elif route:
@@ -759,9 +795,7 @@ class App(tk.Tk):
         except Exception: pass
     def request_stop(self):
         self.stop_event.set(); self.status.set("Stop aangevraagd..."); self.stop.config(state="disabled")
-        if self.child and self.child.poll() is None:
-            try:self.child.terminate()
-            except:pass
+        threading.Thread(target=self._stop_child,daemon=True).start()
     def check_stop(self):
         if self.stop_event.is_set():raise StoppedByUser
     def show_route_note(self):
