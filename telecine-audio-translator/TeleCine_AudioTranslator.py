@@ -15,6 +15,16 @@ from tkinter import filedialog, messagebox, ttk
 
 APP_TITLE = "TeleCine Audio Translator"
 BASE_DIR = Path(__file__).resolve().parent
+
+def read_app_version():
+    """Versie uit VERSION, zodat een volgende release hetzelfde nummer verhoogt."""
+    try:
+        text = (BASE_DIR / "VERSION").read_text(encoding="utf-8").strip()
+    except OSError:
+        text = ""
+    return text or "0.9.01"
+
+APP_VERSION = read_app_version()
 VOICE_DIR = BASE_DIR / "voices"
 JOB_DIR = BASE_DIR / ".telecine_jobs"
 MODEL_DIR = BASE_DIR / "uvr_models"
@@ -284,7 +294,7 @@ def mix_wavs(background, voice, output, bg_gain=1.0, voice_gain=1.0):
 
 class App(tk.Tk):
     def __init__(self):
-        super().__init__(); self.title(APP_TITLE); self.geometry("1180x900"); self.minsize(920,640)
+        super().__init__(); self.title(f"{APP_TITLE} {APP_VERSION}"); self.geometry("1180x900"); self.minsize(920,640)
         self.q=queue.Queue(); self.stop_event=threading.Event(); self.worker=None; self.child=None
         self.started=None; self.elapsed_before=0.; self.progress=0.; self.state=None
         self.source=tk.StringVar(); self.outdir=tk.StringVar(value=str(BASE_DIR/"Output"))
@@ -367,7 +377,7 @@ class App(tk.Tk):
             widget.bind("<Button-4>",on_wheel,add="+")
             widget.bind("<Button-5>",on_wheel,add="+")
             for child in widget.winfo_children(): bind_wheel(child)
-        ttk.Label(m,text=APP_TITLE,font=self._ui_font(16,True)).grid(row=0,column=0,columnspan=3,sticky="w",pady=(0,8))
+        ttk.Label(m,text=f"{APP_TITLE}  {APP_VERSION}",font=self._ui_font(16,True)).grid(row=0,column=0,columnspan=3,sticky="w",pady=(0,8))
         ttk.Label(m,text="Bronbestand (WAV):").grid(row=1,column=0,sticky="w")
         self.source_entry=ttk.Entry(m,textvariable=self.source); self.source_entry.grid(row=1,column=1,sticky="ew",padx=8)
         self.source_button=ttk.Button(m,text="Kiezen...",command=self.choose_source); self.source_button.grid(row=1,column=2)
