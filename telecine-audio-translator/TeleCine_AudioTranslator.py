@@ -25,6 +25,13 @@ VOICES = {
 DEFAULT_VOICE_LABEL = "Nathalie - Vlaams (medium)"
 UVR_MODEL = "UVR-MDX-NET-Inst_HQ_3.onnx"
 LANGUAGES = {"Frans": "fr", "Engels": "en"}
+
+def translation_route_note(source):
+    """Korte status als Frans niet rechtstreeks naar het Nederlands gaat."""
+    if source == "fr":
+        return "Frans wordt via Engels vertaald."
+    return ""
+
 WHISPER_MODELS = ["tiny", "base", "small", "medium"]
 STEPS = ["Bestand controleren", "Franse stem scheiden (UVR)", "Spraak herkennen",
          "Naar Nederlands vertalen", "Vlaamse WAV genereren", "Achtergrond mengen", "Resultaten opslaan"]
@@ -261,7 +268,7 @@ class App(tk.Tk):
         self.status=tk.StringVar(value="Klaar om te starten"); self.step=tk.StringVar(value="Stap: nog niet gestart")
         self.resume_text=tk.StringVar(value="Hervatten vanaf: niet van toepassing")
         self.percent=tk.StringVar(value="0%"); self.elapsed=tk.StringVar(value="00:00:00"); self.remaining=tk.StringVar(value="Nog niet beschikbaar")
-        self.build(); self.after(100,self.process_queue); self.after(500,self.clock); self.protocol("WM_DELETE_WINDOW",self.close)
+        self.build(); self.show_route_note(); self.after(100,self.process_queue); self.after(500,self.clock); self.protocol("WM_DELETE_WINDOW",self.close)
 
     def build(self):
         outer=ttk.Frame(self); outer.pack(fill="both",expand=True)
@@ -290,6 +297,7 @@ class App(tk.Tk):
         for c in range(3): opt.columnconfigure(c,weight=1)
         ttk.Label(opt,text="Brontaal").grid(row=0,column=0,sticky="w"); ttk.Label(opt,text="Whisper-kwaliteit").grid(row=0,column=1,sticky="w"); ttk.Label(opt,text="Vlaamse stem").grid(row=0,column=2,sticky="w")
         self.lang=ttk.Combobox(opt,textvariable=self.language,values=list(LANGUAGES),state="readonly"); self.lang.grid(row=1,column=0,sticky="ew")
+        self.lang.bind("<<ComboboxSelected>>",lambda _e:self.show_route_note())
         self.model=ttk.Combobox(opt,textvariable=self.whisper,values=WHISPER_MODELS,state="readonly"); self.model.grid(row=1,column=1,sticky="ew",padx=8)
         self.voice=ttk.Combobox(opt,textvariable=self.voice_choice,values=list(VOICES),state="readonly"); self.voice.current(0); self.voice.grid(row=1,column=2,sticky="ew")
         u=ttk.LabelFrame(m,text="UVR: Franse/Engelse stem verwijderen en achtergrond behouden",padding=10); u.grid(row=4,column=0,columnspan=3,sticky="ew",pady=8)
@@ -526,6 +534,11 @@ class App(tk.Tk):
             except:pass
     def check_stop(self):
         if self.stop_event.is_set():raise StoppedByUser
+    def show_route_note(self):
+        """Toon in de status dat Frans via Engels gaat, zolang er geen taak loopt."""
+        if self.worker and self.worker.is_alive(): return
+        note=translation_route_note(LANGUAGES.get(self.language.get(),""))
+        self.status.set("Klaar om te starten. "+note if note else "Klaar om te starten.")
     def stage(self,i,f,msg):
         f=max(0,min(1,float(f))); val=(sum(WEIGHTS[:i])+WEIGHTS[i]*f)*100; self.progress=val; self.q.put(("progress",val,i,msg))
     def finish(self,p,st,n):
@@ -573,11 +586,13 @@ class App(tk.Tk):
                 p["transcript"].write_text("\n".join(f"[{hhmmss_ms(x['start'])} - {hhmmss_ms(x['end'])}] {x['text']}" for x in timed),encoding="utf-8")
                 p["segments"].write_text(json.dumps(timed,ensure_ascii=False,indent=2),encoding="utf-8"); self.finish(p,st,3); done=3
             if done<4:
-                self.stage(3,.01,"Vertaalpakket controleren...")
+                note=translation_route_note(st["source_language"])
+                self.stage(3,.01,"Vertaalpakket controleren. "+note if note else "Vertaalpakket controleren...")
                 from telecine_setup import ensure_argos_package
                 ensure_argos_package(st["source_language"])
                 timed=json.loads(p["segments"].read_text(encoding="utf-8"))
-                translated=translate_segments(timed,st["source_language"],self.stop_event,lambda f:self.stage(3,f,"Segmenten naar Nederlands vertalen..."))
+                busy="Segmenten naar Nederlands vertalen. "+note if note else "Segmenten naar Nederlands vertalen..."
+                translated=translate_segments(timed,st["source_language"],self.stop_event,lambda f:self.stage(3,f,busy))
                 if not any(x.get("translation","").strip() for x in translated):raise RuntimeError("De vertaling is leeg.")
                 p["translated_segments"].write_text(json.dumps(translated,ensure_ascii=False,indent=2),encoding="utf-8")
                 p["translation"].write_text("\n".join(f"[{hhmmss_ms(x['start'])} - {hhmmss_ms(x['end'])}] {x['translation']}" for x in translated),encoding="utf-8"); self.finish(p,st,4); done=4
@@ -637,7 +652,8 @@ class App(tk.Tk):
                     n=x[1]; self.running(False); self.resume.config(state="normal"); self.status.set("Gestopt door gebruiker"); self.resume_text.set(f"Hervatten vanaf stap {n+1}: {STEPS[min(n,len(STEPS)-1)]}"); self.show_steps(min(n,len(STEPS)-1),"paused")
                 elif kind=="completed":
                     self.stop_audio(); self.play_status.set("Eindmix gereed voor live afspelen")
-                    self.set_progress(100); self.running(False); self.resume.config(state="disabled"); self.status.set("Klaar!"); self.remaining.set("00:00:00"); self.show_steps(len(STEPS),"completed"); messagebox.showinfo(APP_TITLE,"Verwerking voltooid.\n\n"+x[1]+("\n\nLet op: enkele segmenten waren langer dan hun tijdvak en kunnen overlappen." if self.state and self.state.get("timing_warnings") else ""))
+                    done_note=translation_route_note((self.state or {}).get("source_language",""))
+                    self.set_progress(100); self.running(False); self.resume.config(state="disabled"); self.status.set("Klaar! "+done_note if done_note else "Klaar!"); self.remaining.set("00:00:00"); self.show_steps(len(STEPS),"completed"); messagebox.showinfo(APP_TITLE,"Verwerking voltooid.\n\n"+x[1]+(("\n\n"+done_note) if done_note else "")+("\n\nLet op: enkele segmenten waren langer dan hun tijdvak en kunnen overlappen." if self.state and self.state.get("timing_warnings") else ""))
                 elif kind=="error":
                     _,err,n=x; self.running(False); self.resume.config(state="normal"); self.status.set("Fout tijdens verwerking"); self.resume_text.set(f"Hervatten vanaf stap {n+1}: {STEPS[min(n,len(STEPS)-1)]}"); self.show_steps(min(n,len(STEPS)-1),"error"); messagebox.showerror(APP_TITLE,err)
         except queue.Empty:pass
