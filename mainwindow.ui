@@ -3190,6 +3190,16 @@ QPushButton:disabled {
          </widget>
         </item>
         <item>
+         <widget class="QLabel" name="frameGuideLegendLabel">
+          <property name="text">
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:8pt;&quot;&gt;Legenda: &lt;span style=&quot; color:#ffffff;&quot;&gt;Wit&lt;/span&gt; = Pitch Start, &lt;span style=&quot; color:#ff00ff;&quot;&gt;Paars&lt;/span&gt; = Pitch End, &lt;span style=&quot; color:#00ff66;&quot;&gt;Groen&lt;/span&gt; = Auto-detect, &lt;span style=&quot; color:#00ffff;&quot;&gt;Cyaan&lt;/span&gt;/&lt;span style=&quot; color:#ff9900;&quot;&gt;Oranje&lt;/span&gt; = Video Top/Bottom.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          </property>
+          <property name="wordWrap">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
          <spacer name="verticalSpacer">
           <property name="orientation">
            <enum>Qt::Vertical</enum>
