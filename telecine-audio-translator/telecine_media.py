@@ -4,6 +4,7 @@
 Het beeld wordt gekopieerd, niet opnieuw gecomprimeerd. Alleen de audio
 wordt vervangen door de vertaalde mix.
 """
+import json
 import os
 import shutil
 import subprocess
@@ -136,6 +137,101 @@ def require_ffmpeg():
     if not ffmpeg:
         raise RuntimeError(ffmpeg_missing_message())
     return ffmpeg
+
+
+def _find_ffprobe(ffmpeg):
+    name = "ffprobe.exe" if os.name == "nt" else "ffprobe"
+    sibling = Path(ffmpeg).with_name(name)
+    if sibling.is_file():
+        return str(sibling)
+    return shutil.which("ffprobe")
+
+
+def _raw_popen(cmd):
+    """ffmpeg zonder tekst op stdout, zodat de ruwe bytes zuiver blijven."""
+    kwargs = {"stdout": subprocess.PIPE, "stderr": subprocess.DEVNULL, "stdin": subprocess.DEVNULL}
+    if os.name == "nt":
+        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+    return subprocess.Popen(cmd, **kwargs)
+
+
+def probe_media(path):
+    """Duur in seconden en beeldsnelheid. (0.0, 25.0) als het beeldtempo ontbreekt."""
+    ffmpeg = find_ffmpeg()
+    if not ffmpeg or not path or not Path(path).is_file():
+        return 0.0, 25.0
+    probe = _find_ffprobe(ffmpeg)
+    if not probe:
+        return 0.0, 25.0
+    cmd = [probe, "-v", "error", "-show_entries", "format=duration:stream=avg_frame_rate,codec_type", "-of", "json", str(path)]
+    try:
+        proc = _raw_popen(cmd)
+        raw, _ = proc.communicate(timeout=20)
+    except Exception:
+        return 0.0, 25.0
+    try:
+        data = json.loads(raw.decode("utf-8", "replace") or "{}")
+    except Exception:
+        return 0.0, 25.0
+    duration = 0.0
+    try:
+        duration = float((data.get("format") or {}).get("duration") or 0)
+    except (TypeError, ValueError):
+        duration = 0.0
+    fps = 25.0
+    for stream in data.get("streams") or []:
+        if stream.get("codec_type") != "video":
+            continue
+        rate = str(stream.get("avg_frame_rate") or "")
+        if "/" in rate:
+            num, den = rate.split("/", 1)
+            try:
+                fps = float(num) / float(den) if float(den) else 25.0
+            except (TypeError, ValueError, ZeroDivisionError):
+                fps = 25.0
+        break
+    if fps < 1 or fps > 120:
+        fps = 25.0
+    return max(0.0, duration), fps
+
+
+def read_video_frame(path, width, height, start=0.0):
+    """Eén RGB-frame op het gevraagde formaat, of None."""
+    ffmpeg = find_ffmpeg()
+    if not ffmpeg or not path or not Path(path).is_file():
+        return None
+    width, height = max(2, int(width) // 2 * 2), max(2, int(height) // 2 * 2)
+    vf = f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black"
+    cmd = [ffmpeg, "-hide_banner", "-loglevel", "error", "-ss", f"{max(0.0, float(start)):.3f}", "-i", str(path), "-frames:v", "1", "-an", "-vf", vf, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]
+    try:
+        proc = _raw_popen(cmd)
+        raw, _ = proc.communicate(timeout=30)
+    except Exception:
+        return None
+    need = width * height * 3
+    if not raw or len(raw) < need:
+        return None
+    return width, height, raw[:need]
+
+
+def open_video_stream(path, width, height, start=0.0):
+    """Doorlopende RGB-frames vanaf start. stdout levert width*height*3 bytes per frame."""
+    ffmpeg = find_ffmpeg()
+    if not ffmpeg:
+        return None
+    width, height = max(2, int(width) // 2 * 2), max(2, int(height) // 2 * 2)
+    vf = f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black"
+    cmd = [ffmpeg, "-hide_banner", "-loglevel", "error", "-ss", f"{max(0.0, float(start)):.3f}", "-i", str(path), "-an", "-vf", vf, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]
+    return _raw_popen(cmd)
+
+
+def open_audio_pcm(path, start=0.0, samplerate=48000, channels=2):
+    """Ruwe float32-audio vanaf start, of None."""
+    ffmpeg = find_ffmpeg()
+    if not ffmpeg or not path or not Path(path).is_file():
+        return None
+    cmd = [ffmpeg, "-hide_banner", "-loglevel", "error", "-ss", f"{max(0.0, float(start)):.3f}", "-i", str(path), "-vn", "-f", "f32le", "-ac", str(int(channels)), "-ar", str(int(samplerate)), "-"]
+    return _raw_popen(cmd)
 
 
 def extract_wav(video, wav_out, stop=None, child_setter=None):
