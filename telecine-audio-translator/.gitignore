@@ -7,4 +7,5 @@ voices/*.onnx.json
 __pycache__/
 *.pyc
 telecine-start.log
+weergave.json
 *.part

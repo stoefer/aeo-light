@@ -28,6 +28,23 @@ def read_app_version():
     return text or "0.9.01"
 
 APP_VERSION = read_app_version()
+THEME_PATH = BASE_DIR / "weergave.json"
+UI_PALETTE = {
+    "light": {
+        "bg": "#ececec", "fg": "#1c1c1c", "muted": "#555555",
+        "field": "#ffffff", "border": "#c4c4c4", "button": "#e4e4e4", "hover": "#d2d2d2",
+        "trough": "#d5d5d5", "hint": "#333333", "warn": "#8a3b00",
+        "log": "#ffffff", "progress": "#2b6cb0", "select": "#d6e6f5",
+        "scroll": "#6a6a6a", "meter": "#202020", "meter_edge": "#666666", "mark": "#555555", "hold": "#ffffff",
+    },
+    "dark": {
+        "bg": "#1e1e1e", "fg": "#ececec", "muted": "#b0b0b0",
+        "field": "#2a2a2a", "border": "#4a4a4a", "button": "#3a3a3a", "hover": "#4a4a4a",
+        "trough": "#3a3a3a", "hint": "#d0d0d0", "warn": "#f0b429",
+        "log": "#141414", "progress": "#4c8dff", "select": "#2c4a6e",
+        "scroll": "#8a8a8a", "meter": "#000000", "meter_edge": "#8a8a8a", "mark": "#777777", "hold": "#ffffff",
+    },
+}
 VOICE_DIR = BASE_DIR / "voices"
 JOB_DIR = BASE_DIR / ".telecine_jobs"
 MODEL_DIR = BASE_DIR / "uvr_models"
@@ -82,6 +99,7 @@ class LevelMeter(ttk.Frame):
         ttk.Label(self,text=title,width=18).grid(row=0,column=0,rowspan=2,sticky="w",padx=(0,6))
         self.peak_canvas=tk.Canvas(self,height=18,bg="#202020",highlightthickness=1,highlightbackground="#666")
         self.rms_canvas=tk.Canvas(self,height=18,bg="#202020",highlightthickness=1,highlightbackground="#666")
+        self._mark="#555555"; self._hold="#ffffff"
         self.peak_canvas.grid(row=0,column=1,sticky="ew",pady=1); self.rms_canvas.grid(row=1,column=1,sticky="ew",pady=1)
         self.peak_text=ttk.Label(self,text="Peak  --,- dBFS",width=19); self.rms_text=ttk.Label(self,text="RMS   --,- dBFS",width=19)
         self.peak_text.grid(row=0,column=2,padx=(7,0)); self.rms_text.grid(row=1,column=2,padx=(7,0))
@@ -98,9 +116,9 @@ class LevelMeter(ttk.Frame):
             xa=self._x(lo,w); xb=min(x,self._x(hi,w))
             if xb>xa: canvas.create_rectangle(xa,1,xb,h-1,fill=color,outline="")
         for mark in (-24,-12,-6,-3):
-            xm=self._x(mark,w); canvas.create_line(xm,0,xm,h,fill="#555")
+            xm=self._x(mark,w); canvas.create_line(xm,0,xm,h,fill=self._mark)
         if hold is not None and hold>-120:
-            xh=self._x(hold,w); canvas.create_line(xh,0,xh,h,fill="white",width=2)
+            xh=self._x(hold,w); canvas.create_line(xh,0,xh,h,fill=self._hold,width=2)
     def set_levels(self,peak,rms,reset_hold=False):
         self.values=(float(peak),float(rms))
         p=dbfs(peak); r=dbfs(rms)
@@ -108,6 +126,11 @@ class LevelMeter(ttk.Frame):
         else: self.peak_hold=max(self.peak_hold,p)
         self.peak_text.config(text=f"Peak {p:6.1f} dBFS".replace(".", ",")); self.rms_text.config(text=f"RMS  {r:6.1f} dBFS".replace(".", ","))
         self.clip.config(text="CLIP" if peak>=0.999 else "",foreground="#c00000")
+        self.redraw()
+    def apply_palette(self,pal):
+        self._mark=pal["mark"]; self._hold=pal["hold"]
+        for canvas in (self.peak_canvas,self.rms_canvas):
+            canvas.configure(bg=pal["meter"],highlightbackground=pal["meter_edge"])
         self.redraw()
     def clear(self):
         self.values=None; self.peak_hold=-120.0
@@ -446,6 +469,8 @@ class App(tk.Tk):
         self.no_speed=tk.BooleanVar(value=False); self.write_subtitles=tk.BooleanVar(value=True)
         self.bg_volume=tk.DoubleVar(value=100); self.voice_volume=tk.DoubleVar(value=100)
         self.bg_volume_text=tk.StringVar(value="100%"); self.voice_volume_text=tk.StringVar(value="100%")
+        self.theme_name=self._load_theme()
+        self.theme_choice=tk.StringVar(value="Donker" if self.theme_name=="dark" else "Licht")
         self.hint=tk.StringVar(value="Installatie controleren...")
         self.level_values={}; self.file_levels={}; self.meters={}; self._env_gen=0; self._env_notes=[]; self._env_ready=False
         # Live afspelen en meteranalyse
@@ -482,7 +507,7 @@ class App(tk.Tk):
 
     def build(self):
         """HD-indeling: bron over de volle breedte, instellingen links, meters en voortgang rechts."""
-        style=ttk.Style(); bg=style.lookup("TFrame","background") or self.cget("bg")
+        style=ttk.Style(); bg=UI_PALETTE[self.theme_name]["bg"]
         b=ttk.Frame(self,padding=(16,4,16,10)); b.pack(side="bottom",fill="x")
         self.start=ttk.Button(b,text="AUDIO VERTALEN",command=self.start_new); self.start.pack(side="left",padx=5)
         self.stop=ttk.Button(b,text="STOP",command=self.request_stop,state="disabled"); self.stop.pack(side="left",padx=5)
@@ -496,7 +521,12 @@ class App(tk.Tk):
         outer.rowconfigure(2,weight=1)
         self._outer=outer
         self._button_bar=b
-        ttk.Label(outer,text=f"{APP_TITLE}  {APP_VERSION}",font=self._ui_font(18,True)).grid(row=0,column=0,columnspan=2,sticky="w",pady=(0,8))
+        ttk.Label(outer,text=f"{APP_TITLE}  {APP_VERSION}",font=self._ui_font(18,True)).grid(row=0,column=0,sticky="w",pady=(0,8))
+        theme_bar=ttk.Frame(outer); theme_bar.grid(row=0,column=1,sticky="e",pady=(0,8))
+        ttk.Label(theme_bar,text="Weergave:").pack(side="left")
+        self.theme_box=ttk.Combobox(theme_bar,textvariable=self.theme_choice,values=["Licht","Donker"],state="readonly",width=8)
+        self.theme_box.pack(side="left",padx=(8,0))
+        self.theme_box.bind("<<ComboboxSelected>>",lambda _e:self.apply_theme())
         files=ttk.LabelFrame(outer,text="Bestand",padding=8); files.grid(row=1,column=0,columnspan=2,sticky="ew",pady=(0,8))
         files.columnconfigure(1,weight=1)
         ttk.Label(files,text="Bronbestand (WAV of MP4):").grid(row=0,column=0,sticky="w")
@@ -518,7 +548,7 @@ class App(tk.Tk):
         self.model=ttk.Combobox(opt,textvariable=self.whisper,values=WHISPER_MODELS,state="readonly"); self.model.grid(row=1,column=1,sticky="ew",padx=8,pady=(2,0))
         self.voice=ttk.Combobox(opt,textvariable=self.voice_choice,values=list(VOICES),state="readonly"); self.voice.current(0); self.voice.grid(row=1,column=2,sticky="ew",pady=(2,0))
         self.route_inline=tk.StringVar(value="")
-        ttk.Label(opt,textvariable=self.route_inline,foreground="#555").grid(row=2,column=0,columnspan=3,sticky="w",pady=(6,0))
+        ttk.Label(opt,textvariable=self.route_inline,style="Muted.TLabel").grid(row=2,column=0,columnspan=3,sticky="w",pady=(6,0))
         sy=ttk.LabelFrame(left,text="Synchronisatie met originele timing",padding=8); sy.grid(row=1,column=0,sticky="nsew",pady=(0,8))
         sy.columnconfigure(3,weight=1)
         self.sync_check=ttk.Checkbutton(sy,text="Oorspronkelijke starttijden en stiltes behouden",variable=self.sync_timing,command=self._sync_option_states); self.sync_check.grid(row=0,column=0,columnspan=4,sticky="w")
@@ -547,7 +577,8 @@ class App(tk.Tk):
         meterbox.columnconfigure(0,weight=1); meterbox.rowconfigure(5,weight=1)
         for row,(key,label) in enumerate((("input","IN origineel"),("background","UVR-achtergrond"),("voice","Vlaamse stem"),("output","OUT eindmix"))):
             meter=LevelMeter(meterbox,label); meter.grid(row=row,column=0,sticky="ew",pady=2); self.meters[key]=meter
-        ttk.Label(meterbox,text="Groen: normaal    Geel: hoog    Rood: dicht bij 0 dBFS    Witte lijn: Peak Hold",foreground="#555").grid(row=4,column=0,sticky="nw",pady=(6,0))
+        self.meter_legend=ttk.Label(meterbox,text="Groen: normaal    Geel: hoog    Rood: dicht bij 0 dBFS    Witte lijn: Peak Hold",style="Muted.TLabel")
+        self.meter_legend.grid(row=4,column=0,sticky="nw",pady=(6,0))
         player=ttk.LabelFrame(meterbox,text="Resultaat afspelen met live meters",padding=6); player.grid(row=6,column=0,sticky="sew",pady=(8,0)); player.columnconfigure(3,weight=1)
         self.play_button=ttk.Button(player,text="▶ Afspelen",command=self.play_audio); self.play_button.grid(row=0,column=0,padx=(0,5))
         self.pause_button=ttk.Button(player,text="⏸ Pauze",command=self.pause_audio,state="disabled"); self.pause_button.grid(row=0,column=1,padx=5)
@@ -562,12 +593,70 @@ class App(tk.Tk):
         ttk.Label(p,textvariable=self.status,font=self._ui_font(11,True)).grid(row=1,column=0,sticky="w",pady=(6,2)); ttk.Label(p,textvariable=self.step).grid(row=2,column=0,sticky="w"); ttk.Label(p,textvariable=self.resume_text).grid(row=3,column=0,sticky="w")
         t=ttk.Frame(p); t.grid(row=4,column=0,sticky="w",pady=4); ttk.Label(t,text="Verstreken:").grid(row=0,column=0); ttk.Label(t,textvariable=self.elapsed).grid(row=0,column=1,padx=8); ttk.Label(t,text="Resterend:").grid(row=1,column=0); ttk.Label(t,textvariable=self.remaining).grid(row=1,column=1,padx=8)
         log=ttk.Frame(p); log.grid(row=5,column=0,sticky="ew"); log.columnconfigure(0,weight=1)
-        self.steps=tk.Text(log,height=7,state="disabled",wrap="none",font=self._mono_font(10))
-        step_scroll=tk.Scrollbar(log,command=self.steps.yview,width=14,troughcolor="#e4e4e4",background="#5c5c5c")
-        self.steps.configure(yscrollcommand=step_scroll.set)
-        self.steps.grid(row=0,column=0,sticky="nsew"); step_scroll.grid(row=0,column=1,sticky="ns")
+        self.steps=tk.Text(log,height=7,state="disabled",wrap="none",font=self._mono_font(10),relief="flat",borderwidth=0,highlightthickness=1)
+        self.step_scroll=tk.Scrollbar(log,command=self.steps.yview,width=14)
+        self.steps.configure(yscrollcommand=self.step_scroll.set)
+        self.steps.grid(row=0,column=0,sticky="nsew"); self.step_scroll.grid(row=0,column=1,sticky="ns")
         self.show_steps(0,None)
+        self.apply_theme(save=False)
         self.bind("<Configure>",self._on_window_configure)
+
+    def _load_theme(self):
+        try:
+            data=json.loads(THEME_PATH.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return "light"
+        return "dark" if data.get("theme")=="dark" else "light"
+
+    def _save_theme(self):
+        try:
+            THEME_PATH.write_text(json.dumps({"theme":self.theme_name},ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+        except OSError:
+            pass
+
+    def _hint_color(self,warning):
+        pal=UI_PALETTE.get(self.theme_name,UI_PALETTE["light"])
+        return pal["warn"] if warning else pal["hint"]
+
+    def apply_theme(self,save=True):
+        """Zet licht of donker. De keuze blijft in weergave.json."""
+        self.theme_name="dark" if self.theme_choice.get()=="Donker" else "light"
+        pal=UI_PALETTE[self.theme_name]
+        style=ttk.Style(self)
+        if "clam" in style.theme_names():
+            style.theme_use("clam")
+        style.configure(".",background=pal["bg"],foreground=pal["fg"],fieldbackground=pal["field"],troughcolor=pal["trough"],bordercolor=pal["border"],lightcolor=pal["bg"],darkcolor=pal["border"])
+        style.configure("TFrame",background=pal["bg"])
+        style.configure("TLabel",background=pal["bg"],foreground=pal["fg"])
+        style.configure("Muted.TLabel",background=pal["bg"],foreground=pal["muted"])
+        style.configure("TLabelframe",background=pal["bg"],foreground=pal["fg"],bordercolor=pal["border"],relief="solid")
+        style.configure("TLabelframe.Label",background=pal["bg"],foreground=pal["fg"])
+        style.configure("TButton",background=pal["button"],foreground=pal["fg"],bordercolor=pal["border"],padding=(10,4))
+        style.configure("TCheckbutton",background=pal["bg"],foreground=pal["fg"])
+        style.configure("TEntry",fieldbackground=pal["field"],foreground=pal["fg"],bordercolor=pal["border"])
+        style.configure("TCombobox",fieldbackground=pal["field"],foreground=pal["fg"],background=pal["button"],bordercolor=pal["border"],arrowcolor=pal["fg"])
+        style.configure("TScale",background=pal["bg"],troughcolor=pal["trough"])
+        style.configure("Horizontal.TScale",background=pal["bg"],troughcolor=pal["trough"])
+        style.configure("Horizontal.TProgressbar",background=pal["progress"],troughcolor=pal["trough"],bordercolor=pal["border"],lightcolor=pal["progress"],darkcolor=pal["progress"])
+        style.map("TButton",background=[("active",pal["hover"]),("disabled",pal["trough"])],foreground=[("disabled",pal["muted"])])
+        style.map("TCheckbutton",background=[("active",pal["bg"]),("disabled",pal["bg"])],foreground=[("disabled",pal["muted"])],indicatorcolor=[("selected",pal["progress"]),("!selected",pal["field"])])
+        style.map("TCombobox",fieldbackground=[("readonly",pal["field"]),("disabled",pal["trough"])],foreground=[("disabled",pal["muted"])],selectbackground=[("readonly",pal["field"])],selectforeground=[("readonly",pal["fg"])])
+        style.map("TEntry",fieldbackground=[("disabled",pal["trough"])],foreground=[("disabled",pal["muted"])])
+        self.option_add("*TCombobox*Listbox.background",pal["field"])
+        self.option_add("*TCombobox*Listbox.foreground",pal["fg"])
+        self.option_add("*TCombobox*Listbox.selectBackground",pal["select"])
+        self.option_add("*TCombobox*Listbox.selectForeground",pal["fg"])
+        self.configure(background=pal["bg"])
+        if hasattr(self,"hint_label"):
+            warning=bool(getattr(self,"_env_notes",None)) or self.hint.get().startswith("Niveau niet gemeten")
+            self.hint_label.configure(bg=pal["bg"],fg=self._hint_color(warning))
+        if hasattr(self,"steps"):
+            self.steps.configure(bg=pal["log"],fg=pal["fg"],insertbackground=pal["fg"],highlightbackground=pal["border"],highlightcolor=pal["border"],selectbackground=pal["select"],selectforeground=pal["fg"])
+        if hasattr(self,"step_scroll"):
+            self.step_scroll.configure(background=pal["scroll"],troughcolor=pal["trough"],activebackground=pal["fg"])
+        for meter in self.meters.values():
+            meter.apply_palette(pal)
+        if save: self._save_theme()
 
     def _on_window_configure(self,event):
         if event.widget is not self: return
@@ -628,7 +717,7 @@ class App(tk.Tk):
         else:
             self.hint.set("Klaar om te starten. Kies een WAV of MP4 en druk op AUDIO VERTALEN.")
         if hasattr(self,"hint_label"):
-            self.hint_label.configure(fg="#8a3b00" if warning else "#333333")
+            self.hint_label.configure(fg=self._hint_color(warning))
         if self.worker and self.worker.is_alive(): return
         current=self.status.get()
         idle=current.startswith("Klaar om te starten") or current.startswith("Installatie") or current.startswith("Stem") or current.startswith("eSpeak") or current.startswith("Vertaal") or current.startswith("Controle")
@@ -1130,7 +1219,7 @@ class App(tk.Tk):
                         self.stop_audio(reset_position=True); self.play_status.set("Afspelen voltooid")
                 elif kind=="meter_error":
                     self.hint.set("Niveau niet gemeten: "+x[2])
-                    if hasattr(self,"hint_label"): self.hint_label.configure(fg="#8a3b00")
+                    if hasattr(self,"hint_label"): self.hint_label.configure(fg=self._hint_color(True))
                 elif kind=="progress":
                     _,v,i,msg=x; self.set_progress(v); self.status.set(msg); self.step.set(f"Stap {i+1} van {len(STEPS)}: {STEPS[i]}"); self.show_steps(i,"running")
                 elif kind=="stopped":
