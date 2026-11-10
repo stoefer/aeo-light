@@ -512,6 +512,7 @@ class App(tk.Tk):
         self.start=ttk.Button(b,text="AUDIO VERTALEN",command=self.start_new); self.start.pack(side="left",padx=5)
         self.stop=ttk.Button(b,text="STOP",command=self.request_stop,state="disabled"); self.stop.pack(side="left",padx=5)
         self.resume=ttk.Button(b,text="HERVATTEN",command=self.resume_job,state="disabled"); self.resume.pack(side="left",padx=5)
+        self.reset_button=ttk.Button(b,text="NIVEAUS RESET",command=self.reset_levels); self.reset_button.pack(side="left",padx=5)
         self.open_button=ttk.Button(b,text="UITVOERMAP OPENEN",command=self.open_out); self.open_button.pack(side="left",padx=5)
         self.hint_label=tk.Label(self,textvariable=self.hint,anchor="w",justify="left",bg=bg,fg="#333333",wraplength=1600)
         self.hint_label.pack(side="bottom",fill="x",padx=16,pady=(4,0))
@@ -899,6 +900,16 @@ class App(tk.Tk):
             with self.play_lock:self.play_position=round(float(self.play_slider.get())/100*self.play_total_frames)
         self.play_status.set("Nieuwe afspeelpositie ingesteld")
 
+    def reset_levels(self):
+        """Zet Peak, RMS, Peak Hold en de vier meters terug op de beginstand."""
+        if self.worker and self.worker.is_alive(): return
+        self.file_levels.clear(); self.level_values.clear()
+        self.stop_audio(reset_position=True)
+        for meter in self.meters.values(): meter.clear()
+        self.play_position=0; self.play_total_frames=0; self.play_samplerate=0
+        self.play_slider.set(0); self.play_time.set("00:00:00 / 00:00:00")
+        self.play_status.set("Nog geen eindresultaat gekozen")
+
     def choose_source(self):
         f=filedialog.askopenfilename(title="Kies WAV of MP4",filetypes=[("WAV of MP4","*.wav *.mp4 *.m4v"),("WAV-audio","*.wav"),("MP4-video","*.mp4 *.m4v"),("Alle bestanden","*.*")])
         if not f: return
@@ -1018,6 +1029,7 @@ class App(tk.Tk):
         self.worker=threading.Thread(target=self.pipeline,args=(p,st),daemon=True); self.worker.start()
     def running(self,on):
         self.start.config(state="disabled" if on else "normal"); self.stop.config(state="normal" if on else "disabled")
+        if hasattr(self,"reset_button"): self.reset_button.config(state="disabled" if on else "normal")
         if on: self.resume.config(state="disabled")
         for widget in (self.source_entry,self.out_entry,self.source_button,self.out_button,self.uvr_check,self.keep_stems_check,self.sync_check,self.no_speed_check,self.subtitle_check,self.mp4_check,self.bg_scale,self.voice_scale):
             widget.config(state="disabled" if on else "normal")
