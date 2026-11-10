@@ -528,25 +528,7 @@ class App(tk.Tk):
         ttk.Label(m,text="Uitvoermap:").grid(row=3,column=0,sticky="w",pady=6)
         self.out_entry=ttk.Entry(m,textvariable=self.outdir); self.out_entry.grid(row=3,column=1,sticky="ew",padx=8)
         self.out_button=ttk.Button(m,text="Kiezen...",command=self.choose_out); self.out_button.grid(row=3,column=2)
-        opt=ttk.LabelFrame(m,text="Vertaling",padding=8); opt.grid(row=4,column=0,columnspan=3,sticky="ew",pady=(4,6))
-        for c in range(3): opt.columnconfigure(c,weight=1)
-        ttk.Label(opt,text="Brontaal").grid(row=0,column=0,sticky="w"); ttk.Label(opt,text="Whisper-kwaliteit").grid(row=0,column=1,sticky="w"); ttk.Label(opt,text="Vlaamse stem").grid(row=0,column=2,sticky="w")
-        self.lang=ttk.Combobox(opt,textvariable=self.language,values=list(LANGUAGES),state="readonly"); self.lang.grid(row=1,column=0,sticky="ew")
-        self.lang.bind("<<ComboboxSelected>>",lambda _e:self.show_route_note())
-        self.model=ttk.Combobox(opt,textvariable=self.whisper,values=WHISPER_MODELS,state="readonly"); self.model.grid(row=1,column=1,sticky="ew",padx=8)
-        self.voice=ttk.Combobox(opt,textvariable=self.voice_choice,values=list(VOICES),state="readonly"); self.voice.current(0); self.voice.grid(row=1,column=2,sticky="ew")
-        self.route_inline=tk.StringVar(value="")
-        ttk.Label(opt,textvariable=self.route_inline,foreground="#555").grid(row=2,column=0,columnspan=3,sticky="w",pady=(6,0))
-        u=ttk.LabelFrame(m,text="UVR: volumes en losse sporen",padding=8); u.grid(row=5,column=0,columnspan=3,sticky="ew",pady=6)
-        u.columnconfigure(1,weight=1)
-        self.keep_stems_check=ttk.Checkbutton(u,text="Losse UVR-sporen ook naar de uitvoermap kopiëren",variable=self.keep_stems); self.keep_stems_check.grid(row=0,column=0,columnspan=3,sticky="w",pady=(0,8))
-        ttk.Label(u,text="Achtergrondvolume:").grid(row=1,column=0,sticky="w")
-        self.bg_scale=ttk.Scale(u,from_=0,to=150,variable=self.bg_volume,orient="horizontal"); self.bg_scale.grid(row=1,column=1,sticky="ew",padx=8)
-        ttk.Label(u,textvariable=self.bg_volume_text,width=5).grid(row=1,column=2)
-        ttk.Label(u,text="Vlaamse stemvolume:").grid(row=2,column=0,sticky="w")
-        self.voice_scale=ttk.Scale(u,from_=0,to=150,variable=self.voice_volume,orient="horizontal"); self.voice_scale.grid(row=2,column=1,sticky="ew",padx=8)
-        ttk.Label(u,textvariable=self.voice_volume_text,width=5).grid(row=2,column=2)
-        sy=ttk.LabelFrame(m,text="Synchronisatie met originele timing",padding=8); sy.grid(row=6,column=0,columnspan=3,sticky="ew",pady=6)
+        sy=ttk.LabelFrame(m,text="Synchronisatie met originele timing",padding=8); sy.grid(row=4,column=0,columnspan=3,sticky="ew",pady=6)
         sy.columnconfigure(1,weight=1)
         self.sync_check=ttk.Checkbutton(sy,text="Oorspronkelijke starttijden en stiltes behouden",variable=self.sync_timing,command=self._sync_option_states); self.sync_check.grid(row=0,column=0,columnspan=3,sticky="w")
         ttk.Label(sy,text="Maximale versnelling van Vlaamse segmenten:").grid(row=1,column=0,sticky="w",pady=(6,0))
@@ -557,6 +539,24 @@ class App(tk.Tk):
         self.subtitle_check=ttk.Checkbutton(sy,text="Nederlandse ondertitels opslaan (SRT, en in de MP4)",variable=self.write_subtitles)
         self.subtitle_check.grid(row=3,column=0,columnspan=3,sticky="w",pady=(4,0))
         self._sync_option_states()
+        opt=ttk.LabelFrame(m,text="Vertaling",padding=8); opt.grid(row=5,column=0,columnspan=3,sticky="ew",pady=(4,6))
+        for c in range(3): opt.columnconfigure(c,weight=1)
+        ttk.Label(opt,text="Brontaal").grid(row=0,column=0,sticky="w"); ttk.Label(opt,text="Whisper-kwaliteit").grid(row=0,column=1,sticky="w"); ttk.Label(opt,text="Vlaamse stem").grid(row=0,column=2,sticky="w")
+        self.lang=ttk.Combobox(opt,textvariable=self.language,values=list(LANGUAGES),state="readonly"); self.lang.grid(row=1,column=0,sticky="ew")
+        self.lang.bind("<<ComboboxSelected>>",lambda _e:self.show_route_note())
+        self.model=ttk.Combobox(opt,textvariable=self.whisper,values=WHISPER_MODELS,state="readonly"); self.model.grid(row=1,column=1,sticky="ew",padx=8)
+        self.voice=ttk.Combobox(opt,textvariable=self.voice_choice,values=list(VOICES),state="readonly"); self.voice.current(0); self.voice.grid(row=1,column=2,sticky="ew")
+        self.route_inline=tk.StringVar(value="")
+        ttk.Label(opt,textvariable=self.route_inline,foreground="#555").grid(row=2,column=0,columnspan=3,sticky="w",pady=(6,0))
+        u=ttk.LabelFrame(m,text="UVR: volumes en losse sporen",padding=8); u.grid(row=6,column=0,columnspan=3,sticky="ew",pady=6)
+        u.columnconfigure(1,weight=1)
+        self.keep_stems_check=ttk.Checkbutton(u,text="Losse UVR-sporen ook naar de uitvoermap kopiëren",variable=self.keep_stems); self.keep_stems_check.grid(row=0,column=0,columnspan=3,sticky="w",pady=(0,8))
+        ttk.Label(u,text="Achtergrondvolume:").grid(row=1,column=0,sticky="w")
+        self.bg_scale=ttk.Scale(u,from_=0,to=150,variable=self.bg_volume,orient="horizontal"); self.bg_scale.grid(row=1,column=1,sticky="ew",padx=8)
+        ttk.Label(u,textvariable=self.bg_volume_text,width=5).grid(row=1,column=2)
+        ttk.Label(u,text="Vlaamse stemvolume:").grid(row=2,column=0,sticky="w")
+        self.voice_scale=ttk.Scale(u,from_=0,to=150,variable=self.voice_volume,orient="horizontal"); self.voice_scale.grid(row=2,column=1,sticky="ew",padx=8)
+        ttk.Label(u,textvariable=self.voice_volume_text,width=5).grid(row=2,column=2)
         bind_wheel(m); bind_wheel(canvas)
         uvr_bar=ttk.Frame(outer); uvr_bar.grid(row=1,column=0,sticky="ew",pady=(6,0))
         self.uvr_check=ttk.Checkbutton(uvr_bar,text="Stem met UVR scheiden en originele achtergrond/muziek behouden",variable=self.use_uvr)
@@ -586,6 +586,12 @@ class App(tk.Tk):
         self.steps.grid(row=0,column=0,sticky="ew"); step_scroll.grid(row=0,column=1,sticky="ns")
         self.show_steps(0,None)
         self.update_idletasks()
+        # Bron, synchronisatie en de taalkeuze blijven in beeld. De UVR-schuivers
+        # schuiven mee als het scherm te laag is; het stappenlog wordt dan korter.
+        top=scroll_host.winfo_rooty()
+        self._sync_height=(self.subtitle_check.winfo_rooty()-top)+self.subtitle_check.winfo_height()+16
+        self._settings_height=(self.lang.winfo_rooty()-top)+self.lang.winfo_height()+40
+        outer.rowconfigure(0,weight=1,minsize=self._settings_height)
         outer.rowconfigure(1,minsize=uvr_bar.winfo_reqheight())
         outer.rowconfigure(2,minsize=meterbox.winfo_reqheight())
         self._button_bar=b
@@ -621,6 +627,14 @@ class App(tk.Tk):
                     if add:
                         self.steps.configure(height=lines+add)
                         continue
+                # Het stappenlog is al minimaal en valt toch buiten beeld: houd de
+                # synchronisatie zichtbaar en geef de rest van de instellingen aan de voortgang.
+                if slack<-2 and lines<=1:
+                    current=int(outer.rowconfigure(0).get("minsize") or 0)
+                    floor=getattr(self,"_sync_height",220)
+                    if current>floor:
+                        outer.rowconfigure(0,minsize=max(floor,current+int(slack)-8))
+                        continue
                 break
         finally:
             self._fitting=False
@@ -633,7 +647,7 @@ class App(tk.Tk):
         margin=88
         max_h=max(520,min(screen_h-margin,1080-margin))
         width=min(1180,max(640,screen_w-16))
-        wanted=getattr(self,"_pinned_height",700)+150
+        wanted=getattr(self,"_pinned_height",700)+getattr(self,"_settings_height",320)
         height=min(max_h,max(640,wanted))
         x=max(0,(screen_w-width)//2)
         y=max(0,min(24,(screen_h-margin-height)//2))
