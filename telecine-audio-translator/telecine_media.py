@@ -167,42 +167,55 @@ def extract_wav(video, wav_out, stop=None, child_setter=None):
     return target
 
 
-def write_mp4(video, wav, mp4_out, stop=None, child_setter=None):
+def write_mp4(video, wav, mp4_out, stop=None, child_setter=None, subtitles=None):
     """Schrijf een MP4 met het oorspronkelijke beeld en de nieuwe audio.
 
     Het beeld wordt gekopieerd. De audio wordt AAC, zodat gewone spelers
     het bestand openen. Het beeld wordt niet ingekort als de audio korter is.
+    Een SRT wordt als zacht ondertitelspoor meegezet. Lukt dat niet, dan
+    komt de film er zonder dat spoor toch.
     """
     ffmpeg = require_ffmpeg()
     target = Path(mp4_out)
     target.parent.mkdir(parents=True, exist_ok=True)
     partial = target.with_name(target.stem + ".part.mp4")
-    partial.unlink(missing_ok=True)
-    cmd = [
-        ffmpeg, "-hide_banner", "-y",
-        "-i", str(video),
-        "-i", str(wav),
-        "-map", "0:v:0",
-        "-map", "1:a:0",
-        "-c:v", "copy",
-        "-c:a", "aac",
-        "-b:a", "192k",
-        "-movflags", "+faststart",
-        str(partial),
-    ]
-    try:
-        run_tool(cmd, stop, child_setter)
-    except MediaStopped:
+    attempts = [subtitles] if subtitles else [None]
+    if subtitles:
+        attempts.append(None)
+    last_error = None
+    for srt in attempts:
         partial.unlink(missing_ok=True)
-        raise
-    except RuntimeError as exc:
-        partial.unlink(missing_ok=True)
-        low = str(exc).lower()
-        if "matches no streams" in low or "does not contain any stream" in low:
-            raise RuntimeError("Deze MP4 heeft geen videobeeld om te behouden.") from exc
-        raise RuntimeError("De vertaalde MP4 kon niet geschreven worden.\n" + str(exc)) from exc
-    if not partial.is_file() or partial.stat().st_size < 32:
-        partial.unlink(missing_ok=True)
-        raise RuntimeError("De vertaalde MP4 is leeg.")
-    partial.replace(target)
-    return target
+        cmd = [
+            ffmpeg, "-hide_banner", "-y",
+            "-i", str(video),
+            "-i", str(wav),
+        ]
+        if srt:
+            cmd += ["-i", str(srt)]
+        cmd += ["-map", "0:v:0", "-map", "1:a:0"]
+        if srt:
+            cmd += ["-map", "2:0", "-c:s", "mov_text", "-metadata:s:s:0", "language=nld"]
+        cmd += ["-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(partial)]
+        try:
+            run_tool(cmd, stop, child_setter)
+        except MediaStopped:
+            partial.unlink(missing_ok=True)
+            raise
+        except RuntimeError as exc:
+            partial.unlink(missing_ok=True)
+            last_error = exc
+            if srt:
+                continue
+            low = str(exc).lower()
+            if "matches no streams" in low or "does not contain any stream" in low:
+                raise RuntimeError("Deze MP4 heeft geen videobeeld om te behouden.") from exc
+            raise RuntimeError("De vertaalde MP4 kon niet geschreven worden.\n" + str(exc)) from exc
+        if not partial.is_file() or partial.stat().st_size < 32:
+            partial.unlink(missing_ok=True)
+            last_error = RuntimeError("De vertaalde MP4 is leeg.")
+            if srt:
+                continue
+            raise last_error
+        partial.replace(target)
+        return target
+    raise RuntimeError("De vertaalde MP4 kon niet geschreven worden.\n" + str(last_error or ""))
