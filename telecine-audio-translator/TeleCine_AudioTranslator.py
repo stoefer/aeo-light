@@ -898,7 +898,11 @@ class App(tk.Tk):
                         self.stage(1,.35,"UVR is bezig; dit kan op CPU lang duren..."); time.sleep(.2)
                     reader.join(timeout=2); rc=self.child.returncode; self.child=None
                     if self.stop_event.is_set(): raise StoppedByUser
-                    if rc!=0: raise RuntimeError("UVR kon de audio niet scheiden.\n"+"".join(lines)[-2500:])
+                    if rc!=0:
+                        detail="".join(lines)[-2500:]
+                        if "No module named 'audioread'" in detail or 'No module named "audioread"' in detail:
+                            raise RuntimeError("UVR mist het onderdeel audioread.\n\nIn de programmamap, in PowerShell:\n.venv\\Scripts\\python.exe -m pip install audioread\n\nOf voer installeer.bat opnieuw uit.")
+                        raise RuntimeError("UVR kon de audio niet scheiden.\n"+detail)
                     files=list(p["uvr_out"].glob("*.wav")); vocals=next((f for f in files if "vocal" in f.name.lower()),None); instr=next((f for f in files if any(x in f.name.lower() for x in ("instrumental","no_vocal","karaoke"))),None)
                     if not vocals or not instr: raise RuntimeError("UVR-uitvoer bevat niet zowel Vocals als Instrumental: "+", ".join(f.name for f in files))
                     shutil.copy2(vocals,p["vocals"]); shutil.copy2(instr,p["background"]); self.queue_measure("background",p["background"],"background_raw"); self.stage(1,1,"UVR-scheiding voltooid."); self.finish(p,st,2); done=2
