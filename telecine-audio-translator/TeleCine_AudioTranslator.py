@@ -11,7 +11,7 @@ Voor UVR: python -m pip install "audio-separator[cpu]"
 import hashlib, json, os, queue, re, shutil, subprocess, sys, threading, time, wave
 from pathlib import Path
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, simpledialog, ttk
 from telecine_media import (
     MediaStopped, extract_wav, ffmpeg_missing_message, find_ffmpeg, is_video_file, write_mp4,
 )
@@ -52,9 +52,58 @@ VOICES = {
     "Nathalie - Vlaams (medium)": "nl_BE-nathalie-medium",
     "RDH - Vlaams, mannelijk (medium)": "nl_BE-rdh-medium",
 }
+BUILTIN_VOICES = dict(VOICES)
+VOICE_LABELS_PATH = BASE_DIR / "stemmen.json"
 DEFAULT_VOICE_LABEL = "Nathalie - Vlaams (medium)"
 UVR_MODEL = "UVR-MDX-NET-Inst_HQ_3.onnx"
 LANGUAGES = {"Frans": "fr", "Engels": "en"}
+
+def _read_voice_labels():
+    try:
+        data=json.loads(VOICE_LABELS_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    labels=data.get("labels") if isinstance(data, dict) else None
+    if not isinstance(labels, dict): return {}
+    return {str(model):str(label) for model,label in labels.items() if model and label}
+
+def _write_voice_label(model, label):
+    labels=_read_voice_labels()
+    labels[model]=label
+    try:
+        VOICE_LABELS_PATH.write_text(json.dumps({"labels":labels},ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+    except OSError:
+        pass
+
+def _unique_voice_label(label, model, taken):
+    base=(label or model).strip() or model
+    if base not in taken: return base
+    extra=f"{base} ({model})"
+    if extra not in taken: return extra
+    n=2
+    while f"{base} ({n})" in taken:
+        n+=1
+    return f"{base} ({n})"
+
+def discover_voices(voice_dir, labels=None, builtin=None):
+    """Ingebouwde stemmen plus elk .onnx-paar in de stemmenmap."""
+    found=dict(builtin if builtin is not None else BUILTIN_VOICES)
+    taken=set(found)
+    saved=dict(labels or {})
+    folder=Path(voice_dir)
+    if not folder.is_dir(): return found
+    for onnx in sorted(folder.glob("*.onnx")):
+        model=onnx.stem
+        if not (folder/f"{model}.onnx.json").is_file(): continue
+        if model in found.values(): continue
+        label=_unique_voice_label(saved.get(model, model.replace("_"," ").replace("-"," - ")), model, taken)
+        found[label]=model
+        taken.add(label)
+    return found
+
+def reload_voice_catalog():
+    VOICES.clear()
+    VOICES.update(discover_voices(VOICE_DIR, _read_voice_labels()))
 
 def translation_route_note(source):
     """Korte status als Frans niet rechtstreeks naar het Nederlands gaat."""
@@ -507,6 +556,7 @@ class App(tk.Tk):
 
     def build(self):
         """HD-indeling: bron over de volle breedte, instellingen links, meters en voortgang rechts."""
+        reload_voice_catalog()
         style=ttk.Style(); bg=UI_PALETTE[self.theme_name]["bg"]
         b=ttk.Frame(self,padding=(16,4,16,10)); b.pack(side="bottom",fill="x")
         self.start=ttk.Button(b,text="AUDIO VERTALEN",command=self.start_new); self.start.pack(side="left",padx=5)
@@ -547,9 +597,10 @@ class App(tk.Tk):
         self.lang=ttk.Combobox(opt,textvariable=self.language,values=list(LANGUAGES),state="readonly"); self.lang.grid(row=1,column=0,sticky="ew",pady=(2,0))
         self.lang.bind("<<ComboboxSelected>>",lambda _e:self.show_route_note())
         self.model=ttk.Combobox(opt,textvariable=self.whisper,values=WHISPER_MODELS,state="readonly"); self.model.grid(row=1,column=1,sticky="ew",padx=8,pady=(2,0))
-        self.voice=ttk.Combobox(opt,textvariable=self.voice_choice,values=list(VOICES),state="readonly"); self.voice.current(0); self.voice.grid(row=1,column=2,sticky="ew",pady=(2,0))
+        self.voice=ttk.Combobox(opt,textvariable=self.voice_choice,values=list(VOICES),state="readonly"); self.voice.grid(row=1,column=2,sticky="ew",pady=(2,0))
+        self.add_voice_button=ttk.Button(opt,text="Stem toevoegen...",command=self.add_voice); self.add_voice_button.grid(row=2,column=2,sticky="ew",pady=(6,0))
         self.route_inline=tk.StringVar(value="")
-        ttk.Label(opt,textvariable=self.route_inline,style="Muted.TLabel").grid(row=2,column=0,columnspan=3,sticky="w",pady=(6,0))
+        ttk.Label(opt,textvariable=self.route_inline,style="Muted.TLabel").grid(row=3,column=0,columnspan=3,sticky="w",pady=(6,0))
         sy=ttk.LabelFrame(left,text="Synchronisatie met originele timing",padding=8); sy.grid(row=1,column=0,sticky="nsew",pady=(0,8))
         sy.columnconfigure(3,weight=1)
         self.sync_check=ttk.Checkbutton(sy,text="Oorspronkelijke starttijden en stiltes behouden",variable=self.sync_timing,command=self._sync_option_states); self.sync_check.grid(row=0,column=0,columnspan=4,sticky="w")
@@ -578,8 +629,11 @@ class App(tk.Tk):
         meterbox.columnconfigure(0,weight=1); meterbox.rowconfigure(5,weight=1)
         for row,(key,label) in enumerate((("input","IN origineel"),("background","UVR-achtergrond"),("voice","Vlaamse stem"),("output","OUT eindmix"))):
             meter=LevelMeter(meterbox,label); meter.grid(row=row,column=0,sticky="ew",pady=2); self.meters[key]=meter
-        self.meter_legend=ttk.Label(meterbox,text="Groen: normaal    Geel: hoog    Rood: dicht bij 0 dBFS    Witte lijn: Peak Hold",style="Muted.TLabel")
-        self.meter_legend.grid(row=4,column=0,sticky="nw",pady=(6,0))
+        legend_row=ttk.Frame(meterbox); legend_row.grid(row=4,column=0,sticky="ew",pady=(6,0)); legend_row.columnconfigure(0,weight=1)
+        self.meter_legend=ttk.Label(legend_row,text="Groen: normaal    Geel: hoog    Rood: dicht bij 0 dBFS    Witte lijn: Peak Hold",style="Muted.TLabel")
+        self.meter_legend.grid(row=0,column=0,sticky="w")
+        self.meter_reset_button=ttk.Button(legend_row,text="Niveaus resetten",command=self.reset_levels)
+        self.meter_reset_button.grid(row=0,column=1,sticky="e",padx=(12,0))
         player=ttk.LabelFrame(meterbox,text="Resultaat afspelen met live meters",padding=6); player.grid(row=6,column=0,sticky="sew",pady=(8,0)); player.columnconfigure(3,weight=1)
         self.play_button=ttk.Button(player,text="▶ Afspelen",command=self.play_audio); self.play_button.grid(row=0,column=0,padx=(0,5))
         self.pause_button=ttk.Button(player,text="⏸ Pauze",command=self.pause_audio,state="disabled"); self.pause_button.grid(row=0,column=1,padx=5)
@@ -910,6 +964,102 @@ class App(tk.Tk):
         self.play_slider.set(0); self.play_time.set("00:00:00 / 00:00:00")
         self.play_status.set("Nog geen eindresultaat gekozen")
 
+    def _apply_voice_catalog(self, select=None):
+        reload_voice_catalog()
+        labels=list(VOICES)
+        if hasattr(self,"voice"): self.voice.configure(values=labels)
+        if select in VOICES: self.voice_choice.set(select)
+        elif self.voice_choice.get() not in VOICES and labels: self.voice_choice.set(labels[0])
+        self.refresh_environment_status()
+
+    def add_voice(self):
+        """Kies een bekende extra stem of een eigen Piper-paar."""
+        if self.worker and self.worker.is_alive(): return
+        from telecine_setup import EXTRA_VOICES
+        win=tk.Toplevel(self)
+        win.title("Stem toevoegen")
+        win.transient(self); win.resizable(False, False)
+        pal=UI_PALETTE.get(self.theme_name, UI_PALETTE["light"])
+        win.configure(bg=pal["bg"])
+        box=ttk.Frame(win, padding=12); box.pack(fill="both", expand=True)
+        ttk.Label(box, text="Een Piper-stem is een .onnx-bestand samen met het .onnx.json-bestand.", wraplength=460).grid(row=0, column=0, columnspan=2, sticky="w")
+        ttk.Label(box, text="Bekende extra stemmen").grid(row=1, column=0, columnspan=2, sticky="w", pady=(12,4))
+        missing=[item for item in EXTRA_VOICES if not ((VOICE_DIR/f"{item[1]}.onnx").is_file() and (VOICE_DIR/f"{item[1]}.onnx.json").is_file())]
+        choice=tk.StringVar()
+        labels=[item[0] for item in missing]
+        pick=ttk.Combobox(box, textvariable=choice, values=labels, state="readonly" if labels else "disabled", width=42)
+        pick.grid(row=2, column=0, sticky="ew", padx=(0,8))
+        if labels: choice.set(labels[0])
+        status=tk.StringVar(value="" if labels else "Alle bekende extra stemmen staan al in de lijst.")
+        def download():
+            label=choice.get()
+            item=next((row for row in missing if row[0]==label), None)
+            if item is None: return
+            status.set("Downloaden… dit kan even duren.")
+            get.config(state="disabled"); own.config(state="disabled")
+            def work():
+                try:
+                    from telecine_setup import download_extra_voice
+                    download_extra_voice(item[1])
+                    def done():
+                        self._apply_voice_catalog(item[0])
+                        status.set(f"{item[0]} staat in de lijst.")
+                        get.config(state="normal"); own.config(state="normal")
+                        missing.remove(item)
+                        left=[row[0] for row in missing]
+                        pick.configure(values=left, state="readonly" if left else "disabled")
+                        choice.set(left[0] if left else "")
+                    self.after(0, done)
+                except Exception as exc:
+                    self.after(0, lambda: (status.set(str(exc)), get.config(state="normal"), own.config(state="normal")))
+            threading.Thread(target=work, daemon=True).start()
+        get=ttk.Button(box, text="Downloaden", command=download, state="normal" if labels else "disabled")
+        get.grid(row=2, column=1, sticky="e")
+        ttk.Label(box, textvariable=status, style="Muted.TLabel", wraplength=460).grid(row=3, column=0, columnspan=2, sticky="w", pady=(6,0))
+        def choose_files():
+            onnx=filedialog.askopenfilename(parent=win, title="Kies het Piper .onnx-bestand", filetypes=[("Piper-stem","*.onnx"),("Alle bestanden","*.*")])
+            if not onnx: return
+            js=Path(onnx).with_suffix(".onnx.json")
+            if not js.is_file():
+                picked=filedialog.askopenfilename(parent=win, title="Kies het bijbehorende .onnx.json-bestand", filetypes=[("Piper-configuratie","*.onnx.json *.json"),("Alle bestanden","*.*")])
+                if not picked: return
+                js=Path(picked)
+            model=Path(onnx).stem
+            from telecine_setup import EXTRA_VOICES
+            suggested=next((row[0] for row in EXTRA_VOICES if row[1]==model), model.replace("_"," "))
+            label=simpledialog.askstring("Stem toevoegen", "Naam in de lijst:", initialvalue=suggested, parent=win)
+            if not label or not label.strip(): return
+            try:
+                self._install_voice_files(onnx, js, label.strip())
+            except Exception as exc:
+                messagebox.showerror(APP_TITLE, str(exc), parent=win); return
+            status.set(f"{label.strip()} staat in de lijst.")
+        own=ttk.Button(box, text="Eigen bestanden kiezen...", command=choose_files)
+        own.grid(row=4, column=0, sticky="w", pady=(14,0))
+        ttk.Button(box, text="Sluiten", command=win.destroy).grid(row=4, column=1, sticky="e", pady=(14,0))
+        box.columnconfigure(0, weight=1)
+        win.update_idletasks()
+        win.geometry(f"+{self.winfo_rootx()+80}+{self.winfo_rooty()+80}")
+
+    def _install_voice_files(self, onnx_path, json_path, label):
+        from telecine_setup import _voice_file_ok
+        onnx_path=Path(onnx_path); json_path=Path(json_path)
+        if not _voice_file_ok(onnx_path) or not _voice_file_ok(json_path):
+            raise RuntimeError("Dit is geen geldig Piper-paar. Kies een .onnx-bestand van minstens 1 MB en een .onnx.json-bestand.")
+        model=onnx_path.stem
+        VOICE_DIR.mkdir(parents=True, exist_ok=True)
+        dest_onnx=VOICE_DIR/f"{model}.onnx"; dest_json=VOICE_DIR/f"{model}.onnx.json"
+        if onnx_path.resolve()!=dest_onnx.resolve(): shutil.copy2(onnx_path, dest_onnx)
+        if json_path.resolve()!=dest_json.resolve(): shutil.copy2(json_path, dest_json)
+        if model in set(BUILTIN_VOICES.values()):
+            known=next(name for name,key in BUILTIN_VOICES.items() if key==model)
+            self._apply_voice_catalog(known)
+            return
+        taken={name for name,key in discover_voices(VOICE_DIR, _read_voice_labels()).items() if key!=model}
+        label=_unique_voice_label(label, model, taken)
+        _write_voice_label(model, label)
+        self._apply_voice_catalog(label)
+
     def choose_source(self):
         f=filedialog.askopenfilename(title="Kies WAV of MP4",filetypes=[("WAV of MP4","*.wav *.mp4 *.m4v"),("WAV-audio","*.wav"),("MP4-video","*.mp4 *.m4v"),("Alle bestanden","*.*")])
         if not f: return
@@ -1030,6 +1180,8 @@ class App(tk.Tk):
     def running(self,on):
         self.start.config(state="disabled" if on else "normal"); self.stop.config(state="normal" if on else "disabled")
         if hasattr(self,"reset_button"): self.reset_button.config(state="disabled" if on else "normal")
+        if hasattr(self,"meter_reset_button"): self.meter_reset_button.config(state="disabled" if on else "normal")
+        if hasattr(self,"add_voice_button"): self.add_voice_button.config(state="disabled" if on else "normal")
         if on: self.resume.config(state="disabled")
         for widget in (self.source_entry,self.out_entry,self.source_button,self.out_button,self.uvr_check,self.keep_stems_check,self.sync_check,self.no_speed_check,self.subtitle_check,self.mp4_check,self.bg_scale,self.voice_scale):
             widget.config(state="disabled" if on else "normal")
