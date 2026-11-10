@@ -271,6 +271,7 @@ Frame_Window::Frame_Window(int w,int h)
 	height_inc= 0;
 
 	overlapshow=false;
+	showAutoDetectLine = false;
 	is_rendering =false;
 	is_debug = false;
 	overrideOverlap = 0;
@@ -314,6 +315,7 @@ Frame_Window::Frame_Window(int w,int h)
     m_rot_angle = 0;
 	m_calcontrol_loc = 0;
 	m_overlapshow_loc = 0;
+	m_show_auto_detect_line_loc = 0;
 	m_video_crop_loc = 0;
 	frame_texture = 0;
 	adj_frame_fbo = 0;
@@ -448,6 +450,8 @@ void Frame_Window::initialize()
 
 	m_program->link();
 	m_overlapshow_loc = m_program->uniformLocation("overlapshow");
+	m_show_auto_detect_line_loc =
+			m_program->uniformLocation("show_auto_detect_line");
 	pix_bounds_loc = m_program->uniformLocation("pix_boundry");
 	m_colorcontrol_loc = m_program->uniformLocation("color_controls");
 	m_manipcontrol_loc = m_program->uniformLocation("manip_controls");
@@ -738,6 +742,9 @@ void Frame_Window::update_parameters()
 	m_program->setUniformValue(m_calcontrol_loc, float(cal_enabled),
 			float(is_caling),0,0);
 	m_program->setUniformValue(m_overlapshow_loc, float(overlapshow));
+	m_program->setUniformValue(
+			m_show_auto_detect_line_loc,
+			float(showAutoDetectLine));
 	m_program->setUniformValue(m_inputsize_loc, float(input_w), float(input_h));
 	m_program->setUniformValue(m_overlap_target_loc, overlap_target);
 }

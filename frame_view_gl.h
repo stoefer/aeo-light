@@ -139,6 +139,7 @@ public:
 	int match_inc;
 	int height_inc;
 	bool overlapshow;
+	bool showAutoDetectLine;
 	bool is_rendering;
 	bool is_debug;
 	bool is_videooutput;
@@ -189,6 +190,7 @@ private:
     GLuint m_rot_angle; // bind for rotation angle
 	GLuint m_calcontrol_loc;
 	GLuint m_overlapshow_loc;
+	GLuint m_show_auto_detect_line_loc;
 	GLuint m_video_crop_loc;
 	GLuint frame_texture; //image frame texture used as input
 	GLuint adj_frame_fbo; //render fbo writes to adj frame texture

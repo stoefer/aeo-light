@@ -2319,6 +2319,8 @@ void MainWindow::GPU_Params_Update(bool renderyes)
 		frame_window->negative = ui->negBox->checkState();
 		frame_window->desaturate = ui->desatBox->checkState();
 		frame_window->overlapshow = ui->actionShow_Overlap->isChecked();
+		frame_window->showAutoDetectLine =
+				ui->showAutoDetectLineCheckBox->isChecked();
 
         if(ui->rotateCheckbox->isChecked())
             frame_window->rot_angle = ui->degreeSpinBox->value();
@@ -7991,6 +7993,12 @@ void MainWindow::on_waveformZoomCheckBox_clicked(bool checked)
 void MainWindow::on_showOverlapCheckBox_clicked(bool checked)
 {
 	ui->actionShow_Overlap->setChecked(checked);
+	GPU_Params_Update(1);
+}
+
+void MainWindow::on_showAutoDetectLineCheckBox_clicked(bool checked)
+{
+	Q_UNUSED(checked);
 	GPU_Params_Update(1);
 }
 

@@ -10,6 +10,7 @@ uniform sampler2D overlap_audio_tex;
 uniform sampler2D overlapcompute_audio_tex;
 uniform sampler2D cal_audio_tex;
 uniform float overlapshow;
+uniform float show_auto_detect_line;
 uniform float rot_angle;
 uniform float render_mode;
 uniform float show_mode;
@@ -566,6 +567,7 @@ vTexRotated = vTexRotated +vec2(0.5,0.5);
         // Keep the guide window centered on the manual Frame Pitch End control
         // (overlap.z) so the violet line moves predictably while tuning.
         float overlap_center = clamp(overlap.z, 0.0, 1.0);
+        float overlap_center_auto = clamp(overlap.x - overlap.a, 0.0, 1.0);
         float overlap_center_flip = 1.0 - overlap_center;
         float overlap_half = max(0.001, overlap.y * 0.5);
         texel = texture2D(adj_frame_tex, flip_coord    ); //adjusted picture
@@ -612,6 +614,12 @@ vTexRotated = vTexRotated +vec2(0.5,0.5);
                 texel=vec4(1,0,1,0);
 
             }
+
+        }
+        if(show_auto_detect_line > 0.5 &&
+                abs(vTexCoord.y - overlap_center_auto) < 0.0025)
+        {
+            texel = vec4(0.0, 1.0, 0.3, 0.0); // green: auto-detect guide
         }
         if(  abs(flip_coord.y -overlap.a ) <0.0025)//.a abs(vTexCoord.x-overlap.x)<0.004
         {

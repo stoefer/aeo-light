@@ -3176,6 +3176,13 @@ QPushButton:disabled {
          </widget>
         </item>
         <item>
+         <widget class="QCheckBox" name="showAutoDetectLineCheckBox">
+          <property name="text">
+           <string>Show Auto-Detect Line</string>
+          </property>
+         </widget>
+        </item>
+        <item>
          <widget class="QCheckBox" name="showSoundtrackOnlyCheckBox">
           <property name="text">
            <string>Show Soundtrack Only</string>
@@ -3801,6 +3808,7 @@ QPushButton:disabled {
   <tabstop>queueExtractButton</tabstop>
   <tabstop>waveformZoomCheckBox</tabstop>
   <tabstop>showOverlapCheckBox</tabstop>
+  <tabstop>showAutoDetectLineCheckBox</tabstop>
   <tabstop>showSoundtrackOnlyCheckBox</tabstop>
   <tabstop>frame_numberSpinBox</tabstop>
   <tabstop>playSlider</tabstop>

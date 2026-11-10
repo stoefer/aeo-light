@@ -256,6 +256,7 @@ private slots:
 	void on_frameInSpinBox_valueChanged(int arg1);
     void on_waveformZoomCheckBox_clicked(bool checked);
 	void on_showOverlapCheckBox_clicked(bool checked);
+	void on_showAutoDetectLineCheckBox_clicked(bool checked);
 	void on_showSoundtrackOnlyCheckBox_clicked(bool checked);
 	void on_actionOpen_Source_triggered();
 	void on_actionLoad_Settings_triggered();
