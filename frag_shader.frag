@@ -563,7 +563,9 @@ vTexRotated = vTexRotated +vec2(0.5,0.5);
 
     if (render_mode==2.0) ////to screen picture render
     {
-        float overlap_center = overlap.x - overlap.a;
+        // Keep the guide window centered on the manual Frame Pitch End control
+        // (overlap.z) so the violet line moves predictably while tuning.
+        float overlap_center = clamp(overlap.z, 0.0, 1.0);
         float overlap_center_flip = 1.0 - overlap_center;
         float overlap_half = max(0.001, overlap.y * 0.5);
         texel = texture2D(adj_frame_tex, flip_coord    ); //adjusted picture
