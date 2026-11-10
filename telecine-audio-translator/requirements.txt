@@ -1,4 +1,7 @@
 faster-whisper
+# PyAV 19 schrapte metadata_errors. faster-whisper 1.2.1 geeft dat argument nog
+# mee, waardoor stap 3 stopt met: unexpected keyword argument 'metadata_errors'.
+av>=11,<19
 argostranslate
 piper-tts
 sounddevice

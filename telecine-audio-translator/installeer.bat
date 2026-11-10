@@ -152,4 +152,14 @@ echo.
 echo Voor Vlaamse uitspraak is eSpeak NG nodig:
 echo https://github.com/espeak-ng/espeak-ng/releases
 echo.
+echo Voor MP4 als bron en resultaat is FFmpeg nodig.
+where ffmpeg >nul 2>&1
+if errorlevel 1 (
+  echo FFmpeg is niet gevonden. WAV werkt wel.
+  echo Installeer FFmpeg en zet het in PATH: https://ffmpeg.org/download.html
+  echo Of plaats ffmpeg.exe in deze map.
+) else (
+  echo FFmpeg is gevonden. Een MP4 kan als bron en als resultaat.
+)
+echo.
 pause

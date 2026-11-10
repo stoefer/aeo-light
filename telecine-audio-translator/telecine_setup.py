@@ -15,14 +15,40 @@ VOICE_FILES = [
     "nl/nl_BE/rdh/medium/nl_BE-rdh-medium.onnx",
     "nl/nl_BE/rdh/medium/nl_BE-rdh-medium.onnx.json",
 ]
+# Extra stemmen die de gebruiker zelf kan toevoegen. Elke stem is één spreker.
+EXTRA_VOICES = [
+    ("Nathalie - Vlaams (extra licht)", "nl_BE-nathalie-x_low", "nl/nl_BE/nathalie/x_low/nl_BE-nathalie-x_low"),
+    ("RDH - Vlaams, mannelijk (extra licht)", "nl_BE-rdh-x_low", "nl/nl_BE/rdh/x_low/nl_BE-rdh-x_low"),
+    ("Alex - Nederlands (medium)", "nl_NL-alex-medium", "nl/nl_NL/alex/medium/nl_NL-alex-medium"),
+    ("Pim - Nederlands (medium)", "nl_NL-pim-medium", "nl/nl_NL/pim/medium/nl_NL-pim-medium"),
+    ("Ronnie - Nederlands (medium)", "nl_NL-ronnie-medium", "nl/nl_NL/ronnie/medium/nl_NL-ronnie-medium"),
+    ("MLS 5809 - Nederlands (licht)", "nl_NL-mls_5809-low", "nl/nl_NL/mls_5809/low/nl_NL-mls_5809-low"),
+    ("MLS 7432 - Nederlands (licht)", "nl_NL-mls_7432-low", "nl/nl_NL/mls_7432/low/nl_NL-mls_7432-low"),
+]
 ARGOS_PAIRS = (("fr", "nl"), ("en", "nl"))
 
 
 def download_voices():
     """Download ontbrekende Piper-stemmen naar voices/."""
+    return _download_rels(VOICE_FILES)
+
+
+def download_extra_voice(model):
+    """Download één extra stem (onnx en json) naar voices/."""
+    match = next((item for item in EXTRA_VOICES if item[1] == model), None)
+    if match is None:
+        raise RuntimeError(f"Onbekende stem: {model}")
+    rel = match[2]
+    code = _download_rels([rel + ".onnx", rel + ".onnx.json"])
+    if code != 0:
+        raise RuntimeError("De stem kon niet gedownload worden. Controleer de internetverbinding.")
+    return 0
+
+
+def _download_rels(rels):
     VOICE_DIR.mkdir(parents=True, exist_ok=True)
     ok = True
-    for rel in VOICE_FILES:
+    for rel in rels:
         name = rel.rsplit("/", 1)[-1]
         target = VOICE_DIR / name
         if _voice_file_ok(target):
@@ -33,7 +59,7 @@ def download_voices():
         partial = target.with_suffix(target.suffix + ".part")
         try:
             request = urllib.request.Request(url, headers={"User-Agent": "TeleCine-Audio-Translator"})
-            with urllib.request.urlopen(request, timeout=120) as response, partial.open("wb") as handle:
+            with urllib.request.urlopen(request, timeout=300) as response, partial.open("wb") as handle:
                 shutil.copyfileobj(response, handle)
             if not _voice_file_ok(partial, target.name):
                 raise RuntimeError("download is onvolledig of geen geldig stem-bestand")
