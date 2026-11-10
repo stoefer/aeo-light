@@ -1,8 +1,20 @@
-# AEO-Light 3.1.38 (fork release)
+# AEO-Light 3.1.39 (fork release)
 
-Deze 3.1.38 patchrelease rondt de Windows package-buildfix af.
+Deze 3.1.39 patchrelease verfijnt het afregelen van de frame-scheiding met stabielere hulplijnen en extra visuele hulp.
 
-## Nieuw in 3.1.38
+## Nieuw in 3.1.39
+- Stabiliteitsfix voor hulplijnen bij Frame Pitch afregeling:
+  - de **paarse lijn** volgt nu voorspelbaar de manuele Frame Pitch End-slider
+  - geen onverwachte grote sprongen meer door auto-detect herpositionering
+- Nieuwe view-optie:
+  - **Show Auto-Detect Line** toont een aparte **groene** auto-detect referentielijn
+- Nieuwe mini-legenda in View options met kleurbetekenis:
+  - wit = Pitch Start
+  - paars = Pitch End
+  - groen = Auto-detect
+  - cyaan/oranje = Video Top/Bottom
+
+## Eerder toegevoegd in 3.1.38
 - CI buildfix voor Windows/Qt5 strict compile:
   - report-schrijfmethodes niet langer `const` zodat intern loggen (`Log()`) geldig compileert
   - lost de CI-fout op (`passing 'const MainWindow' as 'this' argument discards qualifiers`)
@@ -208,28 +220,28 @@ Deze 3.1.38 patchrelease rondt de Windows package-buildfix af.
 4. Als SmartScreen waarschuwt: klik **Meer informatie** → **Toch uitvoeren**.
 
 ## Ultra-korte package checklist (5 punten)
-- [ ] Release-tag = `v3.1.38`.
+- [ ] Release-tag = `v3.1.39`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` staat op de release.
 - [ ] ZIP uitgepakt naar een lokale map.
-- [ ] `AEO-Light.exe` start en toont versie **3.1.38**.
+- [ ] `AEO-Light.exe` start en toont versie **3.1.39**.
 - [ ] Korte **Test Run** slaagt en maakt output aan.
 
-## Package checklist (v3.1.38, Windows x64)
-- [ ] Release-tag is `v3.1.38`.
+## Package checklist (v3.1.39, Windows x64)
+- [ ] Release-tag is `v3.1.39`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` is aanwezig op de releasepagina.
 - [ ] ZIP uitgepakt naar een lokale map (niet rechtstreeks uit de ZIP starten).
 - [ ] In de uitgepakte map staan minimaal:
   - `AEO-Light.exe`
   - `LICENSE.txt`
   - `ffmpeg.exe`
-- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.38**.
+- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.39**.
 - [ ] Snelle rooktest:
   - bron laden
   - korte **Test Run** uitvoeren
   - outputbestand wordt aangemaakt
 - [ ] (Optioneel) checksumcontrole van download:
   - `certutil -hashfile AEO-Light-Windows-x64.zip SHA256`
-  - verwacht: `4a70af7a3b4d4529802c3d39b6c9e9d644efe84b161efdee5bb971472b1f273c`
+  - verwacht: waarde op de `v3.1.39` releasepagina
 
 ## Snelle start (aanbevolen)
 - Container: **MP4**
