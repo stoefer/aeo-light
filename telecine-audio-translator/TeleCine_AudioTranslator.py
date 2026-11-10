@@ -80,8 +80,8 @@ class LevelMeter(ttk.Frame):
         super().__init__(parent)
         self.title=title; self.peak_hold=-120.0
         ttk.Label(self,text=title,width=18).grid(row=0,column=0,rowspan=2,sticky="w",padx=(0,6))
-        self.peak_canvas=tk.Canvas(self,height=14,bg="#202020",highlightthickness=1,highlightbackground="#666")
-        self.rms_canvas=tk.Canvas(self,height=14,bg="#202020",highlightthickness=1,highlightbackground="#666")
+        self.peak_canvas=tk.Canvas(self,height=18,bg="#202020",highlightthickness=1,highlightbackground="#666")
+        self.rms_canvas=tk.Canvas(self,height=18,bg="#202020",highlightthickness=1,highlightbackground="#666")
         self.peak_canvas.grid(row=0,column=1,sticky="ew",pady=1); self.rms_canvas.grid(row=1,column=1,sticky="ew",pady=1)
         self.peak_text=ttk.Label(self,text="Peak  --,- dBFS",width=19); self.rms_text=ttk.Label(self,text="RMS   --,- dBFS",width=19)
         self.peak_text.grid(row=0,column=2,padx=(7,0)); self.rms_text.grid(row=1,column=2,padx=(7,0))
@@ -434,7 +434,7 @@ def mix_wavs(background, voice, output, bg_gain=1.0, voice_gain=1.0):
 
 class App(tk.Tk):
     def __init__(self):
-        super().__init__(); self.title(f"{APP_TITLE} {APP_VERSION}"); self.geometry("1180x900"); self.minsize(920,640)
+        super().__init__(); self.title(f"{APP_TITLE} {APP_VERSION}"); self.geometry("1920x992"); self.minsize(1100,680)
         self.q=queue.Queue(); self.stop_event=threading.Event(); self.worker=None; self.child=None
         self.started=None; self.elapsed_before=0.; self.progress=0.; self.state=None
         self.source=tk.StringVar(); self.outdir=tk.StringVar(value=str(BASE_DIR/"Output"))
@@ -481,92 +481,74 @@ class App(tk.Tk):
         return ("TkFixedFont",size)
 
     def build(self):
-        """Instellingen schuiven. Meters, speler, knoppen en voortgang blijven staan."""
+        """HD-indeling: bron over de volle breedte, instellingen links, meters en voortgang rechts."""
         style=ttk.Style(); bg=style.lookup("TFrame","background") or self.cget("bg")
-        # Knoppen en de melding vast onderaan: die mogen nooit buiten het venster vallen.
-        b=ttk.Frame(self,padding=(12,2,12,8)); b.pack(side="bottom",fill="x")
+        b=ttk.Frame(self,padding=(16,4,16,10)); b.pack(side="bottom",fill="x")
         self.start=ttk.Button(b,text="AUDIO VERTALEN",command=self.start_new); self.start.pack(side="left",padx=5)
         self.stop=ttk.Button(b,text="STOP",command=self.request_stop,state="disabled"); self.stop.pack(side="left",padx=5)
         self.resume=ttk.Button(b,text="HERVATTEN",command=self.resume_job,state="disabled"); self.resume.pack(side="left",padx=5)
         self.open_button=ttk.Button(b,text="UITVOERMAP OPENEN",command=self.open_out); self.open_button.pack(side="left",padx=5)
-        self.hint_label=tk.Label(self,textvariable=self.hint,anchor="w",justify="left",bg=bg,fg="#333333",wraplength=900)
-        self.hint_label.pack(side="bottom",fill="x",padx=12,pady=(4,0))
-        outer=ttk.Frame(self,padding=(12,8,12,4)); outer.pack(side="top",fill="both",expand=True)
-        outer.columnconfigure(0,weight=1); outer.rowconfigure(0,weight=1,minsize=72)
+        self.hint_label=tk.Label(self,textvariable=self.hint,anchor="w",justify="left",bg=bg,fg="#333333",wraplength=1600)
+        self.hint_label.pack(side="bottom",fill="x",padx=16,pady=(4,0))
+        outer=ttk.Frame(self,padding=(16,10,16,6)); outer.pack(side="top",fill="both",expand=True)
+        outer.columnconfigure(0,weight=1,uniform="hd")
+        outer.columnconfigure(1,weight=1,uniform="hd")
+        outer.rowconfigure(2,weight=1)
         self._outer=outer
-        scroll_host=ttk.Frame(outer); scroll_host.grid(row=0,column=0,sticky="nsew")
-        scroll_host.rowconfigure(0,weight=1); scroll_host.columnconfigure(0,weight=1)
-        canvas=tk.Canvas(scroll_host,highlightthickness=0,borderwidth=0,background=bg)
-        scroll=tk.Scrollbar(scroll_host,orient="vertical",command=canvas.yview,width=16,troughcolor="#e4e4e4",background="#5c5c5c",activebackground="#333333")
-        canvas.configure(yscrollcommand=scroll.set)
-        canvas.grid(row=0,column=0,sticky="nsew"); scroll.grid(row=0,column=1,sticky="ns")
-        m=ttk.Frame(canvas,padding=(4,0,8,4)); m.columnconfigure(1,weight=1)
-        window=canvas.create_window((0,0),window=m,anchor="nw")
-        def fit(_event=None):
-            canvas.configure(scrollregion=canvas.bbox("all") or (0,0,0,0))
-            canvas.itemconfigure(window,width=max(1,canvas.winfo_width()))
-        m.bind("<Configure>",fit); canvas.bind("<Configure>",fit)
-        def on_wheel(event):
-            try:
-                if getattr(event,"delta",0):
-                    step=int(-event.delta/120) or (-1 if event.delta>0 else 1)
-                    canvas.yview_scroll(step,"units")
-                elif getattr(event,"num",None)==4: canvas.yview_scroll(-3,"units")
-                elif getattr(event,"num",None)==5: canvas.yview_scroll(3,"units")
-            except tk.TclError: pass
-        def bind_wheel(widget):
-            widget.bind("<MouseWheel>",on_wheel,add="+")
-            widget.bind("<Button-4>",on_wheel,add="+")
-            widget.bind("<Button-5>",on_wheel,add="+")
-            for child in widget.winfo_children(): bind_wheel(child)
-        ttk.Label(m,text=f"{APP_TITLE}  {APP_VERSION}",font=self._ui_font(16,True)).grid(row=0,column=0,columnspan=3,sticky="w",pady=(0,8))
-        ttk.Label(m,text="Bronbestand (WAV of MP4):").grid(row=1,column=0,sticky="w")
-        self.source_entry=ttk.Entry(m,textvariable=self.source); self.source_entry.grid(row=1,column=1,sticky="ew",padx=8)
-        self.source_button=ttk.Button(m,text="Kiezen...",command=self.choose_source); self.source_button.grid(row=1,column=2)
-        self.mp4_check=ttk.Checkbutton(m,text="Bij een MP4 het beeld behouden en de vertaling als MP4 opslaan",variable=self.write_mp4)
-        self.mp4_check.grid(row=2,column=0,columnspan=3,sticky="w",pady=(4,0))
-        ttk.Label(m,text="Uitvoermap:").grid(row=3,column=0,sticky="w",pady=6)
-        self.out_entry=ttk.Entry(m,textvariable=self.outdir); self.out_entry.grid(row=3,column=1,sticky="ew",padx=8)
-        self.out_button=ttk.Button(m,text="Kiezen...",command=self.choose_out); self.out_button.grid(row=3,column=2)
-        sy=ttk.LabelFrame(m,text="Synchronisatie met originele timing",padding=8); sy.grid(row=4,column=0,columnspan=3,sticky="ew",pady=6)
-        sy.columnconfigure(1,weight=1)
-        self.sync_check=ttk.Checkbutton(sy,text="Oorspronkelijke starttijden en stiltes behouden",variable=self.sync_timing,command=self._sync_option_states); self.sync_check.grid(row=0,column=0,columnspan=3,sticky="w")
-        ttk.Label(sy,text="Maximale versnelling van Vlaamse segmenten:").grid(row=1,column=0,sticky="w",pady=(6,0))
-        self.speed_box=ttk.Combobox(sy,textvariable=self.max_speed,values=[0,5,10,15,20,25,30],state="readonly",width=8); self.speed_box.grid(row=1,column=1,sticky="w",padx=8,pady=(6,0))
-        ttk.Label(sy,text="%").grid(row=1,column=2,sticky="w",pady=(6,0))
-        self.no_speed_check=ttk.Checkbutton(sy,text="Versnelling uitschakelen. Bij overlap begint de volgende zin net erna.",variable=self.no_speed,command=self._sync_option_states)
-        self.no_speed_check.grid(row=2,column=0,columnspan=3,sticky="w",pady=(6,0))
-        self.subtitle_check=ttk.Checkbutton(sy,text="Nederlandse ondertitels opslaan (SRT, en in de MP4)",variable=self.write_subtitles)
-        self.subtitle_check.grid(row=3,column=0,columnspan=3,sticky="w",pady=(4,0))
-        self._sync_option_states()
-        opt=ttk.LabelFrame(m,text="Vertaling",padding=8); opt.grid(row=5,column=0,columnspan=3,sticky="ew",pady=(4,6))
+        self._button_bar=b
+        ttk.Label(outer,text=f"{APP_TITLE}  {APP_VERSION}",font=self._ui_font(18,True)).grid(row=0,column=0,columnspan=2,sticky="w",pady=(0,8))
+        files=ttk.LabelFrame(outer,text="Bestand",padding=8); files.grid(row=1,column=0,columnspan=2,sticky="ew",pady=(0,8))
+        files.columnconfigure(1,weight=1)
+        ttk.Label(files,text="Bronbestand (WAV of MP4):").grid(row=0,column=0,sticky="w")
+        self.source_entry=ttk.Entry(files,textvariable=self.source); self.source_entry.grid(row=0,column=1,sticky="ew",padx=8)
+        self.source_button=ttk.Button(files,text="Kiezen...",command=self.choose_source); self.source_button.grid(row=0,column=2)
+        self.mp4_check=ttk.Checkbutton(files,text="Bij een MP4 het beeld behouden en de vertaling als MP4 opslaan",variable=self.write_mp4)
+        self.mp4_check.grid(row=1,column=0,columnspan=3,sticky="w",pady=(6,0))
+        ttk.Label(files,text="Uitvoermap:").grid(row=2,column=0,sticky="w",pady=(6,0))
+        self.out_entry=ttk.Entry(files,textvariable=self.outdir); self.out_entry.grid(row=2,column=1,sticky="ew",padx=8,pady=(6,0))
+        self.out_button=ttk.Button(files,text="Kiezen...",command=self.choose_out); self.out_button.grid(row=2,column=2,pady=(6,0))
+        left=ttk.Frame(outer); left.grid(row=2,column=0,sticky="nsew",padx=(0,8))
+        left.columnconfigure(0,weight=1)
+        for i in range(3): left.rowconfigure(i,weight=1)
+        opt=ttk.LabelFrame(left,text="Vertaling",padding=8); opt.grid(row=0,column=0,sticky="nsew",pady=(0,8))
         for c in range(3): opt.columnconfigure(c,weight=1)
         ttk.Label(opt,text="Brontaal").grid(row=0,column=0,sticky="w"); ttk.Label(opt,text="Whisper-kwaliteit").grid(row=0,column=1,sticky="w"); ttk.Label(opt,text="Vlaamse stem").grid(row=0,column=2,sticky="w")
-        self.lang=ttk.Combobox(opt,textvariable=self.language,values=list(LANGUAGES),state="readonly"); self.lang.grid(row=1,column=0,sticky="ew")
+        self.lang=ttk.Combobox(opt,textvariable=self.language,values=list(LANGUAGES),state="readonly"); self.lang.grid(row=1,column=0,sticky="ew",pady=(2,0))
         self.lang.bind("<<ComboboxSelected>>",lambda _e:self.show_route_note())
-        self.model=ttk.Combobox(opt,textvariable=self.whisper,values=WHISPER_MODELS,state="readonly"); self.model.grid(row=1,column=1,sticky="ew",padx=8)
-        self.voice=ttk.Combobox(opt,textvariable=self.voice_choice,values=list(VOICES),state="readonly"); self.voice.current(0); self.voice.grid(row=1,column=2,sticky="ew")
+        self.model=ttk.Combobox(opt,textvariable=self.whisper,values=WHISPER_MODELS,state="readonly"); self.model.grid(row=1,column=1,sticky="ew",padx=8,pady=(2,0))
+        self.voice=ttk.Combobox(opt,textvariable=self.voice_choice,values=list(VOICES),state="readonly"); self.voice.current(0); self.voice.grid(row=1,column=2,sticky="ew",pady=(2,0))
         self.route_inline=tk.StringVar(value="")
         ttk.Label(opt,textvariable=self.route_inline,foreground="#555").grid(row=2,column=0,columnspan=3,sticky="w",pady=(6,0))
-        u=ttk.LabelFrame(m,text="UVR: volumes en losse sporen",padding=8); u.grid(row=6,column=0,columnspan=3,sticky="ew",pady=6)
+        sy=ttk.LabelFrame(left,text="Synchronisatie met originele timing",padding=8); sy.grid(row=1,column=0,sticky="nsew",pady=(0,8))
+        sy.columnconfigure(3,weight=1)
+        self.sync_check=ttk.Checkbutton(sy,text="Oorspronkelijke starttijden en stiltes behouden",variable=self.sync_timing,command=self._sync_option_states); self.sync_check.grid(row=0,column=0,columnspan=4,sticky="w")
+        ttk.Label(sy,text="Maximale versnelling van Vlaamse segmenten:").grid(row=1,column=0,sticky="w",pady=(6,0))
+        self.speed_box=ttk.Combobox(sy,textvariable=self.max_speed,values=[0,5,10,15,20,25,30],state="readonly",width=8); self.speed_box.grid(row=1,column=1,sticky="w",padx=(8,4),pady=(6,0))
+        ttk.Label(sy,text="%").grid(row=1,column=2,sticky="w",pady=(6,0))
+        self.no_speed_check=ttk.Checkbutton(sy,text="Versnelling uitschakelen. Bij overlap begint de volgende zin net erna.",variable=self.no_speed,command=self._sync_option_states)
+        self.no_speed_check.grid(row=2,column=0,columnspan=4,sticky="w",pady=(6,0))
+        self.subtitle_check=ttk.Checkbutton(sy,text="Nederlandse ondertitels opslaan (SRT, en in de MP4)",variable=self.write_subtitles)
+        self.subtitle_check.grid(row=3,column=0,columnspan=4,sticky="w",pady=(4,0))
+        self._sync_option_states()
+        u=ttk.LabelFrame(left,text="UVR: stem, volumes en losse sporen",padding=8); u.grid(row=2,column=0,sticky="nsew")
         u.columnconfigure(1,weight=1)
-        self.keep_stems_check=ttk.Checkbutton(u,text="Losse UVR-sporen ook naar de uitvoermap kopiëren",variable=self.keep_stems); self.keep_stems_check.grid(row=0,column=0,columnspan=3,sticky="w",pady=(0,8))
-        ttk.Label(u,text="Achtergrondvolume:").grid(row=1,column=0,sticky="w")
-        self.bg_scale=ttk.Scale(u,from_=0,to=150,variable=self.bg_volume,orient="horizontal"); self.bg_scale.grid(row=1,column=1,sticky="ew",padx=8)
-        ttk.Label(u,textvariable=self.bg_volume_text,width=5).grid(row=1,column=2)
-        ttk.Label(u,text="Vlaamse stemvolume:").grid(row=2,column=0,sticky="w")
-        self.voice_scale=ttk.Scale(u,from_=0,to=150,variable=self.voice_volume,orient="horizontal"); self.voice_scale.grid(row=2,column=1,sticky="ew",padx=8)
-        ttk.Label(u,textvariable=self.voice_volume_text,width=5).grid(row=2,column=2)
-        bind_wheel(m); bind_wheel(canvas)
-        uvr_bar=ttk.Frame(outer); uvr_bar.grid(row=1,column=0,sticky="ew",pady=(6,0))
-        self.uvr_check=ttk.Checkbutton(uvr_bar,text="Stem met UVR scheiden en originele achtergrond/muziek behouden",variable=self.use_uvr)
-        self.uvr_check.pack(side="left",anchor="w")
-        meterbox=ttk.LabelFrame(outer,text="Audioniveaus: Peak, RMS en Peak Hold",padding=8); meterbox.grid(row=2,column=0,sticky="ew",pady=(6,4))
-        meterbox.columnconfigure(0,weight=1)
+        self.uvr_check=ttk.Checkbutton(u,text="Stem met UVR scheiden en originele achtergrond/muziek behouden",variable=self.use_uvr)
+        self.uvr_check.grid(row=0,column=0,columnspan=3,sticky="w")
+        self.keep_stems_check=ttk.Checkbutton(u,text="Losse UVR-sporen ook naar de uitvoermap kopiëren",variable=self.keep_stems); self.keep_stems_check.grid(row=1,column=0,columnspan=3,sticky="w",pady=(4,8))
+        ttk.Label(u,text="Achtergrondvolume:").grid(row=2,column=0,sticky="w")
+        self.bg_scale=ttk.Scale(u,from_=0,to=150,variable=self.bg_volume,orient="horizontal"); self.bg_scale.grid(row=2,column=1,sticky="ew",padx=8)
+        ttk.Label(u,textvariable=self.bg_volume_text,width=5).grid(row=2,column=2)
+        ttk.Label(u,text="Vlaamse stemvolume:").grid(row=3,column=0,sticky="w",pady=(6,0))
+        self.voice_scale=ttk.Scale(u,from_=0,to=150,variable=self.voice_volume,orient="horizontal"); self.voice_scale.grid(row=3,column=1,sticky="ew",padx=8,pady=(6,0))
+        ttk.Label(u,textvariable=self.voice_volume_text,width=5).grid(row=3,column=2,pady=(6,0))
+        right=ttk.Frame(outer); right.grid(row=2,column=1,sticky="nsew")
+        right.columnconfigure(0,weight=1); right.rowconfigure(0,weight=1)
+        meterbox=ttk.LabelFrame(right,text="Audioniveaus: Peak, RMS en Peak Hold",padding=8); meterbox.grid(row=0,column=0,sticky="nsew")
+        meterbox.columnconfigure(0,weight=1); meterbox.rowconfigure(5,weight=1)
         for row,(key,label) in enumerate((("input","IN origineel"),("background","UVR-achtergrond"),("voice","Vlaamse stem"),("output","OUT eindmix"))):
-            meter=LevelMeter(meterbox,label); meter.grid(row=row,column=0,sticky="ew",pady=1); self.meters[key]=meter
-        ttk.Label(meterbox,text="Groen: normaal   Geel: hoog   Rood: dicht bij 0 dBFS   Witte lijn: Peak Hold",foreground="#555").grid(row=4,column=0,sticky="w",pady=(4,0))
-        player=ttk.LabelFrame(meterbox,text="Resultaat afspelen met live meters",padding=6); player.grid(row=5,column=0,sticky="ew",pady=(8,0)); player.columnconfigure(3,weight=1)
+            meter=LevelMeter(meterbox,label); meter.grid(row=row,column=0,sticky="ew",pady=2); self.meters[key]=meter
+        ttk.Label(meterbox,text="Groen: normaal    Geel: hoog    Rood: dicht bij 0 dBFS    Witte lijn: Peak Hold",foreground="#555").grid(row=4,column=0,sticky="nw",pady=(6,0))
+        player=ttk.LabelFrame(meterbox,text="Resultaat afspelen met live meters",padding=6); player.grid(row=6,column=0,sticky="sew",pady=(8,0)); player.columnconfigure(3,weight=1)
         self.play_button=ttk.Button(player,text="▶ Afspelen",command=self.play_audio); self.play_button.grid(row=0,column=0,padx=(0,5))
         self.pause_button=ttk.Button(player,text="⏸ Pauze",command=self.pause_audio,state="disabled"); self.pause_button.grid(row=0,column=1,padx=5)
         self.play_stop_button=ttk.Button(player,text="⏹ Stop",command=self.stop_audio,state="disabled"); self.play_stop_button.grid(row=0,column=2,padx=5)
@@ -574,7 +556,7 @@ class App(tk.Tk):
         self.timeline.bind("<ButtonPress-1>",self.seek_begin); self.timeline.bind("<ButtonRelease-1>",self.seek_end)
         ttk.Label(player,textvariable=self.play_time).grid(row=1,column=3,sticky="e",padx=(5,0))
         ttk.Label(player,textvariable=self.play_status).grid(row=1,column=0,columnspan=3,sticky="w",pady=(4,0))
-        p=ttk.LabelFrame(outer,text="Voortgang",padding=8); p.grid(row=3,column=0,sticky="ew",pady=(4,0)); p.columnconfigure(0,weight=1)
+        p=ttk.LabelFrame(outer,text="Voortgang",padding=8); p.grid(row=3,column=0,columnspan=2,sticky="ew",pady=(8,0)); p.columnconfigure(0,weight=1)
         top=ttk.Frame(p); top.grid(row=0,column=0,sticky="ew"); top.columnconfigure(0,weight=1)
         self.bar=ttk.Progressbar(top,maximum=100); self.bar.grid(row=0,column=0,sticky="ew"); ttk.Label(top,textvariable=self.percent,width=7).grid(row=0,column=1)
         ttk.Label(p,textvariable=self.status,font=self._ui_font(11,True)).grid(row=1,column=0,sticky="w",pady=(6,2)); ttk.Label(p,textvariable=self.step).grid(row=2,column=0,sticky="w"); ttk.Label(p,textvariable=self.resume_text).grid(row=3,column=0,sticky="w")
@@ -583,19 +565,8 @@ class App(tk.Tk):
         self.steps=tk.Text(log,height=7,state="disabled",wrap="none",font=self._mono_font(10))
         step_scroll=tk.Scrollbar(log,command=self.steps.yview,width=14,troughcolor="#e4e4e4",background="#5c5c5c")
         self.steps.configure(yscrollcommand=step_scroll.set)
-        self.steps.grid(row=0,column=0,sticky="ew"); step_scroll.grid(row=0,column=1,sticky="ns")
+        self.steps.grid(row=0,column=0,sticky="nsew"); step_scroll.grid(row=0,column=1,sticky="ns")
         self.show_steps(0,None)
-        self.update_idletasks()
-        # Bron, synchronisatie en de taalkeuze blijven in beeld. De UVR-schuivers
-        # schuiven mee als het scherm te laag is; het stappenlog wordt dan korter.
-        top=scroll_host.winfo_rooty()
-        self._sync_height=(self.subtitle_check.winfo_rooty()-top)+self.subtitle_check.winfo_height()+16
-        self._settings_height=(self.lang.winfo_rooty()-top)+self.lang.winfo_height()+40
-        outer.rowconfigure(0,weight=1,minsize=self._settings_height)
-        outer.rowconfigure(1,minsize=uvr_bar.winfo_reqheight())
-        outer.rowconfigure(2,minsize=meterbox.winfo_reqheight())
-        self._button_bar=b
-        self._pinned_height=uvr_bar.winfo_reqheight()+meterbox.winfo_reqheight()+p.winfo_reqheight()+self.hint_label.winfo_reqheight()+b.winfo_reqheight()+48
         self.bind("<Configure>",self._on_window_configure)
 
     def _on_window_configure(self,event):
@@ -605,55 +576,37 @@ class App(tk.Tk):
         self._fit_steps()
 
     def _fit_steps(self):
-        """Maak het stappenlog korter als het venster te laag is. De knoppen blijven staan."""
+        """Maak het stappenlog korter als een lager venster de knoppen zou bedekken."""
         if getattr(self,"_fitting",False) or not hasattr(self,"steps"): return
-        outer=getattr(self,"_outer",None)
-        if outer is None: return
         if self.winfo_height()<200: return
         self._fitting=True
         try:
-            for _ in range(4):
+            for _ in range(6):
                 self.update_idletasks()
-                limit=outer.winfo_rooty()+outer.winfo_height()-6
+                limit=self.winfo_rooty()+self.winfo_height()-6
                 lines=max(1,int(float(self.steps.cget("height"))))
-                line_px=max(12,self.steps.winfo_height()/max(1,lines))
+                line_px=max(12,self.steps.winfo_reqheight()/max(1,lines))
                 slack=limit-(self.steps.winfo_rooty()+self.steps.winfo_height())
-                if slack<-2 and lines>1:
+                if slack<-2 and lines>4:
                     drop=max(1,int((-slack+line_px-1)//line_px))
-                    self.steps.configure(height=max(1,lines-drop))
+                    self.steps.configure(height=max(4,lines-drop))
                     continue
-                if slack>line_px+8 and lines<7:
-                    add=min(7-lines,int(slack//line_px))
-                    if add:
-                        self.steps.configure(height=lines+add)
-                        continue
-                # Het stappenlog is al minimaal en valt toch buiten beeld: houd de
-                # synchronisatie zichtbaar en geef de rest van de instellingen aan de voortgang.
-                if slack<-2 and lines<=1:
-                    current=int(outer.rowconfigure(0).get("minsize") or 0)
-                    floor=getattr(self,"_sync_height",220)
-                    if current>floor:
-                        outer.rowconfigure(0,minsize=max(floor,current+int(slack)-8))
-                        continue
                 break
         finally:
             self._fitting=False
 
     def _place_on_screen(self):
-        """Hoogte past op 1080p: taakbalk en titelbalk blijven vrij."""
+        """Open op HD (1920x1080). Een kleiner scherm krijgt het vrije werkvlak."""
         self.update_idletasks()
         screen_w=max(1,self.winfo_screenwidth()); screen_h=max(1,self.winfo_screenheight())
-        # 1920x1080 minus een Windows-taakbalk (~48) en de titelbalk (~40).
+        # Taakbalk (~48) en titelbalk (~40) blijven vrij op een 1080p-scherm.
         margin=88
-        max_h=max(520,min(screen_h-margin,1080-margin))
-        width=min(1180,max(640,screen_w-16))
-        wanted=getattr(self,"_pinned_height",700)+getattr(self,"_settings_height",320)
-        height=min(max_h,max(640,wanted))
+        width=min(1920,max(960,screen_w-16))
+        height=min(1080-margin,max(640,screen_h-margin))
         x=max(0,(screen_w-width)//2)
         y=max(0,min(24,(screen_h-margin-height)//2))
         self.geometry(f"{width}x{height}+{x}+{y}")
-        self.minsize(min(860,screen_w),min(620,max_h))
-        self.maxsize(max(width,screen_w),max_h)
+        self.minsize(min(1100,screen_w),min(680,height))
 
     def _on_volume_change(self,*_):
         try:
