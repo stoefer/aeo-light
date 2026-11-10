@@ -913,7 +913,13 @@ class App(tk.Tk):
                     from faster_whisper import WhisperModel
                 except ImportError as exc:
                     raise RuntimeError("Spraakherkenning ontbreekt. "+install_command_hint()) from exc
-                model=WhisperModel(st["model"],device="cpu",compute_type="int8"); segs,info=model.transcribe(str(recognition_source),language=st["source_language"],task="transcribe",beam_size=5,vad_filter=True)
+                try:
+                    model=WhisperModel(st["model"],device="cpu",compute_type="int8")
+                    segs,info=model.transcribe(str(recognition_source),language=st["source_language"],task="transcribe",beam_size=5,vad_filter=True)
+                except TypeError as exc:
+                    if "metadata_errors" in str(exc):
+                        raise RuntimeError("Spraakherkenning kan de audio niet openen.\nPyAV 19 past niet bij deze versie van faster-whisper.\n\nSluit dit venster. In de programmamap, in PowerShell:\n.venv\\Scripts\\python.exe -m pip install \"av<19\"\n\nStart daarna opnieuw via start.vbs en hervat vanaf stap 3.") from exc
+                    raise
                 dur=max(float(getattr(info,"duration",0) or 0),.01); parts=[]; timed=[]
                 for seg in segs:
                     self.check_stop(); t=seg.text.strip()
