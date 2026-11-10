@@ -197,6 +197,81 @@ def fit_channels(audio, channels):
     fitted[:, :count] = audio[:, :count]
     return fitted
 
+def snap_speech_interval(samples, sample_rate, start, end):
+    """Schuif een Whisper-interval naar het echte spraakgeluid.
+
+    Het eerste segment krijgt vaak start 0,00 s, terwijl de eerste woorden
+    later in de film vallen. Dan begint de Vlaamse stem samen met het beeld.
+    Een stuk zonder hoorbare stem geeft None terug en wordt niet ingesproken.
+    """
+    import numpy as np
+    start=float(start); end=max(start, float(end))
+    audio=np.asarray(samples, dtype="float32")
+    if audio.ndim==2:
+        audio=np.mean(audio, axis=1)
+    if audio.size==0 or sample_rate<=0:
+        return start, end
+    n=int(audio.shape[0])
+    a0=max(0, min(n, int(round(start*sample_rate))))
+    a1=max(a0, min(n, int(round(end*sample_rate))))
+    if a1-a0<int(0.05*sample_rate):
+        return start, end
+    frame=max(1, int(round(0.02*sample_rate)))
+    hop=max(1, frame//2)
+    region=audio[a0:a1]
+    rms=[]; positions=[]
+    for i in range(0, len(region)-frame+1, hop):
+        block=region[i:i+frame]
+        rms.append(float(np.sqrt(np.mean(block*block))))
+        positions.append(i)
+    if not rms:
+        return start, end
+    rms=np.asarray(rms, dtype="float64")
+    peak=float(rms.max())
+    if peak<0.008:
+        return None
+    threshold=max(peak*0.18, 1e-4)
+    active=rms>=threshold
+    need=max(1, int(round(0.08*sample_rate/hop)))
+    onset=None; run=0
+    for i, flag in enumerate(active):
+        run=run+1 if flag else 0
+        if run>=need:
+            onset=i-need+1; break
+    if onset is None:
+        return start, end
+    offset=None; run=0
+    for i in range(len(active)-1, -1, -1):
+        run=run+1 if active[i] else 0
+        if run>=need:
+            offset=i; break
+    if offset is None:
+        return start, end
+    new_start=start+positions[onset]/sample_rate
+    new_end=start+(positions[offset]+frame)/sample_rate
+    if new_start<=start+0.15:
+        return start, end
+    new_end=min(end, max(new_start+0.20, new_end))
+    return new_start, new_end
+
+def align_segments_to_speech(segments, wav_path):
+    """Zet segmenttijden op de stem in het herkende audiospoor."""
+    try:
+        import soundfile as sf
+        audio, sr=sf.read(str(wav_path), always_2d=True, dtype="float32")
+    except Exception:
+        return [dict(seg) for seg in segments]
+    kept=[]
+    for seg in segments:
+        bounds=snap_speech_interval(audio, sr, seg.get("start",0), seg.get("end", seg.get("start",0)))
+        if bounds is None:
+            continue
+        item=dict(seg)
+        item["start"]=round(bounds[0], 3)
+        item["end"]=round(max(bounds[0], bounds[1]), 3)
+        kept.append(item)
+    return kept
+
 def read_wav_duration(path):
     try:
         import soundfile as sf
@@ -254,11 +329,15 @@ def run_piper(text, output, voice_name, stop, child_setter):
                 extra="\n\neSpeak NG is niet gevonden. Installeer het met:\nsudo apt install espeak-ng"
         raise RuntimeError("De Vlaamse stem kon niet gemaakt worden.\n"+(err or "").strip()+extra)
 
-def build_synchronized_voice(segments, output, temp_dir, voice_name, max_speed_pct, source_duration, stop, callback, child_setter):
+def build_synchronized_voice(segments, output, temp_dir, voice_name, max_speed_pct, source_duration, stop, callback, child_setter, align_wav=None):
     try:
         import numpy as np, soundfile as sf
     except ImportError as e:
         raise RuntimeError("Voor synchronisatie zijn numpy en soundfile nodig. Installeer: python -m pip install numpy soundfile") from e
+    if align_wav:
+        segments=align_segments_to_speech(segments, align_wav)
+    if not segments:
+        raise RuntimeError("Er is geen hoorbare stem gevonden om op de oorspronkelijke momenten te zetten.")
     temp_dir.mkdir(parents=True,exist_ok=True)
     for f in temp_dir.glob("segment_*.wav"): f.unlink()
     rendered=[]; sample_rate=None; total=max(1,len(segments)); warnings=[]
@@ -762,7 +841,15 @@ class App(tk.Tk):
         s=self.validate()
         if not s:return
         p=self.paths(s); old=self.load(p)
-        if old and old.get("completed_steps",0)>0 and not messagebox.askyesno(APP_TITLE,"Tussenresultaten gevonden. Helemaal opnieuw beginnen?"): self.inspect_resume(); return
+        if old and int(old.get("completed_steps",0))>=4 and p["translated_segments"].is_file():
+            choice=messagebox.askyesnocancel(APP_TITLE,"Er is al een vertaling.\n\nJa: alleen de Vlaamse stem opnieuw plaatsen op de echte spreekmomenten. De tekst en UVR blijven bewaard.\n\nNee: alles opnieuw doen, ook UVR en de spraakherkenning.\n\nAnnuleren: niets starten.")
+            if choice is None:
+                self.inspect_resume(); return
+            if choice:
+                old=dict(old); old["completed_steps"]=4; old["elapsed"]=0.0; old["status"]="bezig"; old["last_error"]=""
+                self.apply_job_state(old); self.launch(p, old); return
+        elif old and old.get("completed_steps",0)>0 and not messagebox.askyesno(APP_TITLE,"Tussenresultaten gevonden. Helemaal opnieuw beginnen?"):
+            self.inspect_resume(); return
         if p["folder"].exists(): shutil.rmtree(p["folder"])
         self.launch(p,self.default_state(s))
     def inspect_resume(self):
@@ -928,6 +1015,8 @@ class App(tk.Tk):
                     self.stage(2,min(.995,float(seg.end)/dur),f"Spraak herkennen: {seg.end:.0f}/{dur:.0f} sec")
                 text=" ".join(parts).strip()
                 if not text:raise RuntimeError("Whisper heeft geen spraak herkend.")
+                timed=align_segments_to_speech(timed, recognition_source)
+                if not timed:raise RuntimeError("Whisper heeft geen spraak herkend.")
                 p["transcript"].write_text("\n".join(f"[{hhmmss_ms(x['start'])} - {hhmmss_ms(x['end'])}] {x['text']}" for x in timed),encoding="utf-8")
                 p["segments"].write_text(json.dumps(timed,ensure_ascii=False,indent=2),encoding="utf-8"); self.finish(p,st,3); done=3
             if done<4:
@@ -946,7 +1035,7 @@ class App(tk.Tk):
                 translated=json.loads(p["translated_segments"].read_text(encoding="utf-8"))
                 if st.get("sync_timing",True):
                     src_duration=read_wav_duration(audio)
-                    warnings=build_synchronized_voice(translated,p["voice"],p["segment_audio"],st["voice"],int(st.get("max_speed",15)),src_duration,self.stop_event,lambda f:self.stage(4,f,"Vlaamse segmenten op tijdcode plaatsen..."),lambda proc:setattr(self,"child",proc))
+                    warnings=build_synchronized_voice(translated,p["voice"],p["segment_audio"],st["voice"],int(st.get("max_speed",15)),src_duration,self.stop_event,lambda f:self.stage(4,f,"Vlaamse segmenten op tijdcode plaatsen..."),lambda proc:setattr(self,"child",proc),recognition_source)
                     st["timing_warnings"]=warnings
                 else:
                     full=" ".join(x.get("translation","") for x in translated)
