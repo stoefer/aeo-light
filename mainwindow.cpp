@@ -1430,7 +1430,9 @@ MainWindow::~MainWindow()
 void MainWindow::closeEvent(QCloseEvent *event)
 {
 	auto closePreviewWindow = [this]() {
-		if(frame_window)
+		if(previewDockWidget)
+			previewDockWidget->close();
+		else if(frame_window)
 			frame_window->close();
 	};
 
@@ -1604,9 +1606,66 @@ void MainWindow::SaveUiWindowSettings() const
 	settings.endGroup();
 }
 
+bool MainWindow::IsEmbeddedPreviewEnabled() const
+{
+	QSettings settings;
+	settings.beginGroup("ui");
+	const bool enabled = settings.value("embed-preview-beta", false).toBool();
+	settings.endGroup();
+	return enabled;
+}
+
+void MainWindow::DestroyPreviewWindow()
+{
+	if(previewDockWidget)
+	{
+		previewDockWidget->hide();
+		delete previewDockWidget;
+		previewDockWidget = NULL;
+		previewContainerWidget = NULL;
+		frame_window = NULL;
+		return;
+	}
+
+	if(frame_window)
+	{
+		frame_window->close();
+		delete frame_window;
+		frame_window = NULL;
+	}
+}
+
+void MainWindow::SetupEmbeddedPreviewDock(const QString &sourceTitle)
+{
+	if(!frame_window) return;
+	if(previewDockWidget) return;
+
+	previewDockWidget = new QDockWidget("Preview (beta)", this);
+	previewDockWidget->setObjectName("previewDockWidgetBeta");
+	previewDockWidget->setAllowedAreas(
+			Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+	previewDockWidget->setFeatures(
+			QDockWidget::DockWidgetMovable |
+			QDockWidget::DockWidgetFloatable);
+	previewContainerWidget = QWidget::createWindowContainer(
+			frame_window, previewDockWidget);
+	previewContainerWidget->setFocusPolicy(Qt::StrongFocus);
+	previewDockWidget->setWidget(previewContainerWidget);
+	addDockWidget(Qt::RightDockWidgetArea, previewDockWidget);
+	if(!sourceTitle.trimmed().isEmpty())
+	{
+		previewDockWidget->setWindowTitle(
+				QString("Preview (beta) - %1")
+				.arg(QFileInfo(sourceTitle).fileName()));
+	}
+	frame_window->show();
+	previewDockWidget->show();
+}
+
 void MainWindow::PositionPreviewWindowBesideMainWindow()
 {
 	if(!frame_window) return;
+	if(previewDockWidget) return;
 	if(!frame_window->isVisible()) return;
 	if(applyingWindowLayout) return;
 
@@ -2564,9 +2623,8 @@ bool MainWindow::NewSource(QString filename, SourceFormat ft)
 			{
 				traceCurrentOperation="Closing previous frame window";
 				frame_window->currentOperation = &traceSubroutineOperation;
-				frame_window->close();
 				traceCurrentOperation="Deleting previous frame window";
-				delete frame_window;
+				DestroyPreviewWindow();
 			}
 
 			traceCurrentOperation = "Creating new frame window";
@@ -2583,9 +2641,17 @@ bool MainWindow::NewSource(QString filename, SourceFormat ft)
 			traceCurrentOperation = "Resizing window to 640x640";
 			frame_window->resize(640, 640);
 
-			traceCurrentOperation = "Showing frame window";
-			frame_window->show();
-			PositionPreviewWindowBesideMainWindow();
+			if(IsEmbeddedPreviewEnabled())
+			{
+				traceCurrentOperation = "Embedding frame window in main panel";
+				SetupEmbeddedPreviewDock(filename);
+			}
+			else
+			{
+				traceCurrentOperation = "Showing frame window";
+				frame_window->show();
+				PositionPreviewWindowBesideMainWindow();
+			}
 			qApp->processEvents();
 
 			traceCurrentOperation = "Updating GUI controls for new source";
@@ -7816,11 +7882,7 @@ void MainWindow::on_OverlapPixCheckBox_stateChanged(int arg1)
 
 void MainWindow::on_MainWindow_destroyed()
 {
-	if(frame_window)
-	{
-		frame_window->close();
-		delete frame_window;
-	}
+	DestroyPreviewWindow();
 }
 
 void MainWindow::on_CalBtn_clicked()
@@ -9522,6 +9584,7 @@ void MainWindow::on_extractResetButton_clicked()
 
 void MainWindow::on_actionPreferences_triggered()
 {
+	const bool wasEmbeddedPreviewEnabled = IsEmbeddedPreviewEnabled();
 	preferencesdialog *pref = new preferencesdialog(this);
 	pref->setWindowTitle("Preferences");
 	const int result = pref->exec();
@@ -9534,6 +9597,16 @@ void MainWindow::on_actionPreferences_triggered()
 		ApplyCompactModePreference();
 		UpdateAdaptiveUiScale();
 		PositionPreviewWindowBesideMainWindow();
+		const bool isEmbeddedPreviewEnabled = IsEmbeddedPreviewEnabled();
+		if(wasEmbeddedPreviewEnabled != isEmbeddedPreviewEnabled)
+		{
+			QMessageBox::information(
+					this,
+					tr("Preview-instelling aangepast"),
+					tr("De wijziging voor ingesloten preview (beta) wordt "
+					   "toegepast wanneer je een bron opnieuw opent of de app "
+					   "herstart."));
+		}
 	}
 
 	delete pref;

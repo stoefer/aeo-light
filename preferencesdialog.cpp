@@ -58,7 +58,8 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 	ui(new Ui::preferencesdialog),
 	settingsSearchEdit(NULL),
 	compactModeCheckBox(NULL),
-	skipLicenseAgreementCheckBox(NULL)
+	skipLicenseAgreementCheckBox(NULL),
+	embeddedPreviewCheckBox(NULL)
 {
 	ui->setupUi(this);
 
@@ -102,6 +103,8 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 			settings->value("compact-mode", false).toBool();
 	const bool skipLicenseAgreement =
 			settings->value("skip-license-agreement", false).toBool();
+	const bool embeddedPreviewEnabled =
+			settings->value("embed-preview-beta", false).toBool();
 	QString theme = settings->value("theme", "light").toString().toLower();
 	ui->themeComboBox->setCurrentIndex(theme == "dark" ? 1 : 0);
 	QString mode = settings->value("window-layout-mode", "").toString().toLower();
@@ -134,6 +137,10 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 			"License agreement na eerste acceptatie niet meer tonen", this);
 	skipLicenseAgreementCheckBox->setChecked(skipLicenseAgreement);
 	ui->verticalLayout->insertWidget(6, skipLicenseAgreementCheckBox);
+	embeddedPreviewCheckBox = new QCheckBox(
+			"Preview insluiten in hoofdpaneel (beta, herstart aanbevolen)", this);
+	embeddedPreviewCheckBox->setChecked(embeddedPreviewEnabled);
+	ui->verticalLayout->insertWidget(7, embeddedPreviewCheckBox);
 
 	PopulateMonitorChoices();
 	settings->beginGroup("ui");
@@ -322,6 +329,10 @@ void preferencesdialog::Save()
 			"skip-license-agreement",
 			skipLicenseAgreementCheckBox ?
 					skipLicenseAgreementCheckBox->isChecked() : false);
+	settings->setValue(
+			"embed-preview-beta",
+			embeddedPreviewCheckBox ?
+					embeddedPreviewCheckBox->isChecked() : false);
 	settings->setValue(
 			"theme",
 			ui->themeComboBox->currentIndex() == 1 ? "dark" : "light");

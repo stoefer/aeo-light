@@ -31,6 +31,8 @@
 #include <QMap>
 #include <QList>
 #include <QSoundEffect>
+#include <QDockWidget>
+#include <QPointer>
 #include <QDate>
 #include <QProgressDialog>
 #include <vector>
@@ -363,7 +365,9 @@ private slots:
 private:
 	QString startingProjectFilename;
 	Ui::MainWindow *ui;
-	Frame_Window * frame_window = NULL;
+	QPointer<Frame_Window> frame_window;
+	QPointer<QDockWidget> previewDockWidget;
+	QPointer<QWidget> previewContainerWidget;
 	QTextStream log;
 	bool paramCopyLock;
 	bool requestCancel;
@@ -486,6 +490,9 @@ private:
 			const QString &timingMsg,
 			const QString &processMsg);
 	void ApplyThemeFromSettings();
+	bool IsEmbeddedPreviewEnabled() const;
+	void DestroyPreviewWindow();
+	void SetupEmbeddedPreviewDock(const QString &sourceTitle);
 	void PositionPreviewWindowBesideMainWindow();
 
 public:

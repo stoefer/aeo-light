@@ -60,6 +60,7 @@ private:
 	QLineEdit *settingsSearchEdit;
 	QCheckBox *compactModeCheckBox;
 	QCheckBox *skipLicenseAgreementCheckBox;
+	QCheckBox *embeddedPreviewCheckBox;
 };
 
 #endif // PREFERENCESDIALOG_H
