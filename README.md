@@ -1,8 +1,14 @@
-# AEO-Light 3.1.40 (fork release)
+# AEO-Light 3.1.41 (fork release)
 
-Deze 3.1.40 patchrelease voegt een optionele embedded preview-workflow toe met duidelijke beta-markering en thema-gevoelige badgekleur.
+Deze 3.1.41 patchrelease verbetert de bruikbaarheid van Preferences met een robuustere layout op kleinere vensters.
 
-## Nieuw in 3.1.40
+## Nieuw in 3.1.41
+- Fix: General-instellingen raken niet meer verborgen achter het subpanel-kader.
+- General-tab gebruikt nu een scrollbare inhoud zodat extra opties altijd bereikbaar blijven.
+- Preferences opent standaard hoger voor betere zichtbaarheid van opties.
+- Preferences onthoudt nu de laatst gebruikte venstergrootte en -positie.
+
+## Eerder toegevoegd in 3.1.40
 - Nieuwe voorkeur in **Preferences**: **Preview insluiten in hoofdpaneel (beta, herstart aanbevolen)**.
 - Embedded preview opent als subpaneel (dock) in het hoofdvenster als deze optie actief is.
 - In embedded mode is een subtiele **BETA**-header met tooltip toegevoegd.
@@ -230,28 +236,28 @@ Deze 3.1.40 patchrelease voegt een optionele embedded preview-workflow toe met d
 4. Als SmartScreen waarschuwt: klik **Meer informatie** → **Toch uitvoeren**.
 
 ## Ultra-korte package checklist (5 punten)
-- [ ] Release-tag = `v3.1.40`.
+- [ ] Release-tag = `v3.1.41`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` staat op de release.
 - [ ] ZIP uitgepakt naar een lokale map.
-- [ ] `AEO-Light.exe` start en toont versie **3.1.40**.
+- [ ] `AEO-Light.exe` start en toont versie **3.1.41**.
 - [ ] Korte **Test Run** slaagt en maakt output aan.
 
-## Package checklist (v3.1.40, Windows x64)
-- [ ] Release-tag is `v3.1.40`.
+## Package checklist (v3.1.41, Windows x64)
+- [ ] Release-tag is `v3.1.41`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` is aanwezig op de releasepagina.
 - [ ] ZIP uitgepakt naar een lokale map (niet rechtstreeks uit de ZIP starten).
 - [ ] In de uitgepakte map staan minimaal:
   - `AEO-Light.exe`
   - `LICENSE.txt`
   - `ffmpeg.exe`
-- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.40**.
+- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.41**.
 - [ ] Snelle rooktest:
   - bron laden
   - korte **Test Run** uitvoeren
   - outputbestand wordt aangemaakt
 - [ ] (Optioneel) checksumcontrole van download:
   - `certutil -hashfile AEO-Light-Windows-x64.zip SHA256`
-  - verwacht: waarde op de `v3.1.40` releasepagina
+  - verwacht: waarde op de `v3.1.41` releasepagina
 
 ## Snelle start (aanbevolen)
 - Container: **MP4**
