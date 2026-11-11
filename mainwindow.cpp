@@ -1640,24 +1640,55 @@ void MainWindow::SetupEmbeddedPreviewDock(const QString &sourceTitle)
 	if(!frame_window) return;
 	if(previewDockWidget) return;
 
-	previewDockWidget = new QDockWidget("Preview (beta)", this);
+	QString previewTitle = tr("Preview");
+	const QString sourceName = QFileInfo(sourceTitle).fileName().trimmed();
+	if(!sourceName.isEmpty())
+		previewTitle = tr("Preview - %1").arg(sourceName);
+	const QString betaTooltip = tr(
+			"Experimentele functie: deze ingesloten preview is nog in beta. "
+			"Schakel uit via Preferences als je liever het aparte previewvenster gebruikt.");
+
+	previewDockWidget = new QDockWidget(previewTitle, this);
 	previewDockWidget->setObjectName("previewDockWidgetBeta");
 	previewDockWidget->setAllowedAreas(
 			Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
 	previewDockWidget->setFeatures(
 			QDockWidget::DockWidgetMovable |
 			QDockWidget::DockWidgetFloatable);
+	previewDockWidget->setToolTip(betaTooltip);
 	previewContainerWidget = QWidget::createWindowContainer(
 			frame_window, previewDockWidget);
 	previewContainerWidget->setFocusPolicy(Qt::StrongFocus);
-	previewDockWidget->setWidget(previewContainerWidget);
+	previewContainerWidget->setToolTip(betaTooltip);
+
+	QWidget *dockContent = new QWidget(previewDockWidget);
+	QVBoxLayout *dockLayout = new QVBoxLayout(dockContent);
+	dockLayout->setContentsMargins(6, 6, 6, 6);
+	dockLayout->setSpacing(4);
+
+	QWidget *betaHeader = new QWidget(dockContent);
+	QHBoxLayout *betaHeaderLayout = new QHBoxLayout(betaHeader);
+	betaHeaderLayout->setContentsMargins(0, 0, 0, 0);
+	betaHeaderLayout->setSpacing(6);
+	QLabel *betaLabel = new QLabel(tr("Embedded preview"), betaHeader);
+	QLabel *betaBadge = new QLabel("BETA", betaHeader);
+	betaBadge->setStyleSheet(
+			"QLabel { "
+			"background: #7c3aed; color: #ffffff; "
+			"font-weight: 700; font-size: 10px; "
+			"padding: 1px 6px; border-radius: 6px; "
+			"}");
+	betaLabel->setToolTip(betaTooltip);
+	betaBadge->setToolTip(betaTooltip);
+	betaHeader->setToolTip(betaTooltip);
+	betaHeaderLayout->addWidget(betaLabel);
+	betaHeaderLayout->addStretch(1);
+	betaHeaderLayout->addWidget(betaBadge);
+
+	dockLayout->addWidget(betaHeader);
+	dockLayout->addWidget(previewContainerWidget, 1);
+	previewDockWidget->setWidget(dockContent);
 	addDockWidget(Qt::RightDockWidgetArea, previewDockWidget);
-	if(!sourceTitle.trimmed().isEmpty())
-	{
-		previewDockWidget->setWindowTitle(
-				QString("Preview (beta) - %1")
-				.arg(QFileInfo(sourceTitle).fileName()));
-	}
 	frame_window->show();
 	previewDockWidget->show();
 }
