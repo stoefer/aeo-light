@@ -68,6 +68,36 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 
 	settings = new QSettings;
 
+	// Open the preferences dialog taller by default so more options are visible
+	// before scrolling, while still fitting on smaller displays.
+	const int preferredDialogHeight = 470;
+	int targetHeight = std::max(height(), preferredDialogHeight);
+	QScreen *screenForSize = this->screen();
+	if(!screenForSize) screenForSize = QGuiApplication::primaryScreen();
+	if(screenForSize)
+	{
+		const int maxSafeHeight = std::max(320,
+				screenForSize->availableGeometry().height() - 60);
+		targetHeight = std::min(targetHeight, maxSafeHeight);
+	}
+	if(targetHeight > height())
+	{
+		const int delta = targetHeight - height();
+		resize(width(), targetHeight);
+		if(ui->horizontalLayoutWidget)
+		{
+			QRect buttonRect = ui->horizontalLayoutWidget->geometry();
+			buttonRect.moveTop(buttonRect.top() + delta);
+			ui->horizontalLayoutWidget->setGeometry(buttonRect);
+		}
+		if(ui->tabWidget)
+		{
+			QRect tabRectGrow = ui->tabWidget->geometry();
+			tabRectGrow.setHeight(tabRectGrow.height() + delta);
+			ui->tabWidget->setGeometry(tabRectGrow);
+		}
+	}
+
 	// Add a simple searchable filter so users can quickly jump to options.
 	QLabel *searchLabel = new QLabel("Zoeken:", this);
 	searchLabel->setGeometry(16, 44, 64, 24);
