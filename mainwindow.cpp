@@ -1186,6 +1186,49 @@ MainWindow::MainWindow(QWidget *parent) :
 
 	ui->maxFrequencyFrame->setVisible(false);
 	ui->tabWidget->setCurrentIndex(0);
+	if(ui->soundtrackResetButton && ui->tab)
+	{
+		const QRect resetRect = ui->soundtrackResetButton->geometry();
+		QPushButton *factoryResetButton = new QPushButton(tr("Factory Reset"), ui->tab);
+		factoryResetButton->setGeometry(
+				resetRect.x() + resetRect.width() + 6,
+				resetRect.y(),
+				resetRect.width(),
+				resetRect.height());
+		factoryResetButton->setToolTip(
+				tr("Herstel deze sectie naar fabriekswaarden (niet je opgeslagen defaults)."));
+		connect(factoryResetButton, &QPushButton::clicked, this, [this]()
+		{
+			ResetSoundtrackSectionToFactoryDefaults();
+		});
+	}
+	if(ui->imageResetButton && ui->tab_2)
+	{
+		const QRect resetRect = ui->imageResetButton->geometry();
+		QPushButton *factoryResetButton = new QPushButton(tr("Factory Reset"), ui->tab_2);
+		factoryResetButton->setGeometry(
+				resetRect.x() + resetRect.width() + 6,
+				resetRect.y(),
+				resetRect.width(),
+				resetRect.height());
+		factoryResetButton->setToolTip(
+				tr("Herstel deze sectie naar fabriekswaarden (niet je opgeslagen defaults)."));
+		connect(factoryResetButton, &QPushButton::clicked, this, [this]()
+		{
+			ResetImageSectionToFactoryDefaults();
+		});
+	}
+	if(ui->horizontalLayout_6)
+	{
+		QPushButton *factoryResetButton = new QPushButton(tr("Factory Reset"), this);
+		factoryResetButton->setToolTip(
+				tr("Herstel export/extraheer-instellingen naar fabriekswaarden."));
+		ui->horizontalLayout_6->insertWidget(1, factoryResetButton);
+		connect(factoryResetButton, &QPushButton::clicked, this, [this]()
+		{
+			ResetExtractSectionToFactoryDefaults();
+		});
+	}
 	//ui->soundtrackSettingGrid->setRowStretch(0,1);
 	frame_window = NULL;
 	paramCopyLock = false;
@@ -9914,6 +9957,45 @@ void MainWindow::on_soundtrackDefaultsButton_clicked()
 	SaveDefaultsSoundtrack();
 }
 
+void MainWindow::ResetSoundtrackSectionToFactoryDefaults()
+{
+	if(!scan.inFile.IsReady()) return;
+
+	const int w = scan.inFile.Width();
+	ui->OverlapSoundtrackCheckBox->setChecked(true);
+	ui->leftSpinBox->setValue(0);
+	ui->rightSpinBox->setValue(std::max(1, w - 1));
+	ui->monostereo_PD->setCurrentIndex(0);
+
+	ui->OverlapPixCheckBox->setChecked(false);
+	ui->leftPixSpinBox->setValue(int(w * 0.475));
+	ui->rightPixSpinBox->setValue(int(w * 0.525));
+	on_OverlapPixCheckBox_clicked(false);
+
+	ui->framepitchstartSlider->setValue(100);
+	ui->FramePitchendSlider->setValue(100);
+	NormalizePitchControls(true);
+	ui->framepitchstartLabel->setText(
+			QString::number(ui->framepitchstartSlider->value()/1000.f,'f',3));
+	ui->framePitchLabel->setText(
+			QString::number(ui->FramePitchendSlider->value()/1000.f,'f',3));
+
+	ui->videoFrameTopSlider->setValue(100);
+	ui->videoFrameBottomSlider->setValue(100);
+	NormalizeVideoCropControls(true);
+	UpdateVideoCropLabels();
+	ui->videoStableCropCheckBox->setChecked(true);
+	ui->videoDriftSensitivitySlider->setValue(100);
+	UpdateVideoStabilizationControls();
+
+	ui->overlapSlider->setValue(5);
+	ui->overlap_label->setText(QString::number(ui->overlapSlider->value()/100.f,'f',2));
+	ui->HeightCalculateBtn->setChecked(false);
+	ui->HeightCalculateBtn->setText("Lock Height");
+
+	GPU_Params_Update(1);
+}
+
 void MainWindow::on_soundtrackResetButton_clicked()
 {
 	if(!scan.inFile.IsReady()) return;
@@ -9979,6 +10061,24 @@ void MainWindow::on_imageDefaultsButton_clicked()
 	SaveDefaultsImage();
 }
 
+void MainWindow::ResetImageSectionToFactoryDefaults()
+{
+	ui->liftSlider->setValue(0);
+	ui->gammaSlider->setValue(100);
+	ui->gainSlider->setValue(100);
+	ui->thresholdSlider->setValue(300);
+	ui->blurSlider->setValue(0);
+	ui->threshBox->setChecked(false);
+	ui->negBox->setChecked(false);
+	ui->desatBox->setChecked(false);
+	ui->liftLabel->setText(QString::number(0.0f,'f',2));
+	ui->gammaLabel->setText(QString::number(1.0f,'f',2));
+	ui->gainLabel->setText(QString::number(1.0f,'f',2));
+	ui->threshLabel->setText(QString::number(3.0f,'f',2));
+	ui->blurLabel->setText(QString::number(0.0f,'f',2));
+	GPU_Params_Update(1);
+}
+
 void MainWindow::on_imageResetButton_clicked()
 {
 	QSettings settings;
@@ -10008,6 +10108,37 @@ void MainWindow::on_imageResetButton_clicked()
 void MainWindow::on_extractDefaultsButton_clicked()
 {
 	SaveDefaultsAudio();
+}
+
+void MainWindow::ResetExtractSectionToFactoryDefaults()
+{
+	if(scan.inFile.IsReady())
+	{
+		ui->frameInSpinBox->setValue(scan.inFile.FirstFrame());
+		ui->frameOutSpinBox->setValue(scan.inFile.LastFrame());
+	}
+	ui->filerate_PD->setCurrentIndex(0);
+	ui->bitDepthComboBox->setCurrentIndex(0);
+	const int idx16mm = ui->advance_CB->findText("26 - 16mm Standard",
+			Qt::MatchFixedString);
+	ui->advance_CB->setCurrentIndex(idx16mm >= 0 ? idx16mm : 0);
+	ui->audioQualityPresetComboBox->setCurrentIndex(AUDIO_QUALITY_PRESET_COMPACT);
+	ui->audioOnlyQualityPresetComboBox->setCurrentIndex(AUDIO_QUALITY_PRESET_COMPACT);
+	ui->outputVideoCheckBox->setChecked(false);
+	ui->videoAvOffsetCheckBox->setChecked(true);
+	ui->outputFlipHorizontalCheckBox->setChecked(false);
+	ui->outputFlipVerticalCheckBox->setChecked(false);
+	ui->outputRotationComboBox->setCurrentIndex(0);
+	ui->outputVideoSizeComboBox->setCurrentIndex(VIDEO_RESOLUTION_SOURCE);
+	ui->outputFilenameTemplateEdit->setText("{source}_{datetime}");
+	ui->outputConflictModeComboBox->setCurrentIndex(0);
+	ui->outputOpenFolderCheckBox->setChecked(false);
+	ui->outputAutoCleanupTempCheckBox->setChecked(true);
+	ui->outputExportReportModeComboBox->setCurrentIndex(EXPORT_REPORT_OFF);
+	ui->queueBatchReportModeComboBox->setCurrentIndex(QUEUE_BATCH_REPORT_OFF);
+	videoResolutionMode = VIDEO_RESOLUTION_SOURCE;
+	UpdateExtractOutputControls();
+	UpdateVideoExportControls();
 }
 
 void MainWindow::on_extractResetButton_clicked()

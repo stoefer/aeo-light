@@ -428,6 +428,9 @@ private:
 
 	void NormalizePitchControls(bool startChanged);
 	void NormalizeVideoCropControls(bool topChanged);
+	void ResetSoundtrackSectionToFactoryDefaults();
+	void ResetImageSectionToFactoryDefaults();
+	void ResetExtractSectionToFactoryDefaults();
 	void UpdateVideoCropLabels();
 	void UpdateVideoStabilizationControls();
 	void UpdateExtractOutputControls();
