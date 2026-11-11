@@ -32,7 +32,7 @@
       <x>0</x>
       <y>0</y>
       <width>684</width>
-      <height>910</height>
+      <height>960</height>
      </rect>
     </property>
     <property name="sizePolicy">
@@ -44,7 +44,7 @@
     <property name="minimumSize">
      <size>
       <width>684</width>
-      <height>910</height>
+      <height>960</height>
      </size>
     </property>
     <property name="baseSize">
@@ -94,7 +94,7 @@
        <x>10</x>
        <y>120</y>
        <width>651</width>
-       <height>520</height>
+       <height>560</height>
       </rect>
      </property>
      <property name="tabPosition">
@@ -3143,7 +3143,7 @@ QPushButton:disabled {
      <property name="geometry">
       <rect>
        <x>28</x>
-      <y>649</y>
+       <y>689</y>
        <width>621</width>
        <height>114</height>
       </rect>
@@ -3364,7 +3364,7 @@ QPushButton:disabled {
      <property name="geometry">
       <rect>
        <x>100</x>
-      <y>769</y>
+       <y>809</y>
        <width>522</width>
        <height>134</height>
       </rect>

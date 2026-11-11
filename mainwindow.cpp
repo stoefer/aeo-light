@@ -67,6 +67,7 @@
 #include <QSpinBox>
 #include <QCheckBox>
 #include <QShortcut>
+#include <QTabBar>
 #include <QRegularExpression>
 #include <QHBoxLayout>
 #include <QPushButton>
@@ -1186,6 +1187,16 @@ MainWindow::MainWindow(QWidget *parent) :
 
 	ui->maxFrequencyFrame->setVisible(false);
 	ui->tabWidget->setCurrentIndex(0);
+	if(ui->tabWidget && ui->tabWidget->tabBar())
+	{
+		QTabBar *tabs = ui->tabWidget->tabBar();
+		tabs->setExpanding(true);
+		tabs->setUsesScrollButtons(false);
+		tabs->setElideMode(Qt::ElideRight);
+	}
+	// Shorter labels avoid clipping while tabs stretch across full width.
+	ui->tabWidget->setTabText(0, tr("A/V-track Settings"));
+	ui->tabWidget->setTabText(3, tr("Extract A/V"));
 	if(ui->soundtrackResetButton && ui->tab)
 	{
 		const QRect resetRect = ui->soundtrackResetButton->geometry();
