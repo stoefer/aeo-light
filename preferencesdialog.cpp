@@ -33,6 +33,8 @@
 #include <QScreen>
 #include <QComboBox>
 #include <QLabel>
+#include <QScrollArea>
+#include <QFrame>
 #include <QTabWidget>
 
 static bool ReadShowHelpTextPreference(QSettings &settings, bool defaultValue = true)
@@ -77,6 +79,22 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 	ui->tabWidget->setGeometry(
 			tabRect.x(), tabRect.y() + 32,
 			tabRect.width(), std::max(120, tabRect.height() - 32));
+
+	// Make the General tab scrollable so added preference options never
+	// get clipped behind the tab panel frame on smaller windows/scales.
+	if(ui->verticalLayoutWidget && ui->generalTab)
+	{
+		QWidget *generalContent = ui->verticalLayoutWidget;
+		const QRect contentRect = generalContent->geometry();
+		QScrollArea *generalScrollArea = new QScrollArea(ui->generalTab);
+		generalScrollArea->setObjectName("generalScrollArea");
+		generalScrollArea->setGeometry(contentRect);
+		generalScrollArea->setWidgetResizable(true);
+		generalScrollArea->setFrameShape(QFrame::NoFrame);
+		generalScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		generalContent->setParent(generalScrollArea);
+		generalScrollArea->setWidget(generalContent);
+	}
 
 	QStringList l;
 
@@ -134,20 +152,23 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 	settings->endGroup();
 
 	compactModeCheckBox = new QCheckBox(
-			"Compact mode (minder tekst, compactere weergave)", this);
+			"Compact mode (minder tekst, compactere weergave)",
+			ui->verticalLayoutWidget);
 	compactModeCheckBox->setChecked(compactModeEnabled);
 	ui->verticalLayout->insertWidget(3, compactModeCheckBox);
 	skipLicenseAgreementCheckBox = new QCheckBox(
-			"License agreement na eerste acceptatie niet meer tonen", this);
+			"License agreement na eerste acceptatie niet meer tonen",
+			ui->verticalLayoutWidget);
 	skipLicenseAgreementCheckBox->setChecked(skipLicenseAgreement);
 	ui->verticalLayout->insertWidget(6, skipLicenseAgreementCheckBox);
 	embeddedPreviewCheckBox = new QCheckBox(
-			"Preview insluiten in hoofdpaneel (beta, herstart aanbevolen)", this);
+			"Preview insluiten in hoofdpaneel (beta, herstart aanbevolen)",
+			ui->verticalLayoutWidget);
 	embeddedPreviewCheckBox->setChecked(embeddedPreviewEnabled);
 	ui->verticalLayout->insertWidget(7, embeddedPreviewCheckBox);
 	QLabel *embeddedPreviewBadgeColorLabel = new QLabel(
-			"Kleur BETA-badge (ingesloten preview):", this);
-	embeddedPreviewBadgeColorComboBox = new QComboBox(this);
+			"Kleur BETA-badge (ingesloten preview):", ui->verticalLayoutWidget);
+	embeddedPreviewBadgeColorComboBox = new QComboBox(ui->verticalLayoutWidget);
 	embeddedPreviewBadgeColorComboBox->addItem(
 			"Automatisch op basis van thema", "auto");
 	embeddedPreviewBadgeColorComboBox->addItem("Paars (standaard)", "purple");
