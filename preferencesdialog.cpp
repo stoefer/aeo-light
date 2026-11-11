@@ -63,7 +63,8 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 	skipLicenseAgreementCheckBox(NULL),
 	embeddedPreviewCheckBox(NULL),
 	embeddedPreviewStrictAspectCheckBox(NULL),
-	embeddedPreviewBadgeColorComboBox(NULL)
+	embeddedPreviewBadgeColorComboBox(NULL),
+	layoutResolutionProfileComboBox(NULL)
 {
 	ui->setupUi(this);
 
@@ -175,6 +176,9 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 	const QString embeddedPreviewBadgeColor =
 			settings->value("embed-preview-badge-color", "purple")
 					.toString().toLower().trimmed();
+	const QString layoutResolutionProfile = settings->value(
+			"layout-resolution-profile", "auto")
+			.toString().toLower().trimmed();
 	QString theme = settings->value("theme", "light").toString().toLower();
 	ui->themeComboBox->setCurrentIndex(theme == "dark" ? 1 : 0);
 	QString mode = settings->value("window-layout-mode", "").toString().toLower();
@@ -240,6 +244,33 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 	embeddedPreviewBadgeColorComboBox->setEnabled(embeddedPreviewEnabled);
 	ui->verticalLayout->insertWidget(9, embeddedPreviewBadgeColorLabel);
 	ui->verticalLayout->insertWidget(10, embeddedPreviewBadgeColorComboBox);
+	QLabel *layoutResolutionProfileLabel = new QLabel(
+			"UI-layout resolutieprofiel:",
+			ui->verticalLayoutWidget);
+	layoutResolutionProfileComboBox = new QComboBox(ui->verticalLayoutWidget);
+	layoutResolutionProfileComboBox->addItem("Auto (aanbevolen)", "auto");
+	layoutResolutionProfileComboBox->addItem("HD (compact)", "hd");
+	layoutResolutionProfileComboBox->addItem("FHD (standaard)", "fhd");
+	layoutResolutionProfileComboBox->addItem("4K/UHD (ruimer)", "4k");
+	int layoutProfileIndex = layoutResolutionProfileComboBox->findData(
+			layoutResolutionProfile);
+	if(layoutProfileIndex < 0 && layoutResolutionProfile == "uhd")
+		layoutProfileIndex = layoutResolutionProfileComboBox->findData("4k");
+	if(layoutProfileIndex < 0)
+		layoutProfileIndex = 0;
+	layoutResolutionProfileComboBox->setCurrentIndex(layoutProfileIndex);
+
+	QLabel *layoutResolutionProfileHelpLabel = new QLabel(
+			"Auto kiest op basis van monitorresolutie. "
+			"Kies HD/FHD/4K om het paneelgedrag handmatig te forceren.",
+			ui->verticalLayoutWidget);
+	layoutResolutionProfileHelpLabel->setObjectName(
+			"layoutResolutionProfileHelpLabel");
+	layoutResolutionProfileHelpLabel->setWordWrap(true);
+	const int spacerIndex = std::max(0, ui->verticalLayout->count() - 1);
+	ui->verticalLayout->insertWidget(spacerIndex, layoutResolutionProfileLabel);
+	ui->verticalLayout->insertWidget(spacerIndex + 1, layoutResolutionProfileComboBox);
+	ui->verticalLayout->insertWidget(spacerIndex + 2, layoutResolutionProfileHelpLabel);
 	if(generalScrollArea && ui->verticalLayoutWidget)
 	{
 		const int contentHeight = ui->verticalLayoutWidget->sizeHint().height();
@@ -485,6 +516,11 @@ void preferencesdialog::Save()
 	settings->setValue(
 			"window-layout-target-monitor",
 			ui->windowLayoutMonitorComboBox->currentData().toInt());
+	settings->setValue(
+			"layout-resolution-profile",
+			layoutResolutionProfileComboBox ?
+					layoutResolutionProfileComboBox->currentData().toString() :
+					QString("auto"));
 
 	// Keep legacy keys aligned for backwards compatibility.
 	settings->setValue(

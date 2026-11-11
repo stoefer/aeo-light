@@ -1660,11 +1660,30 @@ void MainWindow::UpdateAdaptiveUiScale()
 		RES_PROFILE_FHD,
 		RES_PROFILE_UHD
 	};
+	QString layoutProfileOverride = "auto";
+	{
+		QSettings settings;
+		settings.beginGroup("ui");
+		layoutProfileOverride = settings.value(
+				"layout-resolution-profile", "auto")
+				.toString().toLower().trimmed();
+		settings.endGroup();
+	}
+
 	ResolutionProfile profile = RES_PROFILE_FHD;
-	if(screenW >= 2560 || screenH >= 1440)
-		profile = RES_PROFILE_UHD;
-	else if(screenW <= 1440 || screenH <= 900)
+	if(layoutProfileOverride == "hd")
 		profile = RES_PROFILE_HD;
+	else if(layoutProfileOverride == "fhd")
+		profile = RES_PROFILE_FHD;
+	else if(layoutProfileOverride == "4k" || layoutProfileOverride == "uhd")
+		profile = RES_PROFILE_UHD;
+	else
+	{
+		if(screenW >= 2560 || screenH >= 1440)
+			profile = RES_PROFILE_UHD;
+		else if(screenW <= 1440 || screenH <= 900)
+			profile = RES_PROFILE_HD;
+	}
 
 	const int tabHeightDelta =
 			(profile == RES_PROFILE_HD) ? -26 :
