@@ -59,7 +59,8 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 	settingsSearchEdit(NULL),
 	compactModeCheckBox(NULL),
 	skipLicenseAgreementCheckBox(NULL),
-	embeddedPreviewCheckBox(NULL)
+	embeddedPreviewCheckBox(NULL),
+	embeddedPreviewBadgeColorComboBox(NULL)
 {
 	ui->setupUi(this);
 
@@ -105,6 +106,9 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 			settings->value("skip-license-agreement", false).toBool();
 	const bool embeddedPreviewEnabled =
 			settings->value("embed-preview-beta", false).toBool();
+	const QString embeddedPreviewBadgeColor =
+			settings->value("embed-preview-badge-color", "purple")
+					.toString().toLower().trimmed();
 	QString theme = settings->value("theme", "light").toString().toLower();
 	ui->themeComboBox->setCurrentIndex(theme == "dark" ? 1 : 0);
 	QString mode = settings->value("window-layout-mode", "").toString().toLower();
@@ -141,6 +145,23 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 			"Preview insluiten in hoofdpaneel (beta, herstart aanbevolen)", this);
 	embeddedPreviewCheckBox->setChecked(embeddedPreviewEnabled);
 	ui->verticalLayout->insertWidget(7, embeddedPreviewCheckBox);
+	QLabel *embeddedPreviewBadgeColorLabel = new QLabel(
+			"Kleur BETA-badge (ingesloten preview):", this);
+	embeddedPreviewBadgeColorComboBox = new QComboBox(this);
+	embeddedPreviewBadgeColorComboBox->addItem("Paars (standaard)", "purple");
+	embeddedPreviewBadgeColorComboBox->addItem("Blauw", "blue");
+	embeddedPreviewBadgeColorComboBox->addItem("Groen", "green");
+	embeddedPreviewBadgeColorComboBox->addItem("Oranje", "orange");
+	embeddedPreviewBadgeColorComboBox->addItem("Rood", "red");
+	embeddedPreviewBadgeColorComboBox->addItem("Grijs", "gray");
+	int badgeColorIndex = embeddedPreviewBadgeColorComboBox->findData(
+			embeddedPreviewBadgeColor);
+	if(badgeColorIndex < 0) badgeColorIndex = 0;
+	embeddedPreviewBadgeColorComboBox->setCurrentIndex(badgeColorIndex);
+	embeddedPreviewBadgeColorLabel->setEnabled(embeddedPreviewEnabled);
+	embeddedPreviewBadgeColorComboBox->setEnabled(embeddedPreviewEnabled);
+	ui->verticalLayout->insertWidget(8, embeddedPreviewBadgeColorLabel);
+	ui->verticalLayout->insertWidget(9, embeddedPreviewBadgeColorComboBox);
 
 	PopulateMonitorChoices();
 	settings->beginGroup("ui");
@@ -223,6 +244,10 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 			this, &preferencesdialog::ApplyHelpTextVisibility);
 	connect(settingsSearchEdit, &QLineEdit::textChanged,
 			this, &preferencesdialog::ApplySettingsSearchFilter);
+	connect(embeddedPreviewCheckBox, &QCheckBox::toggled,
+			embeddedPreviewBadgeColorLabel, &QWidget::setEnabled);
+	connect(embeddedPreviewCheckBox, &QCheckBox::toggled,
+			embeddedPreviewBadgeColorComboBox, &QWidget::setEnabled);
 }
 
 preferencesdialog::~preferencesdialog()
@@ -333,6 +358,11 @@ void preferencesdialog::Save()
 			"embed-preview-beta",
 			embeddedPreviewCheckBox ?
 					embeddedPreviewCheckBox->isChecked() : false);
+	settings->setValue(
+			"embed-preview-badge-color",
+			embeddedPreviewBadgeColorComboBox ?
+					embeddedPreviewBadgeColorComboBox->currentData().toString() :
+					QString("purple"));
 	settings->setValue(
 			"theme",
 			ui->themeComboBox->currentIndex() == 1 ? "dark" : "light");

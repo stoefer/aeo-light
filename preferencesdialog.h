@@ -27,6 +27,7 @@
 #include <QDialog>
 #include <QLineEdit>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QSettings>
 
 namespace Ui {
@@ -61,6 +62,7 @@ private:
 	QCheckBox *compactModeCheckBox;
 	QCheckBox *skipLicenseAgreementCheckBox;
 	QCheckBox *embeddedPreviewCheckBox;
+	QComboBox *embeddedPreviewBadgeColorComboBox;
 };
 
 #endif // PREFERENCESDIALOG_H

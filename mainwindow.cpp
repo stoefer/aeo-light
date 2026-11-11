@@ -1644,6 +1644,23 @@ void MainWindow::SetupEmbeddedPreviewDock(const QString &sourceTitle)
 	const QString sourceName = QFileInfo(sourceTitle).fileName().trimmed();
 	if(!sourceName.isEmpty())
 		previewTitle = tr("Preview - %1").arg(sourceName);
+	QSettings settings;
+	settings.beginGroup("ui");
+	const QString badgeColorKey = settings.value(
+			"embed-preview-badge-color", "purple")
+			.toString().toLower().trimmed();
+	settings.endGroup();
+	QString badgeBackgroundColor = "#7c3aed";
+	if(badgeColorKey == "blue")
+		badgeBackgroundColor = "#2563eb";
+	else if(badgeColorKey == "green")
+		badgeBackgroundColor = "#16a34a";
+	else if(badgeColorKey == "orange")
+		badgeBackgroundColor = "#ea580c";
+	else if(badgeColorKey == "red")
+		badgeBackgroundColor = "#dc2626";
+	else if(badgeColorKey == "gray")
+		badgeBackgroundColor = "#4b5563";
 	const QString betaTooltip = tr(
 			"Experimentele functie: deze ingesloten preview is nog in beta. "
 			"Schakel uit via Preferences als je liever het aparte previewvenster gebruikt.");
@@ -1672,12 +1689,12 @@ void MainWindow::SetupEmbeddedPreviewDock(const QString &sourceTitle)
 	betaHeaderLayout->setSpacing(6);
 	QLabel *betaLabel = new QLabel(tr("Embedded preview"), betaHeader);
 	QLabel *betaBadge = new QLabel("BETA", betaHeader);
-	betaBadge->setStyleSheet(
+	betaBadge->setStyleSheet(QString(
 			"QLabel { "
-			"background: #7c3aed; color: #ffffff; "
+			"background: %1; color: #ffffff; "
 			"font-weight: 700; font-size: 10px; "
 			"padding: 1px 6px; border-radius: 6px; "
-			"}");
+			"}").arg(badgeBackgroundColor));
 	betaLabel->setToolTip(betaTooltip);
 	betaBadge->setToolTip(betaTooltip);
 	betaHeader->setToolTip(betaTooltip);
