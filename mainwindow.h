@@ -33,6 +33,7 @@
 #include <QSoundEffect>
 #include <QDockWidget>
 #include <QPointer>
+#include <QTimer>
 #include <QDate>
 #include <QProgressDialog>
 #include <vector>
@@ -371,6 +372,8 @@ private:
 	QPointer<QWidget> previewContainerWidget;
 	QPointer<QLabel> previewBetaBadgeLabel;
 	QTextStream log;
+	QTimer *sessionAutosaveTimer = NULL;
+	bool sessionRecoveryPending = false;
 	bool paramCopyLock;
 	bool requestCancel;
 	QString prevProjectDir;
@@ -466,9 +469,12 @@ private:
 	void RestoreUiWindowSettings();
 	void SaveUiWindowSettings() const;
 	QString SerializeCurrentSettings();
+	bool LoadProjectFromSerializedText(const QString &serialized);
 	bool LoadSettingsFromSerializedText(const QString &serialized);
 	void SaveLastUsedSettingsSnapshot();
 	bool LoadLastUsedSettingsSnapshot();
+	void SetSessionCleanExitFlag(bool cleanExit) const;
+	void PromptRestoreInterruptedSession();
 	QStringList SavedPresetNames() const;
 	void SaveCurrentSettingsPreset();
 	void LoadSettingsPreset();

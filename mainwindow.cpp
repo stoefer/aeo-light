@@ -1220,7 +1220,13 @@ MainWindow::MainWindow(QWidget *parent) :
 	settings.beginGroup("ui");
 	const bool skipLicenseAgreement =
 			settings.value("skip-license-agreement", false).toBool();
+	const bool previousSessionClean =
+			settings.value("last-session-clean-exit", true).toBool();
+	const bool hasLastSessionSnapshot =
+			!settings.value("last-used-settings", "").toString().trimmed().isEmpty();
 	settings.endGroup();
+	sessionRecoveryPending = (!previousSessionClean && hasLastSessionSnapshot);
+	SetSessionCleanExitFlag(false);
 	QString ag = settings.value("license","0.1").toString();
 	QVersionNumber agv = QVersionNumber::fromString(ag);
 	QVersionNumber thisv = QVersionNumber::fromString(APP_VERSION);
@@ -1310,6 +1316,15 @@ MainWindow::MainWindow(QWidget *parent) :
 	CaptureUiScaleBaseGeometry();
 	RestoreUiWindowSettings();
 	UpdateAdaptiveUiScale();
+
+	sessionAutosaveTimer = new QTimer(this);
+	sessionAutosaveTimer->setInterval(20000);
+	connect(sessionAutosaveTimer, &QTimer::timeout, this, [this]()
+	{
+		if(this->scan.inFile.IsReady())
+			SaveLastUsedSettingsSnapshot();
+	});
+	sessionAutosaveTimer->start();
 
 	#ifdef USE_MUX_HACK
 	encStartFrame = 0;
@@ -1436,11 +1451,17 @@ void MainWindow::closeEvent(QCloseEvent *event)
 		else if(frame_window)
 			frame_window->close();
 	};
+	auto finalizeGracefulExit = [this, &closePreviewWindow]() {
+		if(this->scan.inFile.IsReady())
+			SaveLastUsedSettingsSnapshot();
+		SetSessionCleanExitFlag(true);
+		SaveUiWindowSettings();
+		closePreviewWindow();
+	};
 
 	if(skipCloseConfirmation)
 	{
-		SaveUiWindowSettings();
-		closePreviewWindow();
+		finalizeGracefulExit();
 		event->accept();
 		return;
 	}
@@ -1452,8 +1473,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
 	settings.endGroup();
 	if(skipConfirmByPreference)
 	{
-		SaveUiWindowSettings();
-		closePreviewWindow();
+		finalizeGracefulExit();
 		event->accept();
 		return;
 	}
@@ -1466,8 +1486,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
 			QMessageBox::No);
 	if(answer == QMessageBox::Yes)
 	{
-		SaveUiWindowSettings();
-		closePreviewWindow();
+		finalizeGracefulExit();
 		event->accept();
 	}
 	else
@@ -2897,6 +2916,9 @@ bool MainWindow::NewSource(QString filename, SourceFormat ft)
 	if(prevSegvHandler != SIG_ERR)
 		std::signal(SIGSEGV, prevSegvHandler);
 
+	if(this->scan.inFile.IsReady())
+		SaveLastUsedSettingsSnapshot();
+
 	return this->scan.inFile.IsReady();
 }
 
@@ -3007,6 +3029,24 @@ QString MainWindow::SerializeCurrentSettings()
 	return serialized;
 }
 
+bool MainWindow::LoadProjectFromSerializedText(const QString &serialized)
+{
+	if(serialized.trimmed().isEmpty())
+		return false;
+
+	QTemporaryFile temp;
+	temp.setAutoRemove(true);
+	if(!temp.open())
+		return false;
+
+	QTextStream out(&temp);
+	out << serialized;
+	out.flush();
+	temp.flush();
+
+	return OpenProject(temp.fileName());
+}
+
 bool MainWindow::LoadSettingsFromSerializedText(const QString &serialized)
 {
 	if(serialized.trimmed().isEmpty())
@@ -3023,6 +3063,65 @@ bool MainWindow::LoadSettingsFromSerializedText(const QString &serialized)
 	temp.flush();
 
 	return LoadProjectSettings(temp.fileName());
+}
+
+void MainWindow::SetSessionCleanExitFlag(bool cleanExit) const
+{
+	QSettings settings;
+	settings.beginGroup("ui");
+	settings.setValue("last-session-clean-exit", cleanExit);
+	if(!cleanExit)
+	{
+		settings.setValue(
+				"last-session-start-ts",
+				QDateTime::currentDateTimeUtc().toString(Qt::ISODate));
+	}
+	settings.endGroup();
+}
+
+void MainWindow::PromptRestoreInterruptedSession()
+{
+	if(!sessionRecoveryPending)
+		return;
+	sessionRecoveryPending = false;
+
+	QSettings settings;
+	settings.beginGroup("ui");
+	const QString serialized = settings.value("last-used-settings", "").toString();
+	const QString snapTs = settings.value("last-used-settings-ts", "").toString();
+	settings.endGroup();
+	if(serialized.trimmed().isEmpty())
+		return;
+
+	QString msg = tr(
+			"AEO-Light lijkt vorige keer onverwacht te zijn afgesloten.\n"
+			"Wil je de vorige sessie herstellen?");
+	if(!snapTs.trimmed().isEmpty())
+	{
+		const QDateTime tsUtc = QDateTime::fromString(snapTs, Qt::ISODate);
+		if(tsUtc.isValid())
+		{
+			const QString localTs = tsUtc.toLocalTime().toString("yyyy-MM-dd HH:mm:ss");
+			msg += tr("\n\nLaatst opgeslagen snapshot: %1").arg(localTs);
+		}
+	}
+
+	const int answer = QMessageBox::question(
+			this,
+			tr("Vorige sessie herstellen"),
+			msg,
+			QMessageBox::Yes | QMessageBox::No,
+			QMessageBox::Yes);
+	if(answer != QMessageBox::Yes)
+		return;
+
+	if(!LoadProjectFromSerializedText(serialized))
+	{
+		QMessageBox::warning(
+				this,
+				tr("Herstel mislukt"),
+				tr("De vorige sessie kon niet automatisch worden hersteld."));
+	}
 }
 
 void MainWindow::SaveLastUsedSettingsSnapshot()
@@ -3870,8 +3969,11 @@ bool MainWindow::OpenProject(QString fn)
 void MainWindow::OpenStartingProject()
 {
 	Log() << "Opening starting project\n";
+	bool openedStartingProject = false;
 	if(!this->startingProjectFilename.isEmpty())
-		this->OpenProject(this->startingProjectFilename);
+		openedStartingProject = this->OpenProject(this->startingProjectFilename);
+	if(!openedStartingProject)
+		PromptRestoreInterruptedSession();
 }
 
 bool MainWindow::LoadProjectSource(QString fn)
