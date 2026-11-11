@@ -68,6 +68,7 @@
 #include <QCheckBox>
 #include <QShortcut>
 #include <QTabBar>
+#include <QStatusBar>
 #include <QRegularExpression>
 #include <QHBoxLayout>
 #include <QPushButton>
@@ -1197,6 +1198,13 @@ MainWindow::MainWindow(QWidget *parent) :
 	// Shorter labels avoid clipping while tabs stretch across full width.
 	ui->tabWidget->setTabText(0, tr("A/V-track Settings"));
 	ui->tabWidget->setTabText(3, tr("Extract A/V"));
+	if(ui->statusBar && !layoutProfileStatusLabel)
+	{
+		layoutProfileStatusLabel = new QLabel(ui->statusBar);
+		layoutProfileStatusLabel->setObjectName("layoutProfileStatusLabel");
+		layoutProfileStatusLabel->setMargin(2);
+		ui->statusBar->addPermanentWidget(layoutProfileStatusLabel, 0);
+	}
 	if(ui->soundtrackResetButton && ui->tab)
 	{
 		const QRect resetRect = ui->soundtrackResetButton->geometry();
@@ -1772,10 +1780,67 @@ void MainWindow::UpdateAdaptiveUiScale()
 		ui->scrollAreaWidgetContents->setMinimumHeight(targetContentHeight);
 	}
 
+	const QString resolvedProfileKey =
+			(profile == RES_PROFILE_HD) ? "hd" :
+			(profile == RES_PROFILE_UHD) ? "4k" : "fhd";
+	UpdateLayoutProfileStatusBadge(layoutProfileOverride, resolvedProfileKey);
+
 	uiScalePercent =
 			(profile == RES_PROFILE_HD) ? 95 :
 			(profile == RES_PROFILE_UHD) ? 108 : 100;
 	uiScaleLayoutActive = (profile != RES_PROFILE_FHD);
+}
+
+void MainWindow::UpdateLayoutProfileStatusBadge(
+		const QString &overrideProfileKey,
+		const QString &resolvedProfileKey)
+{
+	if(!ui || !ui->statusBar) return;
+	if(!layoutProfileStatusLabel)
+	{
+		layoutProfileStatusLabel = new QLabel(ui->statusBar);
+		layoutProfileStatusLabel->setObjectName("layoutProfileStatusLabel");
+		layoutProfileStatusLabel->setMargin(2);
+		ui->statusBar->addPermanentWidget(layoutProfileStatusLabel, 0);
+	}
+	if(!layoutProfileStatusLabel) return;
+
+	auto profileLabel = [](const QString &key) -> QString
+	{
+		const QString normalized = key.toLower().trimmed();
+		if(normalized == "hd") return "HD";
+		if(normalized == "4k" || normalized == "uhd") return "4K";
+		return "FHD";
+	};
+
+	const QString normalizedOverride = overrideProfileKey.toLower().trimmed();
+	const bool autoMode = (normalizedOverride.isEmpty() ||
+			normalizedOverride == "auto");
+	QString badgeText;
+	if(autoMode)
+		badgeText = tr("Layout: Auto->%1").arg(profileLabel(resolvedProfileKey));
+	else
+		badgeText = tr("Layout: %1 (forced)").arg(profileLabel(normalizedOverride));
+
+	QSettings settings;
+	settings.beginGroup("ui");
+	const QString themeKey = settings.value("theme", "light")
+			.toString().toLower().trimmed();
+	settings.endGroup();
+	const bool darkTheme = (themeKey == "dark");
+
+	layoutProfileStatusLabel->setText(badgeText);
+	layoutProfileStatusLabel->setToolTip(tr(
+			"Actief layoutprofiel voor tab/paneel-verhoudingen. "
+			"Aanpassen via Preferences > General > UI-layout resolutieprofiel."));
+	layoutProfileStatusLabel->setStyleSheet(QString(
+			"QLabel#layoutProfileStatusLabel { "
+			"border: 1px solid %1; border-radius: 9px; "
+			"padding: 1px 7px; font-weight: 600; "
+			"background: %2; color: %3; }")
+			.arg(darkTheme ? "#5f7084" : "#90a6cb")
+			.arg(darkTheme ? "#2c3b52" : "#ecf3ff")
+			.arg(darkTheme ? "#e8f1ff" : "#2f4f79"));
 }
 
 void MainWindow::RestoreUiWindowSettings()

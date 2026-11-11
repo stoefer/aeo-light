@@ -371,6 +371,7 @@ private:
 	QPointer<QDockWidget> previewDockWidget;
 	QPointer<QWidget> previewContainerWidget;
 	QPointer<QLabel> previewBetaBadgeLabel;
+	QPointer<QLabel> layoutProfileStatusLabel;
 	QTextStream log;
 	QTimer *sessionAutosaveTimer = NULL;
 	bool sessionRecoveryPending = false;
@@ -520,6 +521,9 @@ private:
 	void DestroyPreviewWindow();
 	void SetupEmbeddedPreviewDock(const QString &sourceTitle);
 	void PositionPreviewWindowBesideMainWindow();
+	void UpdateLayoutProfileStatusBadge(
+			const QString &overrideProfileKey,
+			const QString &resolvedProfileKey);
 
 public:
 	void SetStartingProject(QString fn) { startingProjectFilename = fn; };
