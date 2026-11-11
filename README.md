@@ -1,8 +1,15 @@
-# AEO-Light 3.1.42 (fork release)
+# AEO-Light 3.1.43 (fork release)
 
-Deze 3.1.42 patchrelease finetunet de Preferences-vensterhoogte zodat instellingen niet meer afgedekt raken door oudere opgeslagen venstergroottes.
+Deze 3.1.43 patchrelease verbetert de embedded preview-verhouding en voegt een strikte aspect-lock optie toe.
 
-## Nieuw in 3.1.42
+## Nieuw in 3.1.43
+- Embedded preview-dock krijgt nu automatisch een betere breedte op basis van bronverhouding.
+- Nieuwe voorkeur in **Preferences**: **Lock preview aspect strictly (embedded preview)**.
+- Met strict lock actief blijft de embedded previewbreedte hard vergrendeld op een ratio-veilige waarde.
+- Zonder strict lock blijft een veilige minimum-breedte actief zodat de preview niet tot een smalle strook inzakt.
+- Aspect-bescherming wordt ook opnieuw toegepast bij hoofdvenster-resize en na aanpassen van Preferences.
+
+## Eerder toegevoegd in 3.1.42
 - Hotfix: Preferences forceert nu een bruikbare minimumhoogte, ook wanneer een oudere (te kleine) opgeslagen venstergrootte wordt hersteld.
 - Onderpaneel met Save/Discard en het tabgebied schalen nu consequent mee met de effectieve dialoghoogte.
 - Resultaat: geen afgedekte instellingen meer onderaan in de General-tab.
@@ -241,28 +248,28 @@ Deze 3.1.42 patchrelease finetunet de Preferences-vensterhoogte zodat instelling
 4. Als SmartScreen waarschuwt: klik **Meer informatie** → **Toch uitvoeren**.
 
 ## Ultra-korte package checklist (5 punten)
-- [ ] Release-tag = `v3.1.42`.
+- [ ] Release-tag = `v3.1.43`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` staat op de release.
 - [ ] ZIP uitgepakt naar een lokale map.
-- [ ] `AEO-Light.exe` start en toont versie **3.1.42**.
+- [ ] `AEO-Light.exe` start en toont versie **3.1.43**.
 - [ ] Korte **Test Run** slaagt en maakt output aan.
 
-## Package checklist (v3.1.42, Windows x64)
-- [ ] Release-tag is `v3.1.42`.
+## Package checklist (v3.1.43, Windows x64)
+- [ ] Release-tag is `v3.1.43`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` is aanwezig op de releasepagina.
 - [ ] ZIP uitgepakt naar een lokale map (niet rechtstreeks uit de ZIP starten).
 - [ ] In de uitgepakte map staan minimaal:
   - `AEO-Light.exe`
   - `LICENSE.txt`
   - `ffmpeg.exe`
-- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.42**.
+- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.43**.
 - [ ] Snelle rooktest:
   - bron laden
   - korte **Test Run** uitvoeren
   - outputbestand wordt aangemaakt
 - [ ] (Optioneel) checksumcontrole van download:
   - `certutil -hashfile AEO-Light-Windows-x64.zip SHA256`
-  - verwacht: waarde op de `v3.1.42` releasepagina
+  - verwacht: waarde op de `v3.1.43` releasepagina
 
 ## Snelle start (aanbevolen)
 - Container: **MP4**
