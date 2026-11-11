@@ -9630,37 +9630,58 @@ void MainWindow::on_soundtrackResetButton_clicked()
 {
 	if(!scan.inFile.IsReady()) return;
 
+	QSettings settings;
+	settings.beginGroup("soundtrack");
+
 	const int w = scan.inFile.Width();
-	ui->OverlapSoundtrackCheckBox->setChecked(true);
-	ui->leftSpinBox->setValue(0);
-	ui->rightSpinBox->setValue(std::max(1, w - 1));
-	ui->monostereo_PD->setCurrentIndex(0);
+	const int h = scan.inFile.Height();
 
-	ui->OverlapPixCheckBox->setChecked(false);
-	ui->leftPixSpinBox->setValue(int(w * 0.475));
-	ui->rightPixSpinBox->setValue(int(w * 0.525));
-	on_OverlapPixCheckBox_clicked(false);
+	int intv = int(settings.value("bounds/left", 0.0).toDouble() * w + 0.5);
+	ui->leftSpinBox->setValue(intv);
+	intv = int(settings.value("bounds/right", 1.0).toDouble() * w + 0.5);
+	ui->rightSpinBox->setValue(std::max(1, intv));
+	ui->OverlapSoundtrackCheckBox->setChecked(
+			settings.value("bounds/use", true).toBool());
+	ui->monostereo_PD->setCurrentIndex(
+			settings.value("isstereo", 0).toInt());
 
-	ui->framepitchstartSlider->setValue(100);
-	ui->FramePitchendSlider->setValue(100);
+	intv = int(settings.value("pixbounds/left", 0.475).toDouble() * w + 0.5);
+	ui->leftPixSpinBox->setValue(intv);
+	intv = int(settings.value("pixbounds/right", 0.525).toDouble() * w + 0.5);
+	ui->rightPixSpinBox->setValue(intv);
+	ui->OverlapPixCheckBox->setChecked(
+			settings.value("pixbounds/use", false).toBool());
+	on_OverlapPixCheckBox_clicked(ui->OverlapPixCheckBox->isChecked());
+
+	intv = int(settings.value("framepitch/start", 0.1).toDouble() * h + 0.5);
+	ui->framepitchstartSlider->setValue(intv);
+	intv = int(settings.value("framepitch/end", 0.1).toDouble() * h + 0.5);
+	ui->FramePitchendSlider->setValue(intv);
 	NormalizePitchControls(true);
 	ui->framepitchstartLabel->setText(
 			QString::number(ui->framepitchstartSlider->value()/1000.f,'f',3));
 	ui->framePitchLabel->setText(
 			QString::number(ui->FramePitchendSlider->value()/1000.f,'f',3));
 
-	ui->videoFrameTopSlider->setValue(100);
-	ui->videoFrameBottomSlider->setValue(100);
+	intv = int(settings.value("videoframe/top", 0.1).toDouble() * 1000 + 0.5);
+	ui->videoFrameTopSlider->setValue(intv);
+	intv = int(settings.value("videoframe/bottom", 0.1).toDouble() * 1000 + 0.5);
+	ui->videoFrameBottomSlider->setValue(intv);
 	NormalizeVideoCropControls(true);
 	UpdateVideoCropLabels();
-	ui->videoStableCropCheckBox->setChecked(true);
-	ui->videoDriftSensitivitySlider->setValue(100);
+	ui->videoStableCropCheckBox->setChecked(
+			settings.value("video/stable-crop", true).toBool());
+	ui->videoDriftSensitivitySlider->setValue(
+			settings.value("video/drift-sensitivity", 100).toInt());
 	UpdateVideoStabilizationControls();
 
-	ui->overlapSlider->setValue(5);
+	ui->overlapSlider->setValue(settings.value("overlap/radius", 5).toInt());
 	ui->overlap_label->setText(QString::number(ui->overlapSlider->value()/100.f,'f',2));
-	ui->HeightCalculateBtn->setChecked(false);
-	ui->HeightCalculateBtn->setText("Lock Height");
+	ui->HeightCalculateBtn->setChecked(
+			settings.value("overlap/lock", false).toBool());
+	ui->HeightCalculateBtn->setText(
+			ui->HeightCalculateBtn->isChecked() ? "Unlock Height" : "Lock Height");
+	settings.endGroup();
 
 	GPU_Params_Update(1);
 }
@@ -9672,19 +9693,27 @@ void MainWindow::on_imageDefaultsButton_clicked()
 
 void MainWindow::on_imageResetButton_clicked()
 {
-	ui->liftSlider->setValue(0);
-	ui->gammaSlider->setValue(100);
-	ui->gainSlider->setValue(100);
-	ui->thresholdSlider->setValue(300);
-	ui->blurSlider->setValue(0);
-	ui->threshBox->setChecked(false);
-	ui->negBox->setChecked(false);
-	ui->desatBox->setChecked(false);
-	ui->liftLabel->setText(QString::number(0.0f,'f',2));
-	ui->gammaLabel->setText(QString::number(1.0f,'f',2));
-	ui->gainLabel->setText(QString::number(1.0f,'f',2));
-	ui->threshLabel->setText(QString::number(3.0f,'f',2));
-	ui->blurLabel->setText(QString::number(0.0f,'f',2));
+	QSettings settings;
+	settings.beginGroup("image");
+	const int lift = settings.value("lift", 0).toInt();
+	const int gamma = settings.value("gamma", 100).toInt();
+	const int gain = settings.value("gain", 100).toInt();
+	const int sCurve = settings.value("s-curve", 300).toInt();
+	const int blur = settings.value("blur-sharp", 0).toInt();
+	ui->liftSlider->setValue(lift);
+	ui->gammaSlider->setValue(gamma);
+	ui->gainSlider->setValue(gain);
+	ui->thresholdSlider->setValue(sCurve);
+	ui->blurSlider->setValue(blur);
+	ui->threshBox->setChecked(settings.value("s-curve-on", false).toBool());
+	ui->negBox->setChecked(settings.value("negative", false).toBool());
+	ui->desatBox->setChecked(settings.value("desaturate", false).toBool());
+	settings.endGroup();
+	ui->liftLabel->setText(QString::number(ui->liftSlider->value()/100.f,'f',2));
+	ui->gammaLabel->setText(QString::number(ui->gammaSlider->value()/100.f,'f',2));
+	ui->gainLabel->setText(QString::number(ui->gainSlider->value()/100.f,'f',2));
+	ui->threshLabel->setText(QString::number(ui->thresholdSlider->value()/100.f,'f',2));
+	ui->blurLabel->setText(QString::number(ui->blurSlider->value()/100.f,'f',2));
 	GPU_Params_Update(1);
 }
 
@@ -9700,28 +9729,40 @@ void MainWindow::on_extractResetButton_clicked()
 		ui->frameInSpinBox->setValue(scan.inFile.FirstFrame());
 		ui->frameOutSpinBox->setValue(scan.inFile.LastFrame());
 	}
-	ui->filerate_PD->setCurrentIndex(0);
-	ui->bitDepthComboBox->setCurrentIndex(0);
-	const int idx16mm = ui->advance_CB->findText("26 - 16mm Standard",
-			Qt::MatchFixedString);
-	ui->advance_CB->setCurrentIndex(idx16mm >= 0 ? idx16mm : 0);
-	ui->audioQualityPresetComboBox->setCurrentIndex(AUDIO_QUALITY_PRESET_COMPACT);
-	ui->audioOnlyQualityPresetComboBox->setCurrentIndex(AUDIO_QUALITY_PRESET_COMPACT);
-	ui->outputVideoCheckBox->setChecked(false);
-	ui->videoAvOffsetCheckBox->setChecked(true);
-	ui->outputFlipHorizontalCheckBox->setChecked(false);
-	ui->outputFlipVerticalCheckBox->setChecked(false);
-	ui->outputRotationComboBox->setCurrentIndex(0);
-	ui->outputVideoSizeComboBox->setCurrentIndex(VIDEO_RESOLUTION_SOURCE);
-	ui->outputFilenameTemplateEdit->setText("{source}_{datetime}");
-	ui->outputConflictModeComboBox->setCurrentIndex(0);
-	ui->outputOpenFolderCheckBox->setChecked(false);
-	ui->outputAutoCleanupTempCheckBox->setChecked(true);
-	ui->outputExportReportModeComboBox->setCurrentIndex(EXPORT_REPORT_OFF);
-	ui->queueBatchReportModeComboBox->setCurrentIndex(QUEUE_BATCH_REPORT_OFF);
-	videoResolutionMode = VIDEO_RESOLUTION_SOURCE;
-	SaveExtractOutputSettings();
-	SaveVideoExportSettings();
+
+	QSettings settings;
+	settings.beginGroup("extraction");
+	QString txt = settings.value("sampling-rate", QString()).toString();
+	int intv = ui->filerate_PD->findText(txt, Qt::MatchFixedString);
+	if(intv == -1) intv = 0;
+	ui->filerate_PD->setCurrentIndex(intv);
+	txt = settings.value("bit-depth", QString()).toString();
+	intv = ui->bitDepthComboBox->findText(txt, Qt::MatchFixedString);
+	if(intv == -1) intv = 0;
+	ui->bitDepthComboBox->setCurrentIndex(intv);
+	txt = settings.value("time-code-advance", QString()).toString();
+	intv = ui->advance_CB->findText(txt, Qt::MatchFixedString);
+	if(intv == -1)
+	{
+		const int idx16mm = ui->advance_CB->findText(
+				"26 - 16mm Standard", Qt::MatchFixedString);
+		intv = (idx16mm >= 0 ? idx16mm : 0);
+	}
+	ui->advance_CB->setCurrentIndex(intv);
+	ui->audioQualityPresetComboBox->setCurrentIndex(ClampRangeInt(
+			settings.value("audio-quality-preset",
+					AUDIO_QUALITY_PRESET_COMPACT).toInt(),
+			AUDIO_QUALITY_PRESET_COMPACT,
+			AUDIO_QUALITY_PRESET_CUSTOM));
+	ui->audioOnlyQualityPresetComboBox->setCurrentIndex(ClampRangeInt(
+			settings.value("audio-only-quality-preset",
+					AUDIO_QUALITY_PRESET_COMPACT).toInt(),
+			AUDIO_QUALITY_PRESET_COMPACT,
+			AUDIO_QUALITY_PRESET_CUSTOM));
+	settings.endGroup();
+
+	LoadExtractOutputSettings();
+	LoadVideoExportSettings();
 	UpdateExtractOutputControls();
 	UpdateVideoExportControls();
 }
