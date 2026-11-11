@@ -64,7 +64,8 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 	embeddedPreviewCheckBox(NULL),
 	embeddedPreviewStrictAspectCheckBox(NULL),
 	embeddedPreviewBadgeColorComboBox(NULL),
-	layoutResolutionProfileComboBox(NULL)
+	layoutResolutionProfileComboBox(NULL),
+	layoutProfileBadgeCheckBox(NULL)
 {
 	ui->setupUi(this);
 
@@ -179,6 +180,8 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 	const QString layoutResolutionProfile = settings->value(
 			"layout-resolution-profile", "auto")
 			.toString().toLower().trimmed();
+	const bool showLayoutProfileBadge =
+			settings->value("show-layout-profile-badge", true).toBool();
 	QString theme = settings->value("theme", "light").toString().toLower();
 	ui->themeComboBox->setCurrentIndex(theme == "dark" ? 1 : 0);
 	QString mode = settings->value("window-layout-mode", "").toString().toLower();
@@ -271,6 +274,11 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 	ui->verticalLayout->insertWidget(spacerIndex, layoutResolutionProfileLabel);
 	ui->verticalLayout->insertWidget(spacerIndex + 1, layoutResolutionProfileComboBox);
 	ui->verticalLayout->insertWidget(spacerIndex + 2, layoutResolutionProfileHelpLabel);
+	layoutProfileBadgeCheckBox = new QCheckBox(
+			"Toon layoutprofiel-badge in statusbalk",
+			ui->verticalLayoutWidget);
+	layoutProfileBadgeCheckBox->setChecked(showLayoutProfileBadge);
+	ui->verticalLayout->insertWidget(spacerIndex + 3, layoutProfileBadgeCheckBox);
 	if(generalScrollArea && ui->verticalLayoutWidget)
 	{
 		const int contentHeight = ui->verticalLayoutWidget->sizeHint().height();
@@ -521,6 +529,10 @@ void preferencesdialog::Save()
 			layoutResolutionProfileComboBox ?
 					layoutResolutionProfileComboBox->currentData().toString() :
 					QString("auto"));
+	settings->setValue(
+			"show-layout-profile-badge",
+			layoutProfileBadgeCheckBox ?
+					layoutProfileBadgeCheckBox->isChecked() : true);
 
 	// Keep legacy keys aligned for backwards compatibility.
 	settings->setValue(

@@ -65,6 +65,7 @@ private:
 	QCheckBox *embeddedPreviewStrictAspectCheckBox;
 	QComboBox *embeddedPreviewBadgeColorComboBox;
 	QComboBox *layoutResolutionProfileComboBox;
+	QCheckBox *layoutProfileBadgeCheckBox;
 };
 
 #endif // PREFERENCESDIALOG_H

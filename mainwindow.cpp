@@ -1824,9 +1824,18 @@ void MainWindow::UpdateLayoutProfileStatusBadge(
 
 	QSettings settings;
 	settings.beginGroup("ui");
+	const bool showLayoutProfileBadge = settings.value(
+			"show-layout-profile-badge", true).toBool();
 	const QString themeKey = settings.value("theme", "light")
 			.toString().toLower().trimmed();
 	settings.endGroup();
+	if(!showLayoutProfileBadge)
+	{
+		layoutProfileStatusLabel->clear();
+		layoutProfileStatusLabel->setVisible(false);
+		return;
+	}
+	layoutProfileStatusLabel->setVisible(true);
 	const bool darkTheme = (themeKey == "dark");
 
 	layoutProfileStatusLabel->setText(badgeText);
