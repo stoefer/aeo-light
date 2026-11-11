@@ -1617,6 +1617,15 @@ bool MainWindow::IsEmbeddedPreviewEnabled() const
 	return enabled;
 }
 
+bool MainWindow::IsEmbeddedPreviewStrictAspectLockEnabled() const
+{
+	QSettings settings;
+	settings.beginGroup("ui");
+	const bool enabled = settings.value("embed-preview-lock-aspect", true).toBool();
+	settings.endGroup();
+	return enabled;
+}
+
 QString MainWindow::ResolveEmbeddedPreviewBadgeColorHex() const
 {
 	QSettings settings;
@@ -1687,10 +1696,29 @@ void MainWindow::ApplyEmbeddedPreviewDockSizing(bool enforceCurrentWidth)
 		return;
 
 	const int targetWidth = EmbeddedPreviewDockTargetWidth();
-	previewContainerWidget->setMinimumWidth(std::max(240, targetWidth - 16));
-	previewDockWidget->setMinimumWidth(std::max(260, targetWidth));
+	const bool strictAspectLock = IsEmbeddedPreviewStrictAspectLockEnabled();
+	if(strictAspectLock)
+	{
+		const int fixedContainerWidth = std::max(220, targetWidth - 16);
+		const int fixedDockWidth = std::max(240, targetWidth);
+		previewContainerWidget->setMinimumWidth(fixedContainerWidth);
+		previewContainerWidget->setMaximumWidth(fixedContainerWidth);
+		previewDockWidget->setMinimumWidth(fixedDockWidth);
+		previewDockWidget->setMaximumWidth(fixedDockWidth);
+	}
+	else
+	{
+		const int recommendedMinDockWidth = std::max(
+				240, std::min(targetWidth, 420));
+		previewContainerWidget->setMinimumWidth(
+				std::max(220, recommendedMinDockWidth - 16));
+		previewContainerWidget->setMaximumWidth(QWIDGETSIZE_MAX);
+		previewDockWidget->setMinimumWidth(recommendedMinDockWidth);
+		previewDockWidget->setMaximumWidth(QWIDGETSIZE_MAX);
+	}
 
-	if(enforceCurrentWidth || previewDockWidget->width() < targetWidth)
+	if(strictAspectLock || enforceCurrentWidth ||
+			previewDockWidget->width() < targetWidth)
 	{
 		QList<QDockWidget*> docks;
 		docks << previewDockWidget;
@@ -9712,6 +9740,8 @@ void MainWindow::on_actionPreferences_triggered()
 		ApplyThemeFromSettings();
 		ApplyCompactModePreference();
 		UpdateAdaptiveUiScale();
+		if(previewDockWidget)
+			ApplyEmbeddedPreviewDockSizing(true);
 		PositionPreviewWindowBesideMainWindow();
 		const bool isEmbeddedPreviewEnabled = IsEmbeddedPreviewEnabled();
 		if(wasEmbeddedPreviewEnabled != isEmbeddedPreviewEnabled)

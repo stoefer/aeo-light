@@ -62,6 +62,7 @@ private:
 	QCheckBox *compactModeCheckBox;
 	QCheckBox *skipLicenseAgreementCheckBox;
 	QCheckBox *embeddedPreviewCheckBox;
+	QCheckBox *embeddedPreviewStrictAspectCheckBox;
 	QComboBox *embeddedPreviewBadgeColorComboBox;
 };
 

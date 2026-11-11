@@ -493,6 +493,7 @@ private:
 			const QString &processMsg);
 	void ApplyThemeFromSettings();
 	bool IsEmbeddedPreviewEnabled() const;
+	bool IsEmbeddedPreviewStrictAspectLockEnabled() const;
 	QString ResolveEmbeddedPreviewBadgeColorHex() const;
 	void UpdateEmbeddedPreviewBadgeAppearance();
 	int EmbeddedPreviewDockTargetWidth() const;

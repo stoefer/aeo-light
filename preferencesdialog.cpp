@@ -62,6 +62,7 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 	compactModeCheckBox(NULL),
 	skipLicenseAgreementCheckBox(NULL),
 	embeddedPreviewCheckBox(NULL),
+	embeddedPreviewStrictAspectCheckBox(NULL),
 	embeddedPreviewBadgeColorComboBox(NULL)
 {
 	ui->setupUi(this);
@@ -163,6 +164,8 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 			settings->value("skip-license-agreement", false).toBool();
 	const bool embeddedPreviewEnabled =
 			settings->value("embed-preview-beta", false).toBool();
+	const bool embeddedPreviewStrictAspect =
+			settings->value("embed-preview-lock-aspect", true).toBool();
 	const QString embeddedPreviewBadgeColor =
 			settings->value("embed-preview-badge-color", "purple")
 					.toString().toLower().trimmed();
@@ -205,6 +208,13 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 			ui->verticalLayoutWidget);
 	embeddedPreviewCheckBox->setChecked(embeddedPreviewEnabled);
 	ui->verticalLayout->insertWidget(7, embeddedPreviewCheckBox);
+	embeddedPreviewStrictAspectCheckBox = new QCheckBox(
+			"Lock preview aspect strictly (embedded preview)",
+			ui->verticalLayoutWidget);
+	embeddedPreviewStrictAspectCheckBox->setChecked(
+			embeddedPreviewStrictAspect);
+	embeddedPreviewStrictAspectCheckBox->setEnabled(embeddedPreviewEnabled);
+	ui->verticalLayout->insertWidget(8, embeddedPreviewStrictAspectCheckBox);
 	QLabel *embeddedPreviewBadgeColorLabel = new QLabel(
 			"Kleur BETA-badge (ingesloten preview):", ui->verticalLayoutWidget);
 	embeddedPreviewBadgeColorComboBox = new QComboBox(ui->verticalLayoutWidget);
@@ -222,8 +232,8 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 	embeddedPreviewBadgeColorComboBox->setCurrentIndex(badgeColorIndex);
 	embeddedPreviewBadgeColorLabel->setEnabled(embeddedPreviewEnabled);
 	embeddedPreviewBadgeColorComboBox->setEnabled(embeddedPreviewEnabled);
-	ui->verticalLayout->insertWidget(8, embeddedPreviewBadgeColorLabel);
-	ui->verticalLayout->insertWidget(9, embeddedPreviewBadgeColorComboBox);
+	ui->verticalLayout->insertWidget(9, embeddedPreviewBadgeColorLabel);
+	ui->verticalLayout->insertWidget(10, embeddedPreviewBadgeColorComboBox);
 
 	PopulateMonitorChoices();
 	settings->beginGroup("ui");
@@ -306,6 +316,8 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 			this, &preferencesdialog::ApplyHelpTextVisibility);
 	connect(settingsSearchEdit, &QLineEdit::textChanged,
 			this, &preferencesdialog::ApplySettingsSearchFilter);
+	connect(embeddedPreviewCheckBox, &QCheckBox::toggled,
+			embeddedPreviewStrictAspectCheckBox, &QWidget::setEnabled);
 	connect(embeddedPreviewCheckBox, &QCheckBox::toggled,
 			embeddedPreviewBadgeColorLabel, &QWidget::setEnabled);
 	connect(embeddedPreviewCheckBox, &QCheckBox::toggled,
@@ -428,6 +440,10 @@ void preferencesdialog::Save()
 			"embed-preview-beta",
 			embeddedPreviewCheckBox ?
 					embeddedPreviewCheckBox->isChecked() : false);
+	settings->setValue(
+			"embed-preview-lock-aspect",
+			embeddedPreviewStrictAspectCheckBox ?
+					embeddedPreviewStrictAspectCheckBox->isChecked() : true);
 	settings->setValue(
 			"embed-preview-badge-color",
 			embeddedPreviewBadgeColorComboBox ?
