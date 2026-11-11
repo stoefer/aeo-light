@@ -1,8 +1,18 @@
-# AEO-Light 3.1.39 (fork release)
+# AEO-Light 3.1.40 (fork release)
 
-Deze 3.1.39 patchrelease verfijnt het afregelen van de frame-scheiding met stabielere hulplijnen en extra visuele hulp.
+Deze 3.1.40 patchrelease voegt een optionele embedded preview-workflow toe met duidelijke beta-markering en thema-gevoelige badgekleur.
 
-## Nieuw in 3.1.39
+## Nieuw in 3.1.40
+- Nieuwe voorkeur in **Preferences**: **Preview insluiten in hoofdpaneel (beta, herstart aanbevolen)**.
+- Embedded preview opent als subpaneel (dock) in het hoofdvenster als deze optie actief is.
+- In embedded mode is een subtiele **BETA**-header met tooltip toegevoegd.
+- Nieuwe kleurinstelling voor de BETA-badge:
+  - **Automatisch op basis van thema**
+  - Paars / Blauw / Groen / Oranje / Rood / Grijs
+- Badgekleur wordt nu **live** bijgewerkt na themawissel (zonder bron heropenen).
+- Eerste opstart blijft HD-vriendelijk met split-workflow als veilige standaard.
+
+## Eerder toegevoegd in 3.1.39
 - Stabiliteitsfix voor hulplijnen bij Frame Pitch afregeling:
   - de **paarse lijn** volgt nu voorspelbaar de manuele Frame Pitch End-slider
   - geen onverwachte grote sprongen meer door auto-detect herpositionering
@@ -220,28 +230,28 @@ Deze 3.1.39 patchrelease verfijnt het afregelen van de frame-scheiding met stabi
 4. Als SmartScreen waarschuwt: klik **Meer informatie** → **Toch uitvoeren**.
 
 ## Ultra-korte package checklist (5 punten)
-- [ ] Release-tag = `v3.1.39`.
+- [ ] Release-tag = `v3.1.40`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` staat op de release.
 - [ ] ZIP uitgepakt naar een lokale map.
-- [ ] `AEO-Light.exe` start en toont versie **3.1.39**.
+- [ ] `AEO-Light.exe` start en toont versie **3.1.40**.
 - [ ] Korte **Test Run** slaagt en maakt output aan.
 
-## Package checklist (v3.1.39, Windows x64)
-- [ ] Release-tag is `v3.1.39`.
+## Package checklist (v3.1.40, Windows x64)
+- [ ] Release-tag is `v3.1.40`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` is aanwezig op de releasepagina.
 - [ ] ZIP uitgepakt naar een lokale map (niet rechtstreeks uit de ZIP starten).
 - [ ] In de uitgepakte map staan minimaal:
   - `AEO-Light.exe`
   - `LICENSE.txt`
   - `ffmpeg.exe`
-- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.39**.
+- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.40**.
 - [ ] Snelle rooktest:
   - bron laden
   - korte **Test Run** uitvoeren
   - outputbestand wordt aangemaakt
 - [ ] (Optioneel) checksumcontrole van download:
   - `certutil -hashfile AEO-Light-Windows-x64.zip SHA256`
-  - verwacht: waarde op de `v3.1.39` releasepagina
+  - verwacht: waarde op de `v3.1.40` releasepagina
 
 ## Snelle start (aanbevolen)
 - Container: **MP4**
