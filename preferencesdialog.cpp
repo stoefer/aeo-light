@@ -68,33 +68,44 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 
 	settings = new QSettings;
 
-	// Open the preferences dialog taller by default so more options are visible
-	// before scrolling, while still fitting on smaller displays.
-	const int preferredDialogHeight = 470;
-	int targetHeight = std::max(height(), preferredDialogHeight);
-	QScreen *screenForSize = this->screen();
-	if(!screenForSize) screenForSize = QGuiApplication::primaryScreen();
-	if(screenForSize)
+	bool restoredDialogGeometry = false;
+	settings->beginGroup("ui");
+	if(settings->contains("preferences-dialog-geometry"))
 	{
-		const int maxSafeHeight = std::max(320,
-				screenForSize->availableGeometry().height() - 60);
-		targetHeight = std::min(targetHeight, maxSafeHeight);
+		restoredDialogGeometry = restoreGeometry(
+				settings->value("preferences-dialog-geometry").toByteArray());
 	}
-	if(targetHeight > height())
+	settings->endGroup();
+	if(!restoredDialogGeometry)
 	{
-		const int delta = targetHeight - height();
-		resize(width(), targetHeight);
-		if(ui->horizontalLayoutWidget)
+		// Open the preferences dialog taller by default so more options are visible
+		// before scrolling, while still fitting on smaller displays.
+		const int preferredDialogHeight = 470;
+		int targetHeight = std::max(height(), preferredDialogHeight);
+		QScreen *screenForSize = this->screen();
+		if(!screenForSize) screenForSize = QGuiApplication::primaryScreen();
+		if(screenForSize)
 		{
-			QRect buttonRect = ui->horizontalLayoutWidget->geometry();
-			buttonRect.moveTop(buttonRect.top() + delta);
-			ui->horizontalLayoutWidget->setGeometry(buttonRect);
+			const int maxSafeHeight = std::max(320,
+					screenForSize->availableGeometry().height() - 60);
+			targetHeight = std::min(targetHeight, maxSafeHeight);
 		}
-		if(ui->tabWidget)
+		if(targetHeight > height())
 		{
-			QRect tabRectGrow = ui->tabWidget->geometry();
-			tabRectGrow.setHeight(tabRectGrow.height() + delta);
-			ui->tabWidget->setGeometry(tabRectGrow);
+			const int delta = targetHeight - height();
+			resize(width(), targetHeight);
+			if(ui->horizontalLayoutWidget)
+			{
+				QRect buttonRect = ui->horizontalLayoutWidget->geometry();
+				buttonRect.moveTop(buttonRect.top() + delta);
+				ui->horizontalLayoutWidget->setGeometry(buttonRect);
+			}
+			if(ui->tabWidget)
+			{
+				QRect tabRectGrow = ui->tabWidget->geometry();
+				tabRectGrow.setHeight(tabRectGrow.height() + delta);
+				ui->tabWidget->setGeometry(tabRectGrow);
+			}
 		}
 	}
 
@@ -301,6 +312,14 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 			embeddedPreviewBadgeColorLabel, &QWidget::setEnabled);
 	connect(embeddedPreviewCheckBox, &QCheckBox::toggled,
 			embeddedPreviewBadgeColorComboBox, &QWidget::setEnabled);
+	connect(this, &QDialog::finished, this,
+			[this](int)
+	{
+		if(!settings) return;
+		settings->beginGroup("ui");
+		settings->setValue("preferences-dialog-geometry", saveGeometry());
+		settings->endGroup();
+	});
 }
 
 preferencesdialog::~preferencesdialog()
