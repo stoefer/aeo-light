@@ -1615,6 +1615,45 @@ bool MainWindow::IsEmbeddedPreviewEnabled() const
 	return enabled;
 }
 
+QString MainWindow::ResolveEmbeddedPreviewBadgeColorHex() const
+{
+	QSettings settings;
+	settings.beginGroup("ui");
+	QString badgeColorKey = settings.value(
+			"embed-preview-badge-color", "purple")
+			.toString().toLower().trimmed();
+	const QString themeKey = settings.value("theme", "light")
+			.toString().toLower().trimmed();
+	settings.endGroup();
+
+	if(badgeColorKey == "auto")
+		badgeColorKey = (themeKey == "dark") ? "blue" : "purple";
+
+	if(badgeColorKey == "blue")
+		return "#2563eb";
+	if(badgeColorKey == "green")
+		return "#16a34a";
+	if(badgeColorKey == "orange")
+		return "#ea580c";
+	if(badgeColorKey == "red")
+		return "#dc2626";
+	if(badgeColorKey == "gray")
+		return "#4b5563";
+	return "#7c3aed";
+}
+
+void MainWindow::UpdateEmbeddedPreviewBadgeAppearance()
+{
+	if(!previewBetaBadgeLabel) return;
+
+	previewBetaBadgeLabel->setStyleSheet(QString(
+			"QLabel { "
+			"background: %1; color: #ffffff; "
+			"font-weight: 700; font-size: 10px; "
+			"padding: 1px 6px; border-radius: 6px; "
+			"}").arg(ResolveEmbeddedPreviewBadgeColorHex()));
+}
+
 void MainWindow::DestroyPreviewWindow()
 {
 	if(previewDockWidget)
@@ -1623,6 +1662,7 @@ void MainWindow::DestroyPreviewWindow()
 		delete previewDockWidget;
 		previewDockWidget = NULL;
 		previewContainerWidget = NULL;
+		previewBetaBadgeLabel = NULL;
 		frame_window = NULL;
 		return;
 	}
@@ -1644,27 +1684,6 @@ void MainWindow::SetupEmbeddedPreviewDock(const QString &sourceTitle)
 	const QString sourceName = QFileInfo(sourceTitle).fileName().trimmed();
 	if(!sourceName.isEmpty())
 		previewTitle = tr("Preview - %1").arg(sourceName);
-	QSettings settings;
-	settings.beginGroup("ui");
-	QString badgeColorKey = settings.value(
-			"embed-preview-badge-color", "purple")
-			.toString().toLower().trimmed();
-	const QString themeKey = settings.value("theme", "light")
-			.toString().toLower().trimmed();
-	settings.endGroup();
-	if(badgeColorKey == "auto")
-		badgeColorKey = (themeKey == "dark") ? "blue" : "purple";
-	QString badgeBackgroundColor = "#7c3aed";
-	if(badgeColorKey == "blue")
-		badgeBackgroundColor = "#2563eb";
-	else if(badgeColorKey == "green")
-		badgeBackgroundColor = "#16a34a";
-	else if(badgeColorKey == "orange")
-		badgeBackgroundColor = "#ea580c";
-	else if(badgeColorKey == "red")
-		badgeBackgroundColor = "#dc2626";
-	else if(badgeColorKey == "gray")
-		badgeBackgroundColor = "#4b5563";
 	const QString betaTooltip = tr(
 			"Experimentele functie: deze ingesloten preview is nog in beta. "
 			"Schakel uit via Preferences als je liever het aparte previewvenster gebruikt.");
@@ -1692,24 +1711,19 @@ void MainWindow::SetupEmbeddedPreviewDock(const QString &sourceTitle)
 	betaHeaderLayout->setContentsMargins(0, 0, 0, 0);
 	betaHeaderLayout->setSpacing(6);
 	QLabel *betaLabel = new QLabel(tr("Embedded preview"), betaHeader);
-	QLabel *betaBadge = new QLabel("BETA", betaHeader);
-	betaBadge->setStyleSheet(QString(
-			"QLabel { "
-			"background: %1; color: #ffffff; "
-			"font-weight: 700; font-size: 10px; "
-			"padding: 1px 6px; border-radius: 6px; "
-			"}").arg(badgeBackgroundColor));
+	previewBetaBadgeLabel = new QLabel("BETA", betaHeader);
 	betaLabel->setToolTip(betaTooltip);
-	betaBadge->setToolTip(betaTooltip);
+	previewBetaBadgeLabel->setToolTip(betaTooltip);
 	betaHeader->setToolTip(betaTooltip);
 	betaHeaderLayout->addWidget(betaLabel);
 	betaHeaderLayout->addStretch(1);
-	betaHeaderLayout->addWidget(betaBadge);
+	betaHeaderLayout->addWidget(previewBetaBadgeLabel);
 
 	dockLayout->addWidget(betaHeader);
 	dockLayout->addWidget(previewContainerWidget, 1);
 	previewDockWidget->setWidget(dockContent);
 	addDockWidget(Qt::RightDockWidgetArea, previewDockWidget);
+	UpdateEmbeddedPreviewBadgeAppearance();
 	frame_window->show();
 	previewDockWidget->show();
 }
@@ -5115,6 +5129,8 @@ void MainWindow::ApplyThemeFromSettings()
 		qApp->setStyleSheet(BuildDarkThemeStyleSheet());
 	else
 		qApp->setStyleSheet(BuildLightThemeStyleSheet());
+
+	UpdateEmbeddedPreviewBadgeAppearance();
 }
 
 void MainWindow::on_frame_numberSpinBox_valueChanged(int arg1)

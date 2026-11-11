@@ -51,6 +51,7 @@
 namespace Ui {
 class MainWindow;
 }
+class QLabel;
 
 #define FPS_NTSC 0
 #define FPS_24 1
@@ -368,6 +369,7 @@ private:
 	QPointer<Frame_Window> frame_window;
 	QPointer<QDockWidget> previewDockWidget;
 	QPointer<QWidget> previewContainerWidget;
+	QPointer<QLabel> previewBetaBadgeLabel;
 	QTextStream log;
 	bool paramCopyLock;
 	bool requestCancel;
@@ -491,6 +493,8 @@ private:
 			const QString &processMsg);
 	void ApplyThemeFromSettings();
 	bool IsEmbeddedPreviewEnabled() const;
+	QString ResolveEmbeddedPreviewBadgeColorHex() const;
+	void UpdateEmbeddedPreviewBadgeAppearance();
 	void DestroyPreviewWindow();
 	void SetupEmbeddedPreviewDock(const QString &sourceTitle);
 	void PositionPreviewWindowBesideMainWindow();
