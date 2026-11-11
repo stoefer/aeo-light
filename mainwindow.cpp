@@ -1646,10 +1646,14 @@ void MainWindow::SetupEmbeddedPreviewDock(const QString &sourceTitle)
 		previewTitle = tr("Preview - %1").arg(sourceName);
 	QSettings settings;
 	settings.beginGroup("ui");
-	const QString badgeColorKey = settings.value(
+	QString badgeColorKey = settings.value(
 			"embed-preview-badge-color", "purple")
 			.toString().toLower().trimmed();
+	const QString themeKey = settings.value("theme", "light")
+			.toString().toLower().trimmed();
 	settings.endGroup();
+	if(badgeColorKey == "auto")
+		badgeColorKey = (themeKey == "dark") ? "blue" : "purple";
 	QString badgeBackgroundColor = "#7c3aed";
 	if(badgeColorKey == "blue")
 		badgeBackgroundColor = "#2563eb";

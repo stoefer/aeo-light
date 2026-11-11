@@ -148,6 +148,8 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 	QLabel *embeddedPreviewBadgeColorLabel = new QLabel(
 			"Kleur BETA-badge (ingesloten preview):", this);
 	embeddedPreviewBadgeColorComboBox = new QComboBox(this);
+	embeddedPreviewBadgeColorComboBox->addItem(
+			"Automatisch op basis van thema", "auto");
 	embeddedPreviewBadgeColorComboBox->addItem("Paars (standaard)", "purple");
 	embeddedPreviewBadgeColorComboBox->addItem("Blauw", "blue");
 	embeddedPreviewBadgeColorComboBox->addItem("Groen", "green");
