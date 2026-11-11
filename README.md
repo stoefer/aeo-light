@@ -1,8 +1,23 @@
-# AEO-Light 3.1.46 (fork release)
+# AEO-Light 3.1.47 (fork release)
 
-Deze 3.1.46 patchrelease maakt het laden van projecten met verplaatste of ontbrekende bronbestanden crash-safe.
+Deze 3.1.47 patchrelease bundelt workflow-verbeteringen voor projectherstel, defaults en snelle gezondheidschecks.
 
-## Nieuw in 3.1.46
+## Nieuw in 3.1.47
+- **Project relink-flow** bij ontbrekende bron:
+  - kies direct een vervangend bestand, of selecteer een map om automatisch te zoeken (incl. submappen)
+  - herlink gebeurt veilig, met tip om project opnieuw op te slaan
+- **Autosave + herstel na onverwachte afsluiting**:
+  - periodieke snapshot van sessie-instellingen
+  - bij onclean vorige sessie verschijnt prompt om de vorige sessie te herstellen
+- **Factory Reset** toegevoegd naast **Reset Section** voor:
+  - Soundtrack / Frame Pitch / Video-crop
+  - Image Processing
+  - Extract / Audio / Output
+- Nieuwe File-menu acties:
+  - **Project Health Check** (bron/output/ffmpeg/schijfruimte)
+  - **Herstel standaard vensterlayout**
+
+## Eerder toegevoegd in 3.1.46
 - Crashfix: laden van een `.aeo` project faalt nu veilig wanneer de bronbestanden ontbreken of verplaatst zijn.
 - Bij ontbrekende bron verschijnt nu een duidelijke foutmelding i.p.v. app-crash.
 - Projectinstellingen worden niet meer verder toegepast als de bron niet succesvol kan worden geopend.
@@ -267,28 +282,28 @@ Deze 3.1.46 patchrelease maakt het laden van projecten met verplaatste of ontbre
 4. Als SmartScreen waarschuwt: klik **Meer informatie** → **Toch uitvoeren**.
 
 ## Ultra-korte package checklist (5 punten)
-- [ ] Release-tag = `v3.1.46`.
+- [ ] Release-tag = `v3.1.47`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` staat op de release.
 - [ ] ZIP uitgepakt naar een lokale map.
-- [ ] `AEO-Light.exe` start en toont versie **3.1.46**.
+- [ ] `AEO-Light.exe` start en toont versie **3.1.47**.
 - [ ] Korte **Test Run** slaagt en maakt output aan.
 
-## Package checklist (v3.1.46, Windows x64)
-- [ ] Release-tag is `v3.1.46`.
+## Package checklist (v3.1.47, Windows x64)
+- [ ] Release-tag is `v3.1.47`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` is aanwezig op de releasepagina.
 - [ ] ZIP uitgepakt naar een lokale map (niet rechtstreeks uit de ZIP starten).
 - [ ] In de uitgepakte map staan minimaal:
   - `AEO-Light.exe`
   - `LICENSE.txt`
   - `ffmpeg.exe`
-- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.46**.
+- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.47**.
 - [ ] Snelle rooktest:
   - bron laden
   - korte **Test Run** uitvoeren
   - outputbestand wordt aangemaakt
 - [ ] (Optioneel) checksumcontrole van download:
   - `certutil -hashfile AEO-Light-Windows-x64.zip SHA256`
-  - verwacht: waarde op de `v3.1.46` releasepagina
+  - verwacht: waarde op de `v3.1.47` releasepagina
 
 ## Snelle start (aanbevolen)
 - Container: **MP4**
