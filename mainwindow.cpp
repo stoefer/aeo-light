@@ -1648,8 +1648,115 @@ void MainWindow::UpdateAdaptiveUiScale()
 		slider->setStyleSheet(QString());
 	}
 
-	uiScalePercent = 100;
-	uiScaleLayoutActive = false;
+	QScreen *screen = this->screen();
+	if(!screen) screen = QGuiApplication::primaryScreen();
+	const QRect available = screen ? screen->availableGeometry() : QRect();
+	const int screenW = available.width();
+	const int screenH = available.height();
+
+	enum ResolutionProfile
+	{
+		RES_PROFILE_HD,
+		RES_PROFILE_FHD,
+		RES_PROFILE_UHD
+	};
+	ResolutionProfile profile = RES_PROFILE_FHD;
+	if(screenW >= 2560 || screenH >= 1440)
+		profile = RES_PROFILE_UHD;
+	else if(screenW <= 1440 || screenH <= 900)
+		profile = RES_PROFILE_HD;
+
+	const int tabHeightDelta =
+			(profile == RES_PROFILE_HD) ? -26 :
+			(profile == RES_PROFILE_UHD) ? 24 : 0;
+	const int contentHeightDelta =
+			(profile == RES_PROFILE_HD) ? -28 :
+			(profile == RES_PROFILE_UHD) ? 64 : 0;
+	const int minTabHeight = (profile == RES_PROFILE_HD) ? 500 : 520;
+
+	if(ui->tabWidget && uiScaleBaseGeometry.contains(ui->tabWidget))
+	{
+		const QRect baseTabRect = uiScaleBaseGeometry.value(ui->tabWidget);
+		int targetTabHeight = std::max(
+				minTabHeight,
+				baseTabRect.height() + tabHeightDelta);
+		QRect targetTabRect = baseTabRect;
+		targetTabRect.setHeight(targetTabHeight);
+		ui->tabWidget->setGeometry(targetTabRect);
+	}
+
+	if(ui->tabWidget && ui->tabWidget->tabBar())
+	{
+		QTabBar *tabs = ui->tabWidget->tabBar();
+		tabs->setExpanding(true);
+		tabs->setUsesScrollButtons(false);
+		tabs->setElideMode(Qt::ElideRight);
+
+		QFont tabFont = tabs->font();
+		const int basePt = (tabFont.pointSize() > 0) ? tabFont.pointSize() : 9;
+		const int targetPt =
+				(profile == RES_PROFILE_HD) ? std::max(8, basePt - 1) :
+				(profile == RES_PROFILE_UHD) ? (basePt + 1) :
+				basePt;
+		tabFont.setPointSize(targetPt);
+		tabs->setFont(tabFont);
+		const int tabMinHeight =
+				(profile == RES_PROFILE_HD) ? 28 :
+				(profile == RES_PROFILE_UHD) ? 36 : 32;
+		tabs->setStyleSheet(QString(
+				"QTabBar::tab { min-height: %1px; padding: 5px 8px; }")
+				.arg(tabMinHeight));
+	}
+
+	int tabHeightShift = 0;
+	if(ui->tabWidget && uiScaleBaseGeometry.contains(ui->tabWidget))
+	{
+		const QRect baseTabRect = uiScaleBaseGeometry.value(ui->tabWidget);
+		tabHeightShift = ui->tabWidget->geometry().height() - baseTabRect.height();
+	}
+
+	if(ui->horizontalLayoutWidget_2 &&
+			uiScaleBaseGeometry.contains(ui->horizontalLayoutWidget_2))
+	{
+		QRect viewRect = uiScaleBaseGeometry.value(ui->horizontalLayoutWidget_2);
+		viewRect.moveTop(viewRect.y() + tabHeightShift);
+		ui->horizontalLayoutWidget_2->setGeometry(viewRect);
+	}
+
+	if(ui->gridLayoutWidget_3 &&
+			uiScaleBaseGeometry.contains(ui->gridLayoutWidget_3))
+	{
+		QRect sampleRect = uiScaleBaseGeometry.value(ui->gridLayoutWidget_3);
+		sampleRect.moveTop(sampleRect.y() + tabHeightShift);
+		if(ui->horizontalLayoutWidget_2)
+		{
+			const QRect viewRect = ui->horizontalLayoutWidget_2->geometry();
+			const int minTop = viewRect.bottom() + 8;
+			if(sampleRect.top() < minTop)
+				sampleRect.moveTop(minTop);
+		}
+		ui->gridLayoutWidget_3->setGeometry(sampleRect);
+	}
+
+	if(ui->scrollAreaWidgetContents &&
+			uiScaleBaseGeometry.contains(ui->scrollAreaWidgetContents))
+	{
+		QRect contentRect = uiScaleBaseGeometry.value(ui->scrollAreaWidgetContents);
+		int targetContentHeight = contentRect.height() + contentHeightDelta;
+		if(ui->gridLayoutWidget_3)
+			targetContentHeight = std::max(
+					targetContentHeight,
+					ui->gridLayoutWidget_3->geometry().bottom() + 18);
+		targetContentHeight = std::max(860, targetContentHeight);
+		contentRect.setHeight(targetContentHeight);
+		ui->scrollAreaWidgetContents->setGeometry(contentRect);
+		ui->scrollAreaWidgetContents->setMinimumHeight(targetContentHeight);
+	}
+
+	uiScalePercent =
+			(profile == RES_PROFILE_HD) ? 95 :
+			(profile == RES_PROFILE_UHD) ? 108 : 100;
+	uiScaleLayoutActive = (profile != RES_PROFILE_FHD);
 }
 
 void MainWindow::RestoreUiWindowSettings()
