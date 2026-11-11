@@ -1483,6 +1483,8 @@ void MainWindow::resizeEvent(QResizeEvent *event)
 {
 	QMainWindow::resizeEvent(event);
 	UpdateAdaptiveUiScale();
+	if(previewDockWidget)
+		ApplyEmbeddedPreviewDockSizing(false);
 	PositionPreviewWindowBesideMainWindow();
 }
 
@@ -1654,6 +1656,50 @@ void MainWindow::UpdateEmbeddedPreviewBadgeAppearance()
 			"}").arg(ResolveEmbeddedPreviewBadgeColorHex()));
 }
 
+int MainWindow::EmbeddedPreviewDockTargetWidth() const
+{
+	if(!frame_window)
+		return 360;
+
+	const double sourceAspect = (frame_window->input_w > 0 && frame_window->input_h > 0) ?
+			(static_cast<double>(frame_window->input_w) /
+			 static_cast<double>(frame_window->input_h)) :
+			1.0;
+	// In the GL preview, the picture uses the top 75% of total preview height.
+	const double frameBandRatio = 0.75;
+	int previewHeight = 0;
+	if(previewDockWidget && previewDockWidget->widget())
+		previewHeight = previewDockWidget->widget()->height();
+	if(previewHeight <= 0)
+		previewHeight = this->height() - 80;
+	previewHeight = std::max(240, previewHeight);
+
+	const int desiredWidth = std::max(
+			280,
+			static_cast<int>(std::lround(sourceAspect * frameBandRatio * previewHeight)) + 24);
+	const int maxReasonableWidth = std::max(320, this->width() - 340);
+	return std::min(desiredWidth, maxReasonableWidth);
+}
+
+void MainWindow::ApplyEmbeddedPreviewDockSizing(bool enforceCurrentWidth)
+{
+	if(!previewDockWidget || !previewContainerWidget || !frame_window)
+		return;
+
+	const int targetWidth = EmbeddedPreviewDockTargetWidth();
+	previewContainerWidget->setMinimumWidth(std::max(240, targetWidth - 16));
+	previewDockWidget->setMinimumWidth(std::max(260, targetWidth));
+
+	if(enforceCurrentWidth || previewDockWidget->width() < targetWidth)
+	{
+		QList<QDockWidget*> docks;
+		docks << previewDockWidget;
+		QList<int> sizes;
+		sizes << targetWidth;
+		resizeDocks(docks, sizes, Qt::Horizontal);
+	}
+}
+
 void MainWindow::DestroyPreviewWindow()
 {
 	if(previewDockWidget)
@@ -1723,9 +1769,11 @@ void MainWindow::SetupEmbeddedPreviewDock(const QString &sourceTitle)
 	dockLayout->addWidget(previewContainerWidget, 1);
 	previewDockWidget->setWidget(dockContent);
 	addDockWidget(Qt::RightDockWidgetArea, previewDockWidget);
+	ApplyEmbeddedPreviewDockSizing(true);
 	UpdateEmbeddedPreviewBadgeAppearance();
 	frame_window->show();
 	previewDockWidget->show();
+	ApplyEmbeddedPreviewDockSizing(false);
 }
 
 void MainWindow::PositionPreviewWindowBesideMainWindow()

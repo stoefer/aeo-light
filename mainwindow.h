@@ -495,6 +495,8 @@ private:
 	bool IsEmbeddedPreviewEnabled() const;
 	QString ResolveEmbeddedPreviewBadgeColorHex() const;
 	void UpdateEmbeddedPreviewBadgeAppearance();
+	int EmbeddedPreviewDockTargetWidth() const;
+	void ApplyEmbeddedPreviewDockSizing(bool enforceCurrentWidth);
 	void DestroyPreviewWindow();
 	void SetupEmbeddedPreviewDock(const QString &sourceTitle);
 	void PositionPreviewWindowBesideMainWindow();
