@@ -1477,6 +1477,25 @@ MainWindow::MainWindow(QWidget *parent) :
 			tr("Voeg huidige instellingen toe aan queue (Ctrl+Shift+A)"));
 	ui->loadLastSettingsButton->setToolTip(
 			tr("Laad laatst gebruikte instellingen (Ctrl+L)"));
+	if(ui->menuFile)
+	{
+		ui->menuFile->addSeparator();
+		QAction *healthCheckAction = new QAction(
+				tr("Project Health Check"), this);
+		connect(healthCheckAction, &QAction::triggered, this, [this]()
+		{
+			RunProjectHealthCheck();
+		});
+		ui->menuFile->addAction(healthCheckAction);
+
+		QAction *resetLayoutAction = new QAction(
+				tr("Herstel standaard vensterlayout"), this);
+		connect(resetLayoutAction, &QAction::triggered, this, [this]()
+		{
+			ResetWindowLayoutToStandard();
+		});
+		ui->menuFile->addAction(resetLayoutAction);
+	}
 	UpdateVideoStabilizationControls();
 }
 
@@ -5085,6 +5104,139 @@ void MainWindow::UpdateAutoOptimizationControls()
 		}
 	}
 	ui->autoOptimizeSummaryLabel->setText(summary);
+}
+
+void MainWindow::RunProjectHealthCheck()
+{
+	QStringList okLines;
+	QStringList warnLines;
+	QStringList failLines;
+
+	if(this->scan.inFile.IsReady())
+	{
+		okLines << tr("Bron is geladen.");
+		const QString sourcePath =
+				QString::fromStdString(this->scan.inFile.GetFileName());
+		if(sourcePath.trimmed().isEmpty())
+			warnLines << tr("Bronpad is leeg in de huidige sessie.");
+		else if(QFileInfo(sourcePath).exists())
+			okLines << tr("Bronbestand bestaat: %1")
+					.arg(QDir::toNativeSeparators(sourcePath));
+		else
+			failLines << tr("Bronbestand ontbreekt: %1")
+					.arg(QDir::toNativeSeparators(sourcePath));
+	}
+	else
+	{
+		warnLines << tr("Geen bron geladen.");
+	}
+
+	const QString audioPath = ui->audioOutputFilenameEdit->text().trimmed();
+	if(audioPath.isEmpty())
+	{
+		warnLines << tr("Audio outputpad is nog leeg.");
+	}
+	else
+	{
+		const QString audioDir = QFileInfo(audioPath).absolutePath();
+		QFileInfo audioDirInfo(audioDir);
+		if(audioDirInfo.exists() && audioDirInfo.isDir() && audioDirInfo.isWritable())
+			okLines << tr("Audio outputmap is schrijfbaar.");
+		else
+			failLines << tr("Audio outputmap is niet schrijfbaar of ontbreekt.");
+	}
+
+	if(ui->outputVideoCheckBox->isChecked())
+	{
+		const QString videoPath = ui->videoOutputFilenameEdit->text().trimmed();
+		if(videoPath.isEmpty())
+		{
+			warnLines << tr("Video-export staat aan, maar video-outputpad is leeg.");
+		}
+		else
+		{
+			const QString videoDir = QFileInfo(videoPath).absolutePath();
+			QFileInfo videoDirInfo(videoDir);
+			if(videoDirInfo.exists() && videoDirInfo.isDir() && videoDirInfo.isWritable())
+				okLines << tr("Video outputmap is schrijfbaar.");
+			else
+				failLines << tr("Video outputmap is niet schrijfbaar of ontbreekt.");
+		}
+	}
+
+	QString ffmpegError;
+	(void)RunFfmpegSelfTest(&ffmpegError);
+	if(ffmpegError.trimmed().isEmpty())
+		okLines << tr("FFmpeg test: OK.");
+	else
+		failLines << tr("FFmpeg test faalde: %1").arg(ffmpegError);
+
+	if(this->scan.inFile.IsReady())
+	{
+		const long numFrames = std::max<long>(
+				1, ui->frameOutSpinBox->value() - ui->frameInSpinBox->value() + 1);
+		QString estAudioPath = audioPath;
+		if(estAudioPath.isEmpty())
+		{
+			QString baseDir = ReadLastExportDirMain(
+					"last-audio-export",
+					QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
+			estAudioPath = QDir(baseDir).filePath("health-check-audio.wav");
+		}
+		QString estVideoPath;
+		if(ui->outputVideoCheckBox->isChecked())
+		{
+			estVideoPath = ui->videoOutputFilenameEdit->text().trimmed();
+			if(estVideoPath.isEmpty())
+			{
+				const QString baseDir = QFileInfo(estAudioPath).absolutePath();
+				estVideoPath = QDir(baseDir).filePath("health-check-video.mp4");
+			}
+		}
+		QString diskDetails;
+		if(CheckExportDiskSpace(estAudioPath, estVideoPath, numFrames, &diskDetails))
+			okLines << tr("Schijfruimtecheck: OK.");
+		else
+			failLines << tr("Schijfruimtecheck faalde: %1").arg(diskDetails);
+	}
+
+	QString report = tr("Project Health Check\n");
+	if(!okLines.isEmpty())
+		report += tr("\nOK:\n - %1").arg(okLines.join("\n - "));
+	if(!warnLines.isEmpty())
+		report += tr("\n\nWaarschuwingen:\n - %1").arg(warnLines.join("\n - "));
+	if(!failLines.isEmpty())
+		report += tr("\n\nFouten:\n - %1").arg(failLines.join("\n - "));
+
+	if(!failLines.isEmpty())
+		QMessageBox::warning(this, tr("Project Health Check"), report);
+	else if(!warnLines.isEmpty())
+		QMessageBox::information(this, tr("Project Health Check"), report);
+	else
+		QMessageBox::information(
+				this,
+				tr("Project Health Check"),
+				report + tr("\n\nAlles ziet er goed uit."));
+}
+
+void MainWindow::ResetWindowLayoutToStandard()
+{
+	QSettings settings;
+	settings.beginGroup("ui");
+	settings.setValue("window-layout-mode", "standard");
+	settings.setValue("window-layout-dual-screen", false);
+	settings.setValue("window-layout-single-fill", false);
+	settings.setValue("window-layout-dual-swap", false);
+	settings.setValue("window-layout-target-monitor", 0);
+	settings.endGroup();
+
+	if(!previewDockWidget)
+		PositionPreviewWindowBesideMainWindow();
+
+	QMessageBox::information(
+			this,
+			tr("Vensterlayout hersteld"),
+			tr("De vensterlayout staat nu op standaard (monitor-onafhankelijk)."));
 }
 
 QString MainWindow::RunFfmpegSelfTest(QString *errorOut) const

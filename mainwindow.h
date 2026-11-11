@@ -446,6 +446,8 @@ private:
 	void UpdateVideoTargetProfileFromControls();
 	void UpdateVideoExportControls();
 	void UpdateAutoOptimizationControls();
+	void RunProjectHealthCheck();
+	void ResetWindowLayoutToStandard();
 	QString RunFfmpegSelfTest(QString *errorOut = nullptr) const;
 	bool CheckExportDiskSpace(const QString &audioPath, const QString &videoPath,
 			long numFrames, QString *detailsOut = nullptr) const;
