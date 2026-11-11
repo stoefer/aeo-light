@@ -72,6 +72,25 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 	const QRect baseButtonsRect = ui->horizontalLayoutWidget ?
 			ui->horizontalLayoutWidget->geometry() : QRect();
 	const int baseDialogHeight = height();
+	auto applyDialogHeight = [&](int targetHeight)
+	{
+		const int safeTargetHeight = std::max(baseDialogHeight, targetHeight);
+		if(safeTargetHeight != height())
+			resize(width(), safeTargetHeight);
+		const int delta = height() - baseDialogHeight;
+		if(ui->horizontalLayoutWidget && baseButtonsRect.isValid())
+		{
+			QRect buttonRect = baseButtonsRect;
+			buttonRect.moveTop(baseButtonsRect.top() + delta);
+			ui->horizontalLayoutWidget->setGeometry(buttonRect);
+		}
+		if(ui->tabWidget && baseTabRect.isValid())
+		{
+			QRect tabRectGrow = baseTabRect;
+			tabRectGrow.setHeight(std::max(120, baseTabRect.height() + delta));
+			ui->tabWidget->setGeometry(tabRectGrow);
+		}
+	};
 
 	settings->beginGroup("ui");
 	if(settings->contains("preferences-dialog-geometry"))
@@ -92,21 +111,7 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 				screenForSize->availableGeometry().height() - 60);
 		targetHeight = std::min(targetHeight, maxSafeHeight);
 	}
-	if(targetHeight != height())
-		resize(width(), targetHeight);
-	const int delta = height() - baseDialogHeight;
-	if(ui->horizontalLayoutWidget && baseButtonsRect.isValid())
-	{
-		QRect buttonRect = baseButtonsRect;
-		buttonRect.moveTop(baseButtonsRect.top() + delta);
-		ui->horizontalLayoutWidget->setGeometry(buttonRect);
-	}
-	if(ui->tabWidget && baseTabRect.isValid())
-	{
-		QRect tabRectGrow = baseTabRect;
-		tabRectGrow.setHeight(std::max(120, baseTabRect.height() + delta));
-		ui->tabWidget->setGeometry(tabRectGrow);
-	}
+	applyDialogHeight(targetHeight);
 
 	// Add a simple searchable filter so users can quickly jump to options.
 	QLabel *searchLabel = new QLabel("Zoeken:", this);
@@ -122,11 +127,12 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 
 	// Make the General tab scrollable so added preference options never
 	// get clipped behind the tab panel frame on smaller windows/scales.
+	QScrollArea *generalScrollArea = NULL;
 	if(ui->verticalLayoutWidget && ui->generalTab)
 	{
 		QWidget *generalContent = ui->verticalLayoutWidget;
 		const QRect contentRect = generalContent->geometry();
-		QScrollArea *generalScrollArea = new QScrollArea(ui->generalTab);
+		generalScrollArea = new QScrollArea(ui->generalTab);
 		generalScrollArea->setObjectName("generalScrollArea");
 		generalScrollArea->setGeometry(contentRect);
 		generalScrollArea->setWidgetResizable(true);
@@ -234,6 +240,25 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 	embeddedPreviewBadgeColorComboBox->setEnabled(embeddedPreviewEnabled);
 	ui->verticalLayout->insertWidget(9, embeddedPreviewBadgeColorLabel);
 	ui->verticalLayout->insertWidget(10, embeddedPreviewBadgeColorComboBox);
+	if(generalScrollArea && ui->verticalLayoutWidget)
+	{
+		const int contentHeight = ui->verticalLayoutWidget->sizeHint().height();
+		const int viewportHeight = generalScrollArea->viewport()->height();
+		const int neededExtra = contentHeight - viewportHeight;
+		if(neededExtra > 0)
+		{
+			int expandedTargetHeight = height() + neededExtra + 10;
+			QScreen *fitScreen = this->screen();
+			if(!fitScreen) fitScreen = QGuiApplication::primaryScreen();
+			if(fitScreen)
+			{
+				const int maxSafeHeight = std::max(320,
+						fitScreen->availableGeometry().height() - 60);
+				expandedTargetHeight = std::min(expandedTargetHeight, maxSafeHeight);
+			}
+			applyDialogHeight(expandedTargetHeight);
+		}
+	}
 
 	PopulateMonitorChoices();
 	settings->beginGroup("ui");
