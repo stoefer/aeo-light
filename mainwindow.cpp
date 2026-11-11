@@ -2757,7 +2757,22 @@ bool MainWindow::NewSource(QString filename, SourceFormat ft)
 	try
 	{
 		traceCurrentOperation = "Opening Source";
-		this->scan.SourceScan(filename.toStdString(), ft);
+		const bool sourceOpened = this->scan.SourceScan(filename.toStdString(), ft);
+		if(!sourceOpened || !this->scan.inFile.IsReady())
+		{
+			QMessageBox::warning(
+					this,
+					tr("Bronbestand niet gevonden"),
+					tr("De bron uit dit project kon niet worden geopend:\n%1\n\n"
+					   "Waarschijnlijk zijn bestanden verplaatst of ontbreken ze.")
+							.arg(filename));
+			// restore the previous SEGV handler before leaving
+			if(prevSegvHandler != SIG_ERR)
+				std::signal(SIGSEGV, prevSegvHandler);
+			traceCurrentOperation = "";
+			traceSubroutineOperation = "";
+			return false;
+		}
 		traceCurrentOperation = "Verifying scan is ready";
 		if(this->scan.inFile.IsReady())
 		{
@@ -2862,19 +2877,26 @@ bool MainWindow::NewSource(QString filename, SourceFormat ft)
 		answer = w.exec();
 
 		if(answer == QMessageBox::Abort) exit(1);
+		if(prevSegvHandler != SIG_ERR)
+			std::signal(SIGSEGV, prevSegvHandler);
+		traceCurrentOperation = "";
+		traceSubroutineOperation = "";
 		return false;
 	}
 
 	traceCurrentOperation = "";
 	traceSubroutineOperation = "";
-	this->frame_window->logger = NULL;
-	this->frame_window->currentOperation = NULL;
+	if(this->frame_window)
+	{
+		this->frame_window->logger = NULL;
+		this->frame_window->currentOperation = NULL;
+	}
 
 	// restore the previous SEGV handler
 	if(prevSegvHandler != SIG_ERR)
 		std::signal(SIGSEGV, prevSegvHandler);
 
-	return true;
+	return this->scan.inFile.IsReady();
 }
 
 //********************* Project Load and Save *********************************
@@ -3757,9 +3779,7 @@ bool MainWindow::LoadProjectSource(QString fn)
 				"(It was created by the former [save settings] action)."));
 		return false;
 	}
-	this->NewSource(srcfn, f);
-
-	return true;
+	return this->NewSource(srcfn, f);
 }
 
 bool MainWindow::LoadProjectSettings(QString fn)
