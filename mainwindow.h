@@ -452,6 +452,14 @@ private:
 			double &saturation, QString *summary = nullptr) const;
 	void UpdateAudioQualityPresetFromControls();
 	void UpdateAudioOnlyQualityPresetFromControls();
+	QString BuildSourceDialogFilterForFormat(SourceFormat format) const;
+	QString TryRelinkSourceInDirectory(
+			const QString &missingSource,
+			const QString &directory) const;
+	QString PromptRelinkProjectSource(
+			const QString &projectFile,
+			const QString &missingSource,
+			SourceFormat format) const;
 	QString BuildOutputNameFromTemplate(const QString &ext) const;
 	void CaptureUiScaleBaseGeometry();
 	void UpdateAdaptiveUiScale();

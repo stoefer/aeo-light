@@ -36,6 +36,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QDir>
+#include <QDirIterator>
 #include <QDomDocument>
 #include <QTimer>
 #include <QElapsedTimer>
@@ -3723,6 +3724,142 @@ void MainWindow::WriteSingleExportReport(
 		  << generatedFiles.join(", ") << "\n";
 }
 
+QString MainWindow::BuildSourceDialogFilterForFormat(SourceFormat format) const
+{
+	switch(format)
+	{
+	case SOURCE_LIBAV:
+		return tr("Video files (*.mp4 *.mov *.avi *.mkv *.mxf *.mpg *.mpeg);;All files (*)");
+	case SOURCE_DPX:
+		return tr("DPX frames (*.dpx);;All files (*)");
+	case SOURCE_TIFF:
+		return tr("TIFF frames (*.tif *.tiff);;All files (*)");
+	case SOURCE_JPEG:
+		return tr("JPEG frames (*.jpg *.jpeg *.JPG *.JPEG);;All files (*)");
+	case SOURCE_PNG:
+		return tr("PNG frames (*.png *.PNG);;All files (*)");
+	case SOURCE_WAV:
+		return tr("Synthetic (*.wav);;All files (*)");
+	case SOURCE_OTHER_IMG:
+		return tr("Image frames (*.dpx *.tif *.tiff *.jpg *.jpeg *.JPG *.JPEG *.png *.PNG);;All files (*)");
+	case SOURCE_UNKNOWN:
+	default:
+		return tr("All files (*)");
+	}
+}
+
+QString MainWindow::TryRelinkSourceInDirectory(
+		const QString &missingSource,
+		const QString &directory) const
+{
+	if(directory.trimmed().isEmpty())
+		return QString();
+
+	QFileInfo missingInfo(missingSource);
+	const QString expectedFileName = missingInfo.fileName().trimmed();
+	const QString expectedBaseName = missingInfo.completeBaseName().trimmed();
+	const QString expectedSuffix = missingInfo.suffix().trimmed();
+
+	QDir baseDir(directory);
+	if(!baseDir.exists())
+		return QString();
+
+	if(!expectedFileName.isEmpty())
+	{
+		const QString directMatch = baseDir.filePath(expectedFileName);
+		if(QFileInfo(directMatch).exists())
+			return QFileInfo(directMatch).absoluteFilePath();
+	}
+
+	QDirIterator it(
+			directory,
+			QDir::Files | QDir::Readable | QDir::NoSymLinks,
+			QDirIterator::Subdirectories);
+	while(it.hasNext())
+	{
+		const QString candidatePath = it.next();
+		QFileInfo candidateInfo(candidatePath);
+		if(!expectedFileName.isEmpty() &&
+				candidateInfo.fileName().compare(expectedFileName, Qt::CaseInsensitive) == 0)
+			return candidateInfo.absoluteFilePath();
+		if(!expectedBaseName.isEmpty() &&
+				candidateInfo.completeBaseName().compare(expectedBaseName, Qt::CaseInsensitive) == 0 &&
+				(expectedSuffix.isEmpty() ||
+				 candidateInfo.suffix().compare(expectedSuffix, Qt::CaseInsensitive) == 0))
+			return candidateInfo.absoluteFilePath();
+	}
+
+	return QString();
+}
+
+QString MainWindow::PromptRelinkProjectSource(
+		const QString &projectFile,
+		const QString &missingSource,
+		SourceFormat format) const
+{
+	QString startDir = QFileInfo(missingSource).absolutePath();
+	if(startDir.isEmpty())
+		startDir = QFileInfo(projectFile).absolutePath();
+	if(startDir.isEmpty())
+		startDir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+	const QString fileFilter = BuildSourceDialogFilterForFormat(format);
+
+	while(true)
+	{
+		QMessageBox chooser(const_cast<MainWindow*>(this));
+		chooser.setIcon(QMessageBox::Warning);
+		chooser.setWindowTitle(tr("Bronbestand ontbreekt"));
+		chooser.setText(tr("De bron uit dit project kon niet worden gevonden:\n%1")
+				.arg(QDir::toNativeSeparators(missingSource)));
+		chooser.setInformativeText(tr(
+				"Kies een vervangend bronbestand of selecteer een map waarin "
+				"AEO-Light automatisch naar een match zoekt."));
+		QPushButton *chooseFileButton = chooser.addButton(
+				tr("Zoek bestand..."), QMessageBox::ActionRole);
+		QPushButton *chooseFolderButton = chooser.addButton(
+				tr("Zoek map..."), QMessageBox::ActionRole);
+		chooser.addButton(QMessageBox::Cancel);
+		chooser.exec();
+
+		if(chooser.clickedButton() == chooseFileButton)
+		{
+			const QString selectedFile = QFileDialog::getOpenFileName(
+					const_cast<MainWindow*>(this),
+					tr("Kies bronbestand"),
+					startDir,
+					fileFilter);
+			if(!selectedFile.isEmpty())
+				return selectedFile;
+			continue;
+		}
+
+		if(chooser.clickedButton() == chooseFolderButton)
+		{
+			const QString selectedFolder = QFileDialog::getExistingDirectory(
+					const_cast<MainWindow*>(this),
+					tr("Kies map met bronbestanden"),
+					startDir);
+			if(selectedFolder.isEmpty())
+				continue;
+
+			const QString matchedSource =
+					TryRelinkSourceInDirectory(missingSource, selectedFolder);
+			if(!matchedSource.isEmpty())
+				return matchedSource;
+
+			QMessageBox::information(
+					const_cast<MainWindow*>(this),
+					tr("Geen match gevonden"),
+					tr("Er is geen passend bronbestand gevonden in:\n%1")
+							.arg(QDir::toNativeSeparators(selectedFolder)));
+			startDir = selectedFolder;
+			continue;
+		}
+
+		return QString();
+	}
+}
+
 bool MainWindow::OpenProject(QString fn)
 {
 	if(LoadProjectSource(fn))
@@ -3779,7 +3916,36 @@ bool MainWindow::LoadProjectSource(QString fn)
 				"(It was created by the former [save settings] action)."));
 		return false;
 	}
-	return this->NewSource(srcfn, f);
+	QString sourcePath = srcfn;
+	if(!QFileInfo(sourcePath).exists())
+	{
+		const QString relinked = PromptRelinkProjectSource(fn, sourcePath, f);
+		if(relinked.isEmpty())
+			return false;
+		sourcePath = relinked;
+	}
+
+	if(!this->NewSource(sourcePath, f))
+	{
+		const QString relinked = PromptRelinkProjectSource(fn, sourcePath, f);
+		if(relinked.isEmpty())
+			return false;
+		sourcePath = relinked;
+		if(!this->NewSource(sourcePath, f))
+			return false;
+	}
+
+	if(sourcePath != srcfn)
+	{
+		QMessageBox::information(
+				this,
+				tr("Bron tijdelijk herlinkt"),
+				tr("De projectbron werd herlinkt naar:\n%1\n\n"
+				   "Tip: sla het project opnieuw op om dit pad te bewaren.")
+						.arg(QDir::toNativeSeparators(sourcePath)));
+	}
+
+	return true;
 }
 
 bool MainWindow::LoadProjectSettings(QString fn)
