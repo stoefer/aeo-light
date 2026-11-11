@@ -1285,6 +1285,26 @@ MainWindow::MainWindow(QWidget *parent) :
 	const bool showHelpText = ReadShowHelpTextSetting(&usedLegacyShowHelpKey);
 	UpdateHelpTextVisibility(showHelpText, usedLegacyShowHelpKey);
 	ApplyCompactModePreference();
+	{
+		// Safer default than hard-embedding the OpenGL preview in the main UI:
+		// use single-monitor split mode for first-time users so preview and
+		// controls open side-by-side as one workflow.
+		QSettings uiDefaults;
+		uiDefaults.beginGroup("ui");
+		const bool hasLayoutMode = uiDefaults.contains("window-layout-mode");
+		const bool hasLegacyDual = uiDefaults.contains("window-layout-dual-screen");
+		const bool hasLegacySingle = uiDefaults.contains("window-layout-single-fill");
+		if(!hasLayoutMode && !hasLegacyDual && !hasLegacySingle)
+		{
+			uiDefaults.setValue("window-layout-mode", "single");
+			uiDefaults.setValue("window-layout-target-monitor", 0);
+			uiDefaults.setValue("window-layout-dual-swap", false);
+			// Keep legacy mirrors aligned for older preference readers.
+			uiDefaults.setValue("window-layout-dual-screen", false);
+			uiDefaults.setValue("window-layout-single-fill", true);
+		}
+		uiDefaults.endGroup();
+	}
 
 	CaptureUiScaleBaseGeometry();
 	RestoreUiWindowSettings();
@@ -1546,6 +1566,27 @@ void MainWindow::RestoreUiWindowSettings()
 
 	if(!geometry.isEmpty())
 		restoreGeometry(geometry);
+	else
+	{
+		// HD-friendly default start size for first launch / clean settings.
+		// Keep height bounded by available screen while preserving the UI's
+		// minimum height requirements.
+		QScreen *screen = this->screen();
+		if(!screen) screen = QGuiApplication::primaryScreen();
+		if(screen)
+		{
+			const QRect available = screen->availableGeometry();
+			const int targetW = std::max(
+					minimumWidth(),
+					std::min(available.width(), 1280));
+			const int targetH = std::max(
+					minimumHeight(),
+					std::min(available.height(), 1040));
+			const int x = available.left() + std::max(0, (available.width() - targetW) / 2);
+			const int y = available.top() + std::max(0, (available.height() - targetH) / 2);
+			setGeometry(x, y, targetW, targetH);
+		}
+	}
 
 	if(wasFullscreen)
 		setWindowState(windowState() | Qt::WindowFullScreen);
@@ -1628,7 +1669,7 @@ void MainWindow::PositionPreviewWindowBesideMainWindow()
 		else if(legacySingle)
 			layoutMode = "single";
 		else
-			layoutMode = "standard";
+			layoutMode = "single";
 	}
 	const bool dualSwap =
 			settings.value("window-layout-dual-swap", false).toBool();
