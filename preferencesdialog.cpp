@@ -67,46 +67,44 @@ preferencesdialog::preferencesdialog(QWidget *parent) :
 	ui->setupUi(this);
 
 	settings = new QSettings;
+	const QRect baseTabRect = ui->tabWidget ? ui->tabWidget->geometry() : QRect();
+	const QRect baseButtonsRect = ui->horizontalLayoutWidget ?
+			ui->horizontalLayoutWidget->geometry() : QRect();
+	const int baseDialogHeight = height();
 
-	bool restoredDialogGeometry = false;
 	settings->beginGroup("ui");
 	if(settings->contains("preferences-dialog-geometry"))
 	{
-		restoredDialogGeometry = restoreGeometry(
+		restoreGeometry(
 				settings->value("preferences-dialog-geometry").toByteArray());
 	}
 	settings->endGroup();
-	if(!restoredDialogGeometry)
+	// Keep a comfortable minimum height so the General tab does not look clipped.
+	// If a previously saved geometry is smaller than this, we lift it safely.
+	const int preferredDialogHeight = 520;
+	int targetHeight = std::max(height(), preferredDialogHeight);
+	QScreen *screenForSize = this->screen();
+	if(!screenForSize) screenForSize = QGuiApplication::primaryScreen();
+	if(screenForSize)
 	{
-		// Open the preferences dialog taller by default so more options are visible
-		// before scrolling, while still fitting on smaller displays.
-		const int preferredDialogHeight = 470;
-		int targetHeight = std::max(height(), preferredDialogHeight);
-		QScreen *screenForSize = this->screen();
-		if(!screenForSize) screenForSize = QGuiApplication::primaryScreen();
-		if(screenForSize)
-		{
-			const int maxSafeHeight = std::max(320,
-					screenForSize->availableGeometry().height() - 60);
-			targetHeight = std::min(targetHeight, maxSafeHeight);
-		}
-		if(targetHeight > height())
-		{
-			const int delta = targetHeight - height();
-			resize(width(), targetHeight);
-			if(ui->horizontalLayoutWidget)
-			{
-				QRect buttonRect = ui->horizontalLayoutWidget->geometry();
-				buttonRect.moveTop(buttonRect.top() + delta);
-				ui->horizontalLayoutWidget->setGeometry(buttonRect);
-			}
-			if(ui->tabWidget)
-			{
-				QRect tabRectGrow = ui->tabWidget->geometry();
-				tabRectGrow.setHeight(tabRectGrow.height() + delta);
-				ui->tabWidget->setGeometry(tabRectGrow);
-			}
-		}
+		const int maxSafeHeight = std::max(320,
+				screenForSize->availableGeometry().height() - 60);
+		targetHeight = std::min(targetHeight, maxSafeHeight);
+	}
+	if(targetHeight != height())
+		resize(width(), targetHeight);
+	const int delta = height() - baseDialogHeight;
+	if(ui->horizontalLayoutWidget && baseButtonsRect.isValid())
+	{
+		QRect buttonRect = baseButtonsRect;
+		buttonRect.moveTop(baseButtonsRect.top() + delta);
+		ui->horizontalLayoutWidget->setGeometry(buttonRect);
+	}
+	if(ui->tabWidget && baseTabRect.isValid())
+	{
+		QRect tabRectGrow = baseTabRect;
+		tabRectGrow.setHeight(std::max(120, baseTabRect.height() + delta));
+		ui->tabWidget->setGeometry(tabRectGrow);
 	}
 
 	// Add a simple searchable filter so users can quickly jump to options.
