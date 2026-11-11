@@ -1,8 +1,16 @@
-# AEO-Light 3.1.44 (fork release)
+# AEO-Light 3.1.45 (fork release)
 
-Deze 3.1.44 patchrelease maakt het Preferences-paneel adaptief hoger zodat alle opties tot onderaan zichtbaar blijven zonder onnodige scrollbar.
+Deze 3.1.45 patchrelease corrigeert het gedrag van “Set as Default” en “Reset Section” zodat opgeslagen standaardwaarden weer consequent worden toegepast.
 
-## Nieuw in 3.1.44
+## Nieuw in 3.1.45
+- Fix: **Reset Section** laadt nu opnieuw de opgeslagen defaults uit **Set as Default** i.p.v. harde fabriekswaarden.
+- Geldt voor:
+  - Soundtrack / Frame Pitch / Video-crop sectie
+  - Image Processing sectie
+  - Extract / Audio / Output sectie
+- Resultaat: “Set as Default” en “Reset Section” werken nu logisch samen zoals verwacht.
+
+## Eerder toegevoegd in 3.1.44
 - Preferences vergroot nu automatisch extra in hoogte wanneer de General-opties niet volledig in beeld passen.
 - Save/Discard-zone en tabgebied schalen daarbij consistent mee.
 - Resultaat: de opties kunnen doorlopen tot aan de onderrand van het subpaneel (geen onnodige verticale slider als schermruimte volstaat).
@@ -253,28 +261,28 @@ Deze 3.1.44 patchrelease maakt het Preferences-paneel adaptief hoger zodat alle 
 4. Als SmartScreen waarschuwt: klik **Meer informatie** → **Toch uitvoeren**.
 
 ## Ultra-korte package checklist (5 punten)
-- [ ] Release-tag = `v3.1.44`.
+- [ ] Release-tag = `v3.1.45`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` staat op de release.
 - [ ] ZIP uitgepakt naar een lokale map.
-- [ ] `AEO-Light.exe` start en toont versie **3.1.44**.
+- [ ] `AEO-Light.exe` start en toont versie **3.1.45**.
 - [ ] Korte **Test Run** slaagt en maakt output aan.
 
-## Package checklist (v3.1.44, Windows x64)
-- [ ] Release-tag is `v3.1.44`.
+## Package checklist (v3.1.45, Windows x64)
+- [ ] Release-tag is `v3.1.45`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` is aanwezig op de releasepagina.
 - [ ] ZIP uitgepakt naar een lokale map (niet rechtstreeks uit de ZIP starten).
 - [ ] In de uitgepakte map staan minimaal:
   - `AEO-Light.exe`
   - `LICENSE.txt`
   - `ffmpeg.exe`
-- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.44**.
+- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.45**.
 - [ ] Snelle rooktest:
   - bron laden
   - korte **Test Run** uitvoeren
   - outputbestand wordt aangemaakt
 - [ ] (Optioneel) checksumcontrole van download:
   - `certutil -hashfile AEO-Light-Windows-x64.zip SHA256`
-  - verwacht: waarde op de `v3.1.44` releasepagina
+  - verwacht: waarde op de `v3.1.45` releasepagina
 
 ## Snelle start (aanbevolen)
 - Container: **MP4**
