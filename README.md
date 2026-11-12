@@ -1,8 +1,13 @@
-# AEO-Light 3.1.48 (fork release)
+# AEO-Light 3.1.49 (fork release)
 
-Deze 3.1.48 patchrelease focust op schaalbare panelverhoudingen en resolutiecontrole voor HD/FHD/4K-workflows.
+Deze 3.1.49 patchrelease focust op robuustere beeldimport voor scanner-JPG/PNG bestanden.
 
-## Nieuw in 3.1.48
+## Nieuw in 3.1.49
+- Fix: JPG/PNG import herkent nu het echte beeldformaat op basis van bestandsinhoud i.p.v. enkel extensie.
+- Hierdoor worden scannerbestanden met afwijkende/extensie-onzekere naming voortaan correct geaccepteerd als de inhoud geldig is.
+- Duidelijkere foutmelding wanneer een bestand wel `.jpg`/`.png` heet maar inhoudelijk geen geldig JPEG/PNG is.
+
+## Eerder toegevoegd in 3.1.48
 - Layout-tuning voor tab/paneelverhoudingen op kleinere en grotere schermen (HD/FHD/4K).
 - Handmatige override in Preferences:
   - **UI-layout resolutieprofiel** = **Auto / HD / FHD / 4K-UHD**.
@@ -293,28 +298,28 @@ Deze 3.1.48 patchrelease focust op schaalbare panelverhoudingen en resolutiecont
 4. Als SmartScreen waarschuwt: klik **Meer informatie** → **Toch uitvoeren**.
 
 ## Ultra-korte package checklist (5 punten)
-- [ ] Release-tag = `v3.1.48`.
+- [ ] Release-tag = `v3.1.49`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` staat op de release.
 - [ ] ZIP uitgepakt naar een lokale map.
-- [ ] `AEO-Light.exe` start en toont versie **3.1.48**.
+- [ ] `AEO-Light.exe` start en toont versie **3.1.49**.
 - [ ] Korte **Test Run** slaagt en maakt output aan.
 
-## Package checklist (v3.1.48, Windows x64)
-- [ ] Release-tag is `v3.1.48`.
+## Package checklist (v3.1.49, Windows x64)
+- [ ] Release-tag is `v3.1.49`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` is aanwezig op de releasepagina.
 - [ ] ZIP uitgepakt naar een lokale map (niet rechtstreeks uit de ZIP starten).
 - [ ] In de uitgepakte map staan minimaal:
   - `AEO-Light.exe`
   - `LICENSE.txt`
   - `ffmpeg.exe`
-- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.48**.
+- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.49**.
 - [ ] Snelle rooktest:
   - bron laden
   - korte **Test Run** uitvoeren
   - outputbestand wordt aangemaakt
 - [ ] (Optioneel) checksumcontrole van download:
   - `certutil -hashfile AEO-Light-Windows-x64.zip SHA256`
-  - verwacht: waarde op de `v3.1.48` releasepagina
+  - verwacht: waarde op de `v3.1.49` releasepagina
 
 ## Snelle start (aanbevolen)
 - Container: **MP4**
