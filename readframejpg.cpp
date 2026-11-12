@@ -34,6 +34,7 @@ double *ReadFrameJPG(const char *fn, double *buf)
 {
 	QImageReader reader(QString::fromUtf8(fn));
 	reader.setAutoTransform(true);
+	reader.setDecideFormatFromContent(true);
 	QImage img = reader.read();
 
 	if(img.isNull())
@@ -81,6 +82,7 @@ unsigned char *ReadFrameJPG_ImageData(const char *fn, unsigned char *buf,
 {
 	QImageReader reader(QString::fromUtf8(fn));
 	reader.setAutoTransform(true);
+	reader.setDecideFormatFromContent(true);
 	QImage img = reader.read();
 
 	if(img.isNull())

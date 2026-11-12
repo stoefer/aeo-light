@@ -595,13 +595,12 @@ bool FilmScan::SourceTIFF(const std::string filename)
 bool FilmScan::SourceJPG(const std::string filename)
 {
 	QString qfilename = QString::fromStdString(filename);
-	QString suffix = QFileInfo(qfilename).suffix().toLower();
-	if(suffix != "jpg" && suffix != "jpeg")
-		throw AeoException("FilmScan: unsupported JPEG extension");
 
 	QImageReader reader(qfilename);
 	reader.setAutoTransform(true);
+	reader.setDecideFormatFromContent(true);
 	QSize size = reader.size();
+	QByteArray detectedFormat = reader.format().toLower();
 
 	if(!size.isValid())
 	{
@@ -618,6 +617,17 @@ bool FilmScan::SourceJPG(const std::string filename)
 			throw AeoException(msg);
 		}
 		size = img.size();
+		if(detectedFormat.isEmpty())
+			detectedFormat = reader.format().toLower();
+	}
+
+	if(!detectedFormat.isEmpty() &&
+			detectedFormat != "jpeg" &&
+			detectedFormat != "jpg")
+	{
+		QString msg("FilmScan: source is not a JPEG image: ");
+		msg += qfilename;
+		throw AeoException(msg);
 	}
 
 	this->width = size.width();
@@ -634,13 +644,12 @@ bool FilmScan::SourceJPG(const std::string filename)
 bool FilmScan::SourcePNG(const std::string filename)
 {
 	QString qfilename = QString::fromStdString(filename);
-	QString suffix = QFileInfo(qfilename).suffix().toLower();
-	if(suffix != "png")
-		throw AeoException("FilmScan: unsupported PNG extension");
 
 	QImageReader reader(qfilename);
 	reader.setAutoTransform(true);
+	reader.setDecideFormatFromContent(true);
 	QSize size = reader.size();
+	QByteArray detectedFormat = reader.format().toLower();
 
 	if(!size.isValid())
 	{
@@ -657,6 +666,15 @@ bool FilmScan::SourcePNG(const std::string filename)
 			throw AeoException(msg);
 		}
 		size = img.size();
+		if(detectedFormat.isEmpty())
+			detectedFormat = reader.format().toLower();
+	}
+
+	if(!detectedFormat.isEmpty() && detectedFormat != "png")
+	{
+		QString msg("FilmScan: source is not a PNG image: ");
+		msg += qfilename;
+		throw AeoException(msg);
 	}
 
 	this->width = size.width();
