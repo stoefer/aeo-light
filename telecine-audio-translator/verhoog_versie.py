@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """Verhoog het laatste deel van VERSION, bijvoorbeeld 0.9.01 naar 0.9.02.
 
-De volgende release leest dit bestand, verhoogt het, en publiceert tag v<versie>.
-Draai dit pas als de huidige versie al als release bestaat:
+GitHub Actions doet dit na elke release-tag. Het kan ook met de hand,
+zodra de huidige versie al als release bestaat:
 
   python verhoog_versie.py
 """
@@ -20,23 +20,30 @@ def bump(text):
     return ".".join(parts)
 
 
-def main():
-    root = Path(__file__).resolve().parent
+def should_bump_after_release(current, released):
+    """Alleen verhogen als de branch nog op het zojuist gereleasde nummer staat."""
+    return current.strip() == released.strip()
+
+
+def bump_files(root):
+    """Schrijf het volgende nummer in VERSION en in de eerste versieregel van README."""
+    root = Path(root)
     path = root / "VERSION"
     current = path.read_text(encoding="utf-8").strip()
     new = bump(current)
     readme = root / "README.md"
-    readme_text = None
     if readme.exists():
+        text = readme.read_text(encoding="utf-8")
         old = "Versie **{0}**.".format(current)
-        readme_text = readme.read_text(encoding="utf-8")
-        if old not in readme_text:
+        if old not in text:
             raise ValueError("README noemt {0} niet, dus het nummer is niet mee verhoogd.".format(current))
-        readme_text = readme_text.replace(old, "Versie **{0}**.".format(new), 1)
+        readme.write_text(text.replace(old, "Versie **{0}**.".format(new), 1), encoding="utf-8")
     path.write_text(new + "\n", encoding="utf-8")
-    if readme_text is not None:
-        readme.write_text(readme_text, encoding="utf-8")
-    print(new)
+    return new
+
+
+def main():
+    print(bump_files(Path(__file__).resolve().parent))
 
 
 if __name__ == "__main__":
