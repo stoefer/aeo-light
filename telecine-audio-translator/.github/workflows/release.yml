@@ -7,12 +7,16 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Publiceer de GitHub-release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -20,6 +24,9 @@ jobs:
           set -eu
           ver=$(tr -d '[:space:]' < VERSION)
           tag="${GITHUB_REF_NAME}"
+          if [ "$tag" != "v${ver}" ]; then
+            echo "Waarschuwing: tag ${tag} hoort bij VERSION ${ver}."
+          fi
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "Release $tag bestaat al."
             exit 0
@@ -37,3 +44,39 @@ jobs:
             --target "${GITHUB_SHA}" \
             --title "TeleCine Audio Translator ${ver}" \
             --notes-file "$notes"
+
+      - name: Verhoog VERSION voor de volgende release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -eu
+          tag="${GITHUB_REF_NAME}"
+          released=$(git show "${GITHUB_SHA}:VERSION")
+          git fetch origin "${DEFAULT_BRANCH}"
+          git checkout -B "${DEFAULT_BRANCH}" "origin/${DEFAULT_BRANCH}"
+          export RELEASED_VERSION="$released"
+          if ! python3 -c 'import os, sys; from verhoog_versie import should_bump_after_release; current = open("VERSION", encoding="utf-8").read(); sys.exit(0 if should_bump_after_release(current, os.environ["RELEASED_VERSION"]) else 1)'; then
+            echo "VERSION op ${DEFAULT_BRANCH} wijkt al af van de release ${tag}. Niet opnieuw verhoogd."
+            exit 0
+          fi
+          python3 verhoog_versie.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add VERSION README.md
+          git commit -m "Verhoog de versie na release ${tag}."
+          if git push origin "HEAD:${DEFAULT_BRANCH}"; then
+            echo "VERSION op ${DEFAULT_BRANCH} is nu $(tr -d '[:space:]' < VERSION)."
+            exit 0
+          fi
+          bump_branch="versie-na-${tag}"
+          if ! git push origin "HEAD:${bump_branch}"; then
+            git push --force-with-lease origin "HEAD:${bump_branch}"
+          fi
+          if gh pr list --base "${DEFAULT_BRANCH}" --head "${bump_branch}" --json number --jq 'length > 0' | grep -qx true; then
+            echo "Pull request voor ${bump_branch} bestaat al."
+            exit 0
+          fi
+          gh pr create --base "${DEFAULT_BRANCH}" --head "${bump_branch}" \
+            --title "Verhoog de versie na release ${tag}" \
+            --body "De release ${tag} is gepubliceerd. Deze wijziging zet VERSION klaar voor de volgende release."

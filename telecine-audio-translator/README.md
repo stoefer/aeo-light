@@ -68,21 +68,22 @@ Wil je het wel bij elke aanmelding:
 
 ## Versie en releases
 
-Het nummer staat in `VERSION`. Het venster en de GitHub-release gebruiken datzelfde nummer. Een tag verhoogt zichzelf niet.
+Het nummer staat in `VERSION`. Het venster en de GitHub-release gebruiken datzelfde nummer.
 
-De eerste release is `v0.9.01`. Een volgende release:
+De eerste release is `v0.9.01`. Publiceer een tag `v` plus de inhoud van `VERSION`, bijvoorbeeld `v0.9.01`, op de standaardbranch. GitHub Actions maakt dan de release en verhoogt daarna het nummer in `VERSION` en in de eerste regel hierboven. Van `0.9.01` wordt `0.9.02`. De release zelf blijft op het oude nummer. De volgende tag gebruikt het nieuwe nummer.
 
-1. Draai `python verhoog_versie.py`. Dat maakt van `0.9.01` bijvoorbeeld `0.9.02`, in `VERSION` en in de eerste regel hierboven.
-2. Publiceer tag `v` plus de inhoud van `VERSION`, bijvoorbeeld `v0.9.02`, op `main`.
+Staat de branch al op een hoger nummer, dan gebeurt die verhoging niet nog eens. Lukt het wegschrijven naar de branch niet, dan komt er een pull request `versie-na-v…`.
 
-De release staat daarna op [Releases](https://github.com/stoefer/TeleCineAudioTranslator/releases). Een tag die met `v` begint publiceert de release ook via GitHub Actions.
+Met de hand gaat hetzelfde zo, nadat de release bestaat: `python verhoog_versie.py`.
+
+De release staat daarna op [Releases](https://github.com/stoefer/TeleCineAudioTranslator/releases). Dit werkt in de repository waar `release.yml` in `.github/workflows/` staat.
 
 ## Onderdelen
 
 | Bestand | Rol |
 | --- | --- |
 | `VERSION` | Huidige versie, ook zichtbaar in het venster |
-| `verhoog_versie.py` | Verhoogt het laatste deel van `VERSION` voor de volgende release |
+| `verhoog_versie.py` | Verhoogt het laatste deel van `VERSION` na een release |
 | `installeer.bat` / `installeer.sh` | Eenmalige installatie |
 | `start.vbs` | Windows-start zonder opdrachtvenster |
 | `start.sh` | Linux/macOS-start, installeert de eerste keer zelf |
