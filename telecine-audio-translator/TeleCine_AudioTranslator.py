@@ -233,30 +233,49 @@ def srt_timestamp(sec):
     seconds, millis = divmod(remainder, 1000)
     return f"{hours:02d}:{minutes:02d}:{seconds:02d},{millis:03d}"
 
-def apply_transcript_edits(segments, texts):
-    """Zet nieuwe zinnen op de herkende segmenten. Start en einde blijven gelijk."""
+def apply_transcript_edits(segments, texts, key="text"):
+    """Zet nieuwe zinnen op de segmenten. Start en einde blijven gelijk.
+
+    key "text" bewerkt de herkende bronzin. key "translation" bewerkt het
+    Nederlands en laat de bronzin staan.
+    """
+    if key not in ("text", "translation"):
+        raise ValueError("Onbekend tekstveld.")
     if len(texts) != len(segments):
         raise ValueError("Het aantal zinnen komt niet overeen met de herkende segmenten.")
     edited = []
     for segment, text in zip(segments, texts):
-        edited.append({
+        item = {
             "start": float(segment["start"]),
             "end": float(segment["end"]),
-            "text": spoken_text({"text": text}),
-        })
+            "text": spoken_text(segment) if key == "translation" else spoken_text({"text": text}),
+        }
+        if key == "translation":
+            item["translation"] = spoken_text({"text": text})
+        edited.append(item)
     return edited
 
-def merge_transcript_segments(segments, index):
+def _joined_text(first, second, key):
+    return " ".join(part for part in (spoken_text(first, key), spoken_text(second, key)) if part)
+
+def merge_transcript_segments(segments, index, key="text"):
     """Voeg twee opeenvolgende zinnen samen.
 
     De nieuwe zin begint op de begintijd van de eerste en eindigt op de eindtijd
     van de tweede. Dat zijn allebei tijden uit de herkenning.
     """
+    if key not in ("text", "translation"):
+        raise ValueError("Onbekend tekstveld.")
     if index < 0 or index + 1 >= len(segments):
         raise IndexError("Er is geen volgende zin om mee samen te voegen.")
     first, second = segments[index], segments[index + 1]
-    text = " ".join(part for part in (spoken_text(first), spoken_text(second)) if part)
-    merged = {"start": float(first["start"]), "end": float(second["end"]), "text": text}
+    merged = {
+        "start": float(first["start"]),
+        "end": float(second["end"]),
+        "text": _joined_text(first, second, "text"),
+    }
+    if key == "translation":
+        merged["translation"] = _joined_text(first, second, "translation")
     return [dict(item) for item in segments[:index]] + [merged] + [dict(item) for item in segments[index + 2 :]]
 
 def format_timed_text(segments, key="text"):
@@ -390,16 +409,20 @@ class TranscriptEditor(tk.Toplevel):
     de begintijd van het eerste stuk en de eindtijd van het tweede.
     """
 
-    def __init__(self, master, segments, on_confirm, on_cancel, audio_path=None):
+    def __init__(self, master, segments, on_confirm, on_cancel, audio_path=None, field="text"):
         super().__init__(master)
-        self.title("Transcriptie bewerken")
+        if field not in ("text", "translation"):
+            raise ValueError("Onbekend tekstveld.")
+        self.field = field
+        self.editing_translation = field == "translation"
+        self.title("Nederlandse vertaling bewerken" if self.editing_translation else "Transcriptie bewerken")
         self.on_confirm = on_confirm
         self.on_cancel = on_cancel
         self.audio_path = Path(audio_path) if audio_path else None
         self._closed = False
         self._history = []
         self._text_widgets = []
-        self.segments = apply_transcript_edits(segments, [spoken_text(item) for item in segments])
+        self.segments = apply_transcript_edits(segments, [spoken_text(item, field) for item in segments], field)
         self.original = [dict(item) for item in self.segments]
         self.protocol("WM_DELETE_WINDOW", self._ask_cancel)
         self.bind("<Escape>", lambda _event: self._ask_cancel())
@@ -411,21 +434,32 @@ class TranscriptEditor(tk.Toplevel):
     def _build(self):
         bar = ttk.Frame(self, padding=(12, 8))
         bar.pack(side="bottom", fill="x")
-        self.continue_button = ttk.Button(bar, text="Vertaling starten", command=self._confirm)
+        continue_label = "Spraak starten" if self.editing_translation else "Vertaling starten"
+        restore_label = "Oorspronkelijke vertaling" if self.editing_translation else "Oorspronkelijke herkenning"
+        self.continue_button = ttk.Button(bar, text=continue_label, command=self._confirm)
         self.continue_button.pack(side="left", padx=(0, 6))
         ttk.Button(bar, text="Stoppen", command=self._ask_cancel).pack(side="left", padx=6)
         self.undo_button = ttk.Button(bar, text="Ongedaan maken", command=self._undo)
         self.undo_button.pack(side="left", padx=6)
-        ttk.Button(bar, text="Oorspronkelijke herkenning", command=self._restore).pack(side="left", padx=6)
+        ttk.Button(bar, text=restore_label, command=self._restore).pack(side="left", padx=6)
         self.count_var = tk.StringVar()
         ttk.Label(self, textvariable=self.count_var).pack(side="bottom", anchor="w", padx=12, pady=(0, 4))
-        intro = (
-            "Pas de zinsbouw aan. De tijden blijven de tijdcode van de herkenning, "
-            "zodat de Nederlandse ondertitel en de Vlaamse stem op dezelfde plaats vallen. "
-            "Een leeg vak wordt niet uitgesproken en schuift de andere zinnen niet op. "
-            "Samenvoegen neemt de begintijd van deze zin en de eindtijd van de volgende. "
-            "Ctrl+Enter start de vertaling."
-        )
+        if self.editing_translation:
+            intro = (
+                "Pas de Nederlandse zin aan. De bronzin erboven blijft staan, net als de tijden. "
+                "De ondertitel en de Vlaamse stem gebruiken deze tekst op dezelfde plaats. "
+                "Een leeg vak wordt niet uitgesproken en schuift de andere zinnen niet op. "
+                "Samenvoegen neemt de begintijd van deze zin en de eindtijd van de volgende. "
+                "Ctrl+Enter start de spraak."
+            )
+        else:
+            intro = (
+                "Pas de zinsbouw aan. De tijden blijven de tijdcode van de herkenning, "
+                "zodat de Nederlandse ondertitel en de Vlaamse stem op dezelfde plaats vallen. "
+                "Een leeg vak wordt niet uitgesproken en schuift de andere zinnen niet op. "
+                "Samenvoegen neemt de begintijd van deze zin en de eindtijd van de volgende. "
+                "Ctrl+Enter start de vertaling."
+            )
         self.intro = ttk.Label(self, text=intro, wraplength=860, justify="left")
         self.intro.pack(side="top", fill="x", padx=12, pady=(12, 6))
         self.bind("<Configure>", self._wrap_intro, add="+")
@@ -518,9 +552,16 @@ class TranscriptEditor(tk.Toplevel):
                 ttk.Button(actions, text="Beluister", command=lambda i=index: self._play(i)).pack(side="left", padx=(0, 4))
             if index < len(self.segments) - 1:
                 ttk.Button(actions, text="Samenvoegen met volgende", command=lambda i=index: self._merge(i)).pack(side="left")
+            text_row = 1
+            if self.editing_translation:
+                source = spoken_text(segment, "text") or "(lege bronzin)"
+                source_label = tk.Label(block, text="bron  " + source, anchor="w", justify="left", fg="#555555")
+                source_label.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(2, 0))
+                block.bind("<Configure>", lambda event, label=source_label: label.configure(wraplength=max(200, event.width - 24)), add="+")
+                text_row = 2
             widget = tk.Text(block, height=3, wrap="word", undo=True, font=mono)
-            widget.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(3, 0))
-            widget.insert("1.0", segment["text"])
+            widget.grid(row=text_row, column=0, columnspan=3, sticky="ew", pady=(3, 0))
+            widget.insert("1.0", spoken_text(segment, self.field))
             widget.bind("<Control-Return>", self._confirm_event)
             widget.bind("<Control-KP_Enter>", self._confirm_event)
             widget.bind("<Tab>", lambda _event, i=index: self._focus_relative(i, 1))
@@ -549,14 +590,14 @@ class TranscriptEditor(tk.Toplevel):
 
     def _collect(self):
         texts = [widget.get("1.0", "end") for widget in self._text_widgets]
-        edited = apply_transcript_edits(self.segments, texts)
+        edited = apply_transcript_edits(self.segments, texts, self.field)
         self.segments = edited
         return edited
 
     def _merge(self, index):
         current = self._collect()
         self._history.append(current)
-        self.segments = merge_transcript_segments(current, index)
+        self.segments = merge_transcript_segments(current, index, self.field)
         self._rebuild(index)
 
     def _undo(self):
@@ -605,12 +646,12 @@ class TranscriptEditor(tk.Toplevel):
         if self._closed:
             return
         edited = self._collect()
-        if not any(item["text"] for item in edited):
-            messagebox.showerror(
-                APP_TITLE,
-                "Er is geen zin over. Herstel de herkenning, of laat minstens één zin staan.",
-                parent=self,
-            )
+        if not any(spoken_text(item, self.field) for item in edited):
+            if self.editing_translation:
+                warning = "Er is geen Nederlandse zin over. Herstel de vertaling, of laat minstens één zin staan."
+            else:
+                warning = "Er is geen zin over. Herstel de herkenning, of laat minstens één zin staan."
+            messagebox.showerror(APP_TITLE, warning, parent=self)
             return
         self._closed = True
         self._stop_audio()
@@ -622,7 +663,8 @@ class TranscriptEditor(tk.Toplevel):
     def _ask_cancel(self):
         if self._closed:
             return
-        if not messagebox.askyesno(APP_TITLE, "De bewerking sluiten en de vertaling stoppen?", parent=self):
+        question = "De bewerking sluiten en de spraak stoppen?" if self.editing_translation else "De bewerking sluiten en de vertaling stoppen?"
+        if not messagebox.askyesno(APP_TITLE, question, parent=self):
             return
         self.close_for_stop()
 
@@ -649,7 +691,7 @@ class App(tk.Tk):
         self.language=tk.StringVar(value="Frans"); self.whisper=tk.StringVar(value="small")
         self.voice_choice=tk.StringVar(value=DEFAULT_VOICE_LABEL)
         self.use_uvr=tk.BooleanVar(value=True); self.keep_stems=tk.BooleanVar(value=True)
-        self.sync_timing=tk.BooleanVar(value=True); self.edit_transcript=tk.BooleanVar(value=True); self.max_speed=tk.IntVar(value=15)
+        self.sync_timing=tk.BooleanVar(value=True); self.edit_transcript=tk.BooleanVar(value=True); self.edit_translation=tk.BooleanVar(value=True); self.max_speed=tk.IntVar(value=15)
         self.bg_volume=tk.DoubleVar(value=100); self.voice_volume=tk.DoubleVar(value=100)
         self.bg_volume_text=tk.StringVar(value="100%"); self.voice_volume_text=tk.StringVar(value="100%")
         self.hint=tk.StringVar(value="Installatie controleren...")
@@ -743,6 +785,8 @@ class App(tk.Tk):
         ttk.Label(opt,textvariable=self.route_inline,foreground="#555").grid(row=2,column=0,columnspan=3,sticky="w",pady=(6,0))
         self.edit_check=ttk.Checkbutton(opt,text="Transcriptie bewerken voor de vertaling (tijden blijven staan)",variable=self.edit_transcript)
         self.edit_check.grid(row=3,column=0,columnspan=3,sticky="w",pady=(6,0))
+        self.translation_check=ttk.Checkbutton(opt,text="Nederlandse vertaling bewerken voor de spraak (tijden blijven staan)",variable=self.edit_translation)
+        self.translation_check.grid(row=4,column=0,columnspan=3,sticky="w",pady=(4,0))
         u=ttk.LabelFrame(m,text="UVR: volumes en losse sporen",padding=8); u.grid(row=4,column=0,columnspan=3,sticky="ew",pady=6)
         u.columnconfigure(1,weight=1)
         self.keep_stems_check=ttk.Checkbutton(u,text="Losse UVR-sporen ook naar de uitvoermap kopiëren",variable=self.keep_stems); self.keep_stems_check.grid(row=0,column=0,columnspan=3,sticky="w",pady=(0,8))
@@ -1058,7 +1102,7 @@ class App(tk.Tk):
         s=Path(source).resolve(); sig=f"{s}|{s.stat().st_mtime_ns}|{s.stat().st_size}"; jid=hashlib.sha256(sig.encode()).hexdigest()[:16]; d=JOB_DIR/f"{safe_name(s.stem)}_{jid}"
         return {"folder":d,"state":d/"state.json","transcript":d/"transcript.txt","translation":d/"translation_nl.txt","vocals":d/"uvr_vocals.wav","background":d/"uvr_background.wav","voice":d/"vlaamse_stem.wav","mixed":d/"vlaams_met_achtergrond.wav","uvr_out":d/"uvr_output","segments":d/"segments.json","translated_segments":d/"segments_nl.json","segment_audio":d/"segment_audio"}
     def default_state(self,s):
-        return {"source":str(Path(s).resolve()),"source_language":LANGUAGES.get(self.language.get(),"fr"),"model":self.whisper.get(),"voice":VOICES[self.voice_choice.get()],"voice_label":self.voice_choice.get(),"use_uvr":bool(self.use_uvr.get()),"keep_stems":bool(self.keep_stems.get()),"bg_volume":int(round(float(self.bg_volume.get()))),"voice_volume":int(round(float(self.voice_volume.get()))),"sync_timing":bool(self.sync_timing.get()),"edit_transcript":bool(self.edit_transcript.get()),"max_speed":int(self.max_speed.get()),"completed_steps":0,"elapsed":0.,"status":"nieuw","output_dir":str(Path(self.outdir.get() or BASE_DIR/"Output").resolve()),"output_file":"","subtitle_file":"","last_error":""}
+        return {"source":str(Path(s).resolve()),"source_language":LANGUAGES.get(self.language.get(),"fr"),"model":self.whisper.get(),"voice":VOICES[self.voice_choice.get()],"voice_label":self.voice_choice.get(),"use_uvr":bool(self.use_uvr.get()),"keep_stems":bool(self.keep_stems.get()),"bg_volume":int(round(float(self.bg_volume.get()))),"voice_volume":int(round(float(self.voice_volume.get()))),"sync_timing":bool(self.sync_timing.get()),"edit_transcript":bool(self.edit_transcript.get()),"edit_translation":bool(self.edit_translation.get()),"max_speed":int(self.max_speed.get()),"completed_steps":0,"elapsed":0.,"status":"nieuw","output_dir":str(Path(self.outdir.get() or BASE_DIR/"Output").resolve()),"output_file":"","subtitle_file":"","last_error":""}
     def load(self,p):
         try:return json.loads(p["state"].read_text(encoding="utf-8"))
         except:return None
@@ -1121,7 +1165,7 @@ class App(tk.Tk):
         if voice_label not in VOICES:
             voice_label=next((name for name,key in VOICES.items() if key==st.get("voice")),None)
         if voice_label in VOICES: self.voice_choice.set(voice_label)
-        self.use_uvr.set(bool(st.get("use_uvr",False))); self.keep_stems.set(bool(st.get("keep_stems",True))); self.sync_timing.set(bool(st.get("sync_timing",True))); self.edit_transcript.set(bool(st.get("edit_transcript",False)))
+        self.use_uvr.set(bool(st.get("use_uvr",False))); self.keep_stems.set(bool(st.get("keep_stems",True))); self.sync_timing.set(bool(st.get("sync_timing",True))); self.edit_transcript.set(bool(st.get("edit_transcript",False))); self.edit_translation.set(bool(st.get("edit_translation",False)))
         try:
             self.bg_volume.set(float(st.get("bg_volume",100))); self.voice_volume.set(float(st.get("voice_volume",100)))
             speed=int(st.get("max_speed",15))
@@ -1145,7 +1189,7 @@ class App(tk.Tk):
     def running(self,on):
         self.start.config(state="disabled" if on else "normal"); self.stop.config(state="normal" if on else "disabled")
         if on: self.resume.config(state="disabled")
-        for widget in (self.source_entry,self.out_entry,self.source_button,self.out_button,self.uvr_check,self.keep_stems_check,self.sync_check,self.edit_check,self.bg_scale,self.voice_scale):
+        for widget in (self.source_entry,self.out_entry,self.source_button,self.out_button,self.uvr_check,self.keep_stems_check,self.sync_check,self.edit_check,self.translation_check,self.bg_scale,self.voice_scale):
             widget.config(state="disabled" if on else "normal")
         for widget in (self.lang,self.model,self.voice,self.speed_box):
             widget.config(state="disabled" if on else "readonly")
@@ -1174,21 +1218,30 @@ class App(tk.Tk):
         self._refresh_hint()
     def stage(self,i,f,msg):
         f=max(0,min(1,float(f))); val=(sum(WEIGHTS[:i])+WEIGHTS[i]*f)*100; self.progress=val; self.q.put(("progress",val,i,msg))
-    def wait_for_transcript_edit(self, segments, audio_path):
-        """Wacht tot het venster de gecorrigeerde zinnen teruggeeft. Tijden blijven staan."""
+    def _wait_for_edit(self, payload, audio_path, kind, step, message):
+        """Wacht op het bewerkvenster. De tijden in payload blijven de herkende tijden."""
         self.edit_ready.clear()
         self._edit_result=None
-        payload=[{"start":float(item["start"]),"end":float(item["end"]),"text":spoken_text(item)} for item in segments]
-        self.stage(3,0,f"Bewerk de {len(payload)} herkende zinnen. De tijden blijven staan.")
+        self.stage(step,0,message)
         audio="" if audio_path is None else str(audio_path)
-        self.q.put(("edit_transcript",payload,audio))
+        self.q.put((kind,payload,audio))
         while not self.edit_ready.wait(0.2):
             if self.stop_event.is_set():
                 raise StoppedByUser
         if self.stop_event.is_set() or self._edit_result is None:
             raise StoppedByUser
         return self._edit_result
-    def _open_transcript_editor(self, segments, audio_path):
+    def wait_for_transcript_edit(self, segments, audio_path):
+        """Wacht tot het venster de gecorrigeerde bronzinnen teruggeeft."""
+        payload=[{"start":float(item["start"]),"end":float(item["end"]),"text":spoken_text(item)} for item in segments]
+        return self._wait_for_edit(payload, audio_path, "edit_transcript", 3, f"Bewerk de {len(payload)} herkende zinnen. De tijden blijven staan.")
+    def wait_for_translation_edit(self, segments, audio_path):
+        """Wacht tot het venster de gecorrigeerde Nederlandse zinnen teruggeeft."""
+        payload=[]
+        for item in segments:
+            payload.append({"start":float(item["start"]),"end":float(item["end"]),"text":spoken_text(item,"text"),"translation":spoken_text(item,"translation")})
+        return self._wait_for_edit(payload, audio_path, "edit_translation", 4, f"Bewerk de {len(payload)} Nederlandse zinnen. De tijden blijven staan.")
+    def _open_transcript_editor(self, segments, audio_path, field="text"):
         if self.stop_event.is_set() or not (self.worker and self.worker.is_alive()):
             self._edit_result=None
             self.edit_ready.set()
@@ -1205,13 +1258,13 @@ class App(tk.Tk):
             self.stop_event.set()
             self.edit_ready.set()
         try:
-            self._transcript_editor=TranscriptEditor(self, segments, confirm, cancel, audio_path or None)
+            self._transcript_editor=TranscriptEditor(self, segments, confirm, cancel, audio_path or None, field)
         except Exception as exc:
             self._transcript_editor=None
             self._edit_result=None
             self.stop_event.set()
             self.edit_ready.set()
-            messagebox.showerror(APP_TITLE, "De transcriptie kon niet worden geopend.\n"+str(exc))
+            messagebox.showerror(APP_TITLE, "Het bewerkvenster kon niet worden geopend.\n"+str(exc))
     def finish(self,p,st,n):
         self.check_stop(); st["completed_steps"]=n; st["elapsed"]=self.elapsed_now(); st["status"]="bezig"; self.save(p,st); self.stage(n-1,1,f"Voltooid: {STEPS[n-1]}")
     def elapsed_now(self):return self.elapsed_before+(time.monotonic()-self.started if self.started else 0)
@@ -1287,6 +1340,13 @@ class App(tk.Tk):
                 p["translated_segments"].write_text(json.dumps(translated,ensure_ascii=False,indent=2),encoding="utf-8")
                 p["translation"].write_text(format_timed_text(translated,"translation"),encoding="utf-8"); self.finish(p,st,4); done=4
             if done<5:
+                if st.get("edit_translation"):
+                    translated=json.loads(p["translated_segments"].read_text(encoding="utf-8"))
+                    translated=self.wait_for_translation_edit(translated, recognition_source)
+                    p["translated_segments"].write_text(json.dumps(translated,ensure_ascii=False,indent=2),encoding="utf-8")
+                    p["translation"].write_text(format_timed_text(translated,"translation"),encoding="utf-8")
+                    st["translation_edited"]=True
+                    self.save(p,st)
                 self.stage(4,.01,"Gesynchroniseerde Vlaamse segmenten genereren..."); p["voice"].unlink(missing_ok=True)
                 translated=json.loads(p["translated_segments"].read_text(encoding="utf-8"))
                 if st.get("sync_timing",True):
@@ -1345,9 +1405,9 @@ class App(tk.Tk):
                 elif kind=="meter_error":
                     self.hint.set("Niveau niet gemeten: "+x[2])
                     if hasattr(self,"hint_label"): self.hint_label.configure(fg="#8a3b00")
-                elif kind=="edit_transcript":
+                elif kind in ("edit_transcript","edit_translation"):
                     _,segments,audio=x
-                    self._open_transcript_editor(segments,audio)
+                    self._open_transcript_editor(segments,audio,"translation" if kind=="edit_translation" else "text")
                 elif kind=="progress":
                     _,v,i,msg=x; self.set_progress(v); self.status.set(msg); self.step.set(f"Stap {i+1} van {len(STEPS)}: {STEPS[i]}"); self.show_steps(i,"running")
                 elif kind=="stopped":

@@ -19,6 +19,12 @@ SEGMENTS = [
     {"start": 65.5, "end": 66.25, "text": "Daarna gaat het verder."},
 ]
 
+TRANSLATED = [
+    {"start": 1.25, "end": 2.5, "text": "Bonjour", "translation": "Goeiedag dit is"},
+    {"start": 3.0, "end": 4.0, "text": "une phrase.", "translation": "een zin."},
+    {"start": 65.5, "end": 66.25, "text": "Ensuite.", "translation": "Daarna gaat het verder."},
+]
+
 
 def cancel_after(widget):
     try:
@@ -83,6 +89,28 @@ class TimingTests(unittest.TestCase):
             self.assertEqual(source.read_text(encoding="utf-8"), expected)
             self.assertEqual(dutch.read_text(encoding="utf-8"), expected)
         self.assertEqual(appmod.format_timed_text(segments), "[00:00:01.250 - 00:00:02.500] Eerste zin.\n[00:01:05.500 - 00:01:06.250] Derde zin.")
+
+    def test_dutch_edit_keeps_the_source_sentence_and_the_times(self):
+        edited = appmod.apply_transcript_edits(
+            TRANSLATED,
+            ["Goedendag.", "een zin.", "Daarna gaat het verder."],
+            "translation",
+        )
+        self.assertEqual(edited[0]["translation"], "Goedendag.")
+        self.assertEqual(edited[0]["text"], "Bonjour")
+        self.assertEqual([(item["start"], item["end"]) for item in edited], [(item["start"], item["end"]) for item in TRANSLATED])
+        self.assertEqual(edited[2]["text"], "Ensuite.")
+
+    def test_dutch_merge_keeps_the_outer_times_and_both_languages(self):
+        merged = appmod.merge_transcript_segments(TRANSLATED, 0, "translation")
+        self.assertEqual(len(merged), 2)
+        self.assertEqual(merged[0]["start"], 1.25)
+        self.assertEqual(merged[0]["end"], 4.0)
+        self.assertEqual(merged[0]["translation"], "Goeiedag dit is een zin.")
+        self.assertEqual(merged[0]["text"], "Bonjour une phrase.")
+        self.assertEqual(merged[1]["start"], 65.5)
+        self.assertEqual(merged[1]["end"], 66.25)
+        self.assertEqual(merged[1]["translation"], "Daarna gaat het verder.")
 
     def test_srt_timestamp_rounds_to_the_nearest_millisecond(self):
         self.assertEqual(appmod.srt_timestamp(1.25), "00:00:01,250")
@@ -185,6 +213,51 @@ class EditorTests(unittest.TestCase):
         self.assertIsNone(self.confirmed)
 
 
+class DutchEditorTests(unittest.TestCase):
+    def setUp(self):
+        self.root = appmod.tk.Tk()
+        self.root.withdraw()
+        self.confirmed = None
+        self.editor = appmod.TranscriptEditor(
+            self.root,
+            TRANSLATED,
+            on_confirm=self._confirm,
+            on_cancel=lambda: None,
+            audio_path=None,
+            field="translation",
+        )
+
+    def tearDown(self):
+        cancel_after(self.editor)
+        cancel_after(self.root)
+        try:
+            self.editor.destroy()
+        except appmod.tk.TclError:
+            pass
+        self.root.destroy()
+
+    def _confirm(self, edited):
+        self.confirmed = edited
+
+    def test_the_dutch_sentence_changes_and_the_source_and_times_stay(self):
+        self.root.update()
+        self.assertEqual(self.editor.title(), "Nederlandse vertaling bewerken")
+        self.assertEqual(self.editor.continue_button.cget("text"), "Spraak starten")
+        labels = [child.cget("text") for child in self.editor.list_frame.winfo_children()[0].winfo_children() if child.winfo_class() == "Label"]
+        self.assertTrue(any(text.startswith("bron  Bonjour") for text in labels))
+        self.assertEqual(self.editor._text_widgets[0].get("1.0", "end").strip(), "Goeiedag dit is")
+        self.editor._text_widgets[0].delete("1.0", "end")
+        self.editor._text_widgets[0].insert("1.0", "Goedendag.")
+        self.editor._confirm()
+        self.assertEqual(self.confirmed[0]["translation"], "Goedendag.")
+        self.assertEqual(self.confirmed[0]["text"], "Bonjour")
+        self.assertEqual(self.confirmed[0]["start"], 1.25)
+        self.assertEqual(self.confirmed[0]["end"], 2.5)
+        self.assertEqual(self.confirmed[1]["translation"], "een zin.")
+        self.assertEqual(self.confirmed[2]["start"], 65.5)
+        self.assertEqual(self.confirmed[2]["end"], 66.25)
+
+
 class AppPauseTests(unittest.TestCase):
     def setUp(self):
         self.app = appmod.App()
@@ -222,11 +295,14 @@ class AppPauseTests(unittest.TestCase):
 
     def test_the_option_is_on_by_default_and_stored_with_the_job(self):
         self.assertTrue(self.app.edit_transcript.get())
+        self.assertTrue(self.app.edit_translation.get())
         self.assertIn("Transcriptie bewerken", self.app.edit_check.cget("text"))
+        self.assertIn("Nederlandse vertaling bewerken", self.app.translation_check.cget("text"))
         state = self.app.default_state("/tmp/telecine-bron.wav")
         self.assertTrue(state["edit_transcript"])
-        self.app.edit_transcript.set(False)
-        self.assertFalse(self.app.default_state("/tmp/telecine-bron.wav")["edit_transcript"])
+        self.assertTrue(state["edit_translation"])
+        self.app.edit_translation.set(False)
+        self.assertFalse(self.app.default_state("/tmp/telecine-bron.wav")["edit_translation"])
 
     def test_the_pipeline_waits_and_then_keeps_the_corrected_timing(self):
         holder = {}
@@ -251,6 +327,31 @@ class AppPauseTests(unittest.TestCase):
         self.assertEqual(edited[1]["text"], "de verbeterde zin.")
         self.assertEqual([(item["start"], item["end"]) for item in edited], [(item["start"], item["end"]) for item in SEGMENTS])
         self.assertFalse(self.app.stop_event.is_set())
+
+    def test_the_pipeline_waits_for_the_dutch_text_and_keeps_the_timing(self):
+        holder = {}
+
+        def worker():
+            try:
+                holder["out"] = self.app.wait_for_translation_edit(TRANSLATED, None)
+            except Exception as exc:
+                holder["error"] = exc
+
+        thread = threading.Thread(target=worker, daemon=True)
+        self.app.worker = thread
+        thread.start()
+        self.assertTrue(self._wait_for(lambda: self.app._transcript_editor is not None))
+        editor = self.app._transcript_editor
+        self.assertEqual(editor.field, "translation")
+        editor._text_widgets[1].delete("1.0", "end")
+        editor._text_widgets[1].insert("1.0", "de verbeterde Nederlandse zin.")
+        editor._confirm()
+        self.assertTrue(self._wait_for(lambda: "out" in holder or "error" in holder))
+        self.assertNotIn("error", holder)
+        edited = holder["out"]
+        self.assertEqual(edited[1]["translation"], "de verbeterde Nederlandse zin.")
+        self.assertEqual(edited[1]["text"], "une phrase.")
+        self.assertEqual([(item["start"], item["end"]) for item in edited], [(item["start"], item["end"]) for item in TRANSLATED])
 
     def test_stop_during_editing_cancels_the_translation(self):
         holder = {}
