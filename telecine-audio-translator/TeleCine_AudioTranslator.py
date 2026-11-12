@@ -221,13 +221,85 @@ def hhmmss_ms(sec):
     sec=max(0.0,float(sec)); h=int(sec//3600); m=int((sec%3600)//60); ss=sec%60
     return f"{h:02d}:{m:02d}:{ss:06.3f}"
 
+def spoken_text(segment, key="text"):
+    """Eén regel tekst. Regeleinden in het bewerkvenster worden spaties."""
+    return " ".join(str((segment or {}).get(key) or "").split())
+
+def srt_timestamp(sec):
+    """Tijdcode voor SRT, met een komma voor de milliseconden."""
+    total_ms = int(round(max(0.0, float(sec)) * 1000))
+    hours, remainder = divmod(total_ms, 3_600_000)
+    minutes, remainder = divmod(remainder, 60_000)
+    seconds, millis = divmod(remainder, 1000)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d},{millis:03d}"
+
+def apply_transcript_edits(segments, texts):
+    """Zet nieuwe zinnen op de herkende segmenten. Start en einde blijven gelijk."""
+    if len(texts) != len(segments):
+        raise ValueError("Het aantal zinnen komt niet overeen met de herkende segmenten.")
+    edited = []
+    for segment, text in zip(segments, texts):
+        edited.append({
+            "start": float(segment["start"]),
+            "end": float(segment["end"]),
+            "text": spoken_text({"text": text}),
+        })
+    return edited
+
+def merge_transcript_segments(segments, index):
+    """Voeg twee opeenvolgende zinnen samen.
+
+    De nieuwe zin begint op de begintijd van de eerste en eindigt op de eindtijd
+    van de tweede. Dat zijn allebei tijden uit de herkenning.
+    """
+    if index < 0 or index + 1 >= len(segments):
+        raise IndexError("Er is geen volgende zin om mee samen te voegen.")
+    first, second = segments[index], segments[index + 1]
+    text = " ".join(part for part in (spoken_text(first), spoken_text(second)) if part)
+    merged = {"start": float(first["start"]), "end": float(second["end"]), "text": text}
+    return [dict(item) for item in segments[:index]] + [merged] + [dict(item) for item in segments[index + 2 :]]
+
+def format_timed_text(segments, key="text"):
+    """Tekstbestand met tijdcode. Lege zinnen blijven weg, de andere tijden niet."""
+    lines = []
+    for segment in segments:
+        text = spoken_text(segment, key)
+        if not text:
+            continue
+        lines.append(f"[{hhmmss_ms(segment['start'])} - {hhmmss_ms(segment['end'])}] {text}")
+    return "\n".join(lines)
+
+def write_srt(segments, path, text_key="text"):
+    """Schrijf ondertitels. Elke cue houdt de begin- en eindtijd van het segment."""
+    cues = []
+    number = 1
+    for segment in segments:
+        text = spoken_text(segment, text_key)
+        if not text:
+            continue
+        start = float(segment["start"])
+        end = float(segment["end"])
+        if end <= start:
+            end = start + 0.001
+        cues.append(f"{number}\n{srt_timestamp(start)} --> {srt_timestamp(end)}\n{text}\n")
+        number += 1
+    Path(path).write_text("\n".join(cues) + ("\n" if cues else ""), encoding="utf-8")
+
 def translate_segments(segments, source, stop, callback):
     import argostranslate.translate as tr
-    out=[]; total=max(1,len(segments))
-    for i, seg in enumerate(segments,1):
-        if stop.is_set(): raise StoppedByUser
-        item=dict(seg); item["translation"]=tr.translate(seg["text"],source,"nl").strip(); out.append(item)
-        callback(i/total)
+    out = []
+    total = max(1, len(segments))
+    for i, seg in enumerate(segments, 1):
+        if stop.is_set():
+            raise StoppedByUser
+        item = dict(seg)
+        text = spoken_text(seg, "text")
+        item["text"] = text
+        item["start"] = float(seg["start"])
+        item["end"] = float(seg["end"])
+        item["translation"] = tr.translate(text, source, "nl").strip() if text else ""
+        out.append(item)
+        callback(i / total)
     return out
 
 def run_piper(text, output, voice_name, stop, child_setter):
@@ -261,8 +333,12 @@ def build_synchronized_voice(segments, output, temp_dir, voice_name, max_speed_p
     rendered=[]; sample_rate=None; total=max(1,len(segments)); warnings=[]
     for i,seg in enumerate(segments):
         if stop.is_set(): raise StoppedByUser
+        phrase = spoken_text(seg, "translation")
+        if not phrase:
+            callback((i+1)/total)
+            continue
         wav=temp_dir/f"segment_{i:05d}.wav"
-        run_piper(seg.get("translation","") or " ",wav,voice_name,stop,child_setter)
+        run_piper(phrase,wav,voice_name,stop,child_setter)
         audio,sr=sf.read(str(wav),always_2d=True,dtype="float32"); sample_rate=sample_rate or sr
         if sr!=sample_rate:
             old=np.arange(len(audio),dtype=np.float64); n=max(1,round(len(audio)*sample_rate/sr)); new=np.linspace(0,max(0,len(audio)-1),n)
@@ -306,16 +382,274 @@ def mix_wavs(background, voice, output, bg_gain=1.0, voice_gain=1.0):
     if peak>0.98: mixed *= 0.98/peak
     sf.write(str(output), mixed, sr_bg, subtype="PCM_16")
 
+class TranscriptEditor(tk.Toplevel):
+    """Bewerk de herkende zinnen voordat de vertaling verdergaat.
+
+    De tijdlabels zijn niet bewerkbaar. Alleen de zin zelf verandert, tenzij de
+    gebruiker twee opeenvolgende herkende stukken samenvoegt. Samenvoegen houdt
+    de begintijd van het eerste stuk en de eindtijd van het tweede.
+    """
+
+    def __init__(self, master, segments, on_confirm, on_cancel, audio_path=None):
+        super().__init__(master)
+        self.title("Transcriptie bewerken")
+        self.on_confirm = on_confirm
+        self.on_cancel = on_cancel
+        self.audio_path = Path(audio_path) if audio_path else None
+        self._closed = False
+        self._history = []
+        self._text_widgets = []
+        self.segments = apply_transcript_edits(segments, [spoken_text(item) for item in segments])
+        self.original = [dict(item) for item in self.segments]
+        self.protocol("WM_DELETE_WINDOW", self._ask_cancel)
+        self.bind("<Escape>", lambda _event: self._ask_cancel())
+        self._build()
+        self._place()
+        self.transient(master)
+        self.after(50, self._focus_first)
+
+    def _build(self):
+        bar = ttk.Frame(self, padding=(12, 8))
+        bar.pack(side="bottom", fill="x")
+        self.continue_button = ttk.Button(bar, text="Vertaling starten", command=self._confirm)
+        self.continue_button.pack(side="left", padx=(0, 6))
+        ttk.Button(bar, text="Stoppen", command=self._ask_cancel).pack(side="left", padx=6)
+        self.undo_button = ttk.Button(bar, text="Ongedaan maken", command=self._undo)
+        self.undo_button.pack(side="left", padx=6)
+        ttk.Button(bar, text="Oorspronkelijke herkenning", command=self._restore).pack(side="left", padx=6)
+        self.count_var = tk.StringVar()
+        ttk.Label(self, textvariable=self.count_var).pack(side="bottom", anchor="w", padx=12, pady=(0, 4))
+        intro = (
+            "Pas de zinsbouw aan. De tijden blijven de tijdcode van de herkenning, "
+            "zodat de Nederlandse ondertitel en de Vlaamse stem op dezelfde plaats vallen. "
+            "Een leeg vak wordt niet uitgesproken en schuift de andere zinnen niet op. "
+            "Samenvoegen neemt de begintijd van deze zin en de eindtijd van de volgende. "
+            "Ctrl+Enter start de vertaling."
+        )
+        self.intro = ttk.Label(self, text=intro, wraplength=860, justify="left")
+        self.intro.pack(side="top", fill="x", padx=12, pady=(12, 6))
+        self.bind("<Configure>", self._wrap_intro, add="+")
+        host = ttk.Frame(self)
+        host.pack(side="top", fill="both", expand=True, padx=12, pady=(0, 4))
+        host.rowconfigure(0, weight=1)
+        host.columnconfigure(0, weight=1)
+        background = ttk.Style().lookup("TFrame", "background") or self.cget("bg")
+        self.canvas = tk.Canvas(host, highlightthickness=0, borderwidth=0, background=background)
+        scroll = tk.Scrollbar(host, orient="vertical", command=self.canvas.yview, width=16)
+        self.canvas.configure(yscrollcommand=scroll.set)
+        self.canvas.grid(row=0, column=0, sticky="nsew")
+        scroll.grid(row=0, column=1, sticky="ns")
+        self.list_frame = ttk.Frame(self.canvas, padding=(0, 0, 8, 8))
+        self.list_window = self.canvas.create_window((0, 0), window=self.list_frame, anchor="nw")
+        self.list_frame.bind("<Configure>", self._fit_list)
+        self.canvas.bind("<Configure>", self._fit_list)
+        self.canvas.bind("<MouseWheel>", self._wheel)
+        self.canvas.bind("<Button-4>", self._wheel)
+        self.canvas.bind("<Button-5>", self._wheel)
+        self.list_frame.bind("<MouseWheel>", self._wheel)
+        self.list_frame.bind("<Button-4>", self._wheel)
+        self.list_frame.bind("<Button-5>", self._wheel)
+        self._rebuild(0)
+
+    def _place(self):
+        self.update_idletasks()
+        screen_w = max(1, self.winfo_screenwidth())
+        screen_h = max(1, self.winfo_screenheight())
+        width = min(980, max(640, screen_w - 48))
+        height = min(860, max(420, screen_h - 120))
+        x = max(0, (screen_w - width) // 2)
+        y = max(0, (screen_h - height) // 8)
+        self.geometry(f"{width}x{height}+{x}+{y}")
+        self.minsize(min(700, screen_w), min(420, height))
+
+    def _wrap_intro(self, event):
+        if event.widget is self:
+            self.intro.configure(wraplength=max(280, event.width - 36))
+
+    def _fit_list(self, _event=None):
+        self.canvas.configure(scrollregion=self.canvas.bbox("all") or (0, 0, 0, 0))
+        self.canvas.itemconfigure(self.list_window, width=max(1, self.canvas.winfo_width()))
+
+    def _bind_wheel_tree(self, widget):
+        widget.bind("<MouseWheel>", self._wheel)
+        widget.bind("<Button-4>", self._wheel)
+        widget.bind("<Button-5>", self._wheel)
+        for child in widget.winfo_children():
+            self._bind_wheel_tree(child)
+
+    def _wheel(self, event):
+        try:
+            if getattr(event, "delta", 0):
+                step = int(-event.delta / 120) or (-1 if event.delta > 0 else 1)
+                self.canvas.yview_scroll(step, "units")
+            elif getattr(event, "num", None) == 4:
+                self.canvas.yview_scroll(-3, "units")
+            elif getattr(event, "num", None) == 5:
+                self.canvas.yview_scroll(3, "units")
+        except tk.TclError:
+            pass
+        return "break"
+
+    def _focus_first(self):
+        if self._text_widgets and not self._closed:
+            self._text_widgets[0].focus_set()
+
+    def _rebuild(self, focus_index):
+        for child in self.list_frame.winfo_children():
+            child.destroy()
+        self._text_widgets = []
+        self.list_frame.columnconfigure(0, weight=1)
+        can_listen = bool(self.audio_path and self.audio_path.is_file())
+        mono = ("TkFixedFont", 10)
+        try:
+            mono = self.master._mono_font(10)
+        except Exception:
+            pass
+        for index, segment in enumerate(self.segments):
+            block = ttk.Frame(self.list_frame, padding=(0, 6, 0, 2))
+            block.grid(row=index, column=0, sticky="ew")
+            block.columnconfigure(1, weight=1)
+            ttk.Label(block, text=f"{index + 1}.", width=4).grid(row=0, column=0, sticky="w")
+            times = f"tijd  {hhmmss_ms(segment['start'])}   →   {hhmmss_ms(segment['end'])}"
+            tk.Label(block, text=times, anchor="w", font=mono).grid(row=0, column=1, sticky="w")
+            actions = ttk.Frame(block)
+            actions.grid(row=0, column=2, sticky="e")
+            if can_listen:
+                ttk.Button(actions, text="Beluister", command=lambda i=index: self._play(i)).pack(side="left", padx=(0, 4))
+            if index < len(self.segments) - 1:
+                ttk.Button(actions, text="Samenvoegen met volgende", command=lambda i=index: self._merge(i)).pack(side="left")
+            widget = tk.Text(block, height=3, wrap="word", undo=True, font=mono)
+            widget.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(3, 0))
+            widget.insert("1.0", segment["text"])
+            widget.bind("<Control-Return>", self._confirm_event)
+            widget.bind("<Control-KP_Enter>", self._confirm_event)
+            widget.bind("<Tab>", lambda _event, i=index: self._focus_relative(i, 1))
+            widget.bind("<Shift-Tab>", lambda _event, i=index: self._focus_relative(i, -1))
+            self._text_widgets.append(widget)
+        self._bind_wheel_tree(self.list_frame)
+        count = len(self.segments)
+        self.count_var.set(f"{count} zin" if count == 1 else f"{count} zinnen")
+        self.undo_button.config(state="normal" if self._history else "disabled")
+        self._fit_list()
+        if self._text_widgets:
+            choice = min(max(0, focus_index), len(self._text_widgets) - 1)
+            self._text_widgets[choice].focus_set()
+
+    def _focus_relative(self, index, direction):
+        if not self._text_widgets:
+            return "break"
+        target = self._text_widgets[(index + direction) % len(self._text_widgets)]
+        target.focus_set()
+        target.see("1.0")
+        return "break"
+
+    def _confirm_event(self, _event=None):
+        self._confirm()
+        return "break"
+
+    def _collect(self):
+        texts = [widget.get("1.0", "end") for widget in self._text_widgets]
+        edited = apply_transcript_edits(self.segments, texts)
+        self.segments = edited
+        return edited
+
+    def _merge(self, index):
+        current = self._collect()
+        self._history.append(current)
+        self.segments = merge_transcript_segments(current, index)
+        self._rebuild(index)
+
+    def _undo(self):
+        if not self._history or self._closed:
+            return
+        self.segments = self._history.pop()
+        self._rebuild(0)
+
+    def _restore(self):
+        if self._closed:
+            return
+        self._history.append(self._collect())
+        self.segments = [dict(item) for item in self.original]
+        self._rebuild(0)
+
+    def _play(self, index):
+        current = self._collect()
+        segment = current[index]
+        start = float(segment["start"])
+        end = max(start, float(segment["end"]))
+        try:
+            import sounddevice as sd
+            import soundfile as sf
+        except ImportError:
+            messagebox.showinfo(APP_TITLE, "Beluisteren vraagt soundfile en sounddevice.\n" + install_command_hint(), parent=self)
+            return
+        try:
+            with sf.SoundFile(str(self.audio_path)) as handle:
+                handle.seek(min(len(handle), max(0, round(start * handle.samplerate))))
+                frames = max(1, round((end - start) * handle.samplerate))
+                data = handle.read(frames, dtype="float32", always_2d=False)
+                rate = handle.samplerate
+            sd.stop()
+            sd.play(data, rate)
+        except Exception as exc:
+            messagebox.showerror(APP_TITLE, "Dit fragment kon niet worden afgespeeld.\n" + str(exc), parent=self)
+
+    def _stop_audio(self):
+        try:
+            import sounddevice as sd
+            sd.stop()
+        except Exception:
+            pass
+
+    def _confirm(self):
+        if self._closed:
+            return
+        edited = self._collect()
+        if not any(item["text"] for item in edited):
+            messagebox.showerror(
+                APP_TITLE,
+                "Er is geen zin over. Herstel de herkenning, of laat minstens één zin staan.",
+                parent=self,
+            )
+            return
+        self._closed = True
+        self._stop_audio()
+        callback = self.on_confirm
+        self.on_confirm = lambda _edited: None
+        self.destroy()
+        callback(edited)
+
+    def _ask_cancel(self):
+        if self._closed:
+            return
+        if not messagebox.askyesno(APP_TITLE, "De bewerking sluiten en de vertaling stoppen?", parent=self):
+            return
+        self.close_for_stop()
+
+    def close_for_stop(self):
+        if self._closed:
+            return
+        self._closed = True
+        self._stop_audio()
+        callback = self.on_cancel
+        self.on_cancel = lambda: None
+        try:
+            self.destroy()
+        except tk.TclError:
+            pass
+        callback()
+
 class App(tk.Tk):
     def __init__(self):
         super().__init__(); self.title(f"{APP_TITLE} {APP_VERSION}"); self.geometry("1180x900"); self.minsize(920,640)
-        self.q=queue.Queue(); self.stop_event=threading.Event(); self.worker=None; self.child=None
+        self.q=queue.Queue(); self.stop_event=threading.Event(); self.edit_ready=threading.Event(); self.worker=None; self.child=None
+        self._transcript_editor=None; self._edit_result=None
         self.started=None; self.elapsed_before=0.; self.progress=0.; self.state=None
         self.source=tk.StringVar(); self.outdir=tk.StringVar(value=str(BASE_DIR/"Output"))
         self.language=tk.StringVar(value="Frans"); self.whisper=tk.StringVar(value="small")
         self.voice_choice=tk.StringVar(value=DEFAULT_VOICE_LABEL)
         self.use_uvr=tk.BooleanVar(value=True); self.keep_stems=tk.BooleanVar(value=True)
-        self.sync_timing=tk.BooleanVar(value=True); self.max_speed=tk.IntVar(value=15)
+        self.sync_timing=tk.BooleanVar(value=True); self.edit_transcript=tk.BooleanVar(value=True); self.max_speed=tk.IntVar(value=15)
         self.bg_volume=tk.DoubleVar(value=100); self.voice_volume=tk.DoubleVar(value=100)
         self.bg_volume_text=tk.StringVar(value="100%"); self.voice_volume_text=tk.StringVar(value="100%")
         self.hint=tk.StringVar(value="Installatie controleren...")
@@ -407,6 +741,8 @@ class App(tk.Tk):
         self.voice=ttk.Combobox(opt,textvariable=self.voice_choice,values=list(VOICES),state="readonly"); self.voice.current(0); self.voice.grid(row=1,column=2,sticky="ew")
         self.route_inline=tk.StringVar(value="")
         ttk.Label(opt,textvariable=self.route_inline,foreground="#555").grid(row=2,column=0,columnspan=3,sticky="w",pady=(6,0))
+        self.edit_check=ttk.Checkbutton(opt,text="Transcriptie bewerken voor de vertaling (tijden blijven staan)",variable=self.edit_transcript)
+        self.edit_check.grid(row=3,column=0,columnspan=3,sticky="w",pady=(6,0))
         u=ttk.LabelFrame(m,text="UVR: volumes en losse sporen",padding=8); u.grid(row=4,column=0,columnspan=3,sticky="ew",pady=6)
         u.columnconfigure(1,weight=1)
         self.keep_stems_check=ttk.Checkbutton(u,text="Losse UVR-sporen ook naar de uitvoermap kopiëren",variable=self.keep_stems); self.keep_stems_check.grid(row=0,column=0,columnspan=3,sticky="w",pady=(0,8))
@@ -722,7 +1058,7 @@ class App(tk.Tk):
         s=Path(source).resolve(); sig=f"{s}|{s.stat().st_mtime_ns}|{s.stat().st_size}"; jid=hashlib.sha256(sig.encode()).hexdigest()[:16]; d=JOB_DIR/f"{safe_name(s.stem)}_{jid}"
         return {"folder":d,"state":d/"state.json","transcript":d/"transcript.txt","translation":d/"translation_nl.txt","vocals":d/"uvr_vocals.wav","background":d/"uvr_background.wav","voice":d/"vlaamse_stem.wav","mixed":d/"vlaams_met_achtergrond.wav","uvr_out":d/"uvr_output","segments":d/"segments.json","translated_segments":d/"segments_nl.json","segment_audio":d/"segment_audio"}
     def default_state(self,s):
-        return {"source":str(Path(s).resolve()),"source_language":LANGUAGES.get(self.language.get(),"fr"),"model":self.whisper.get(),"voice":VOICES[self.voice_choice.get()],"voice_label":self.voice_choice.get(),"use_uvr":bool(self.use_uvr.get()),"keep_stems":bool(self.keep_stems.get()),"bg_volume":int(round(float(self.bg_volume.get()))),"voice_volume":int(round(float(self.voice_volume.get()))),"sync_timing":bool(self.sync_timing.get()),"max_speed":int(self.max_speed.get()),"completed_steps":0,"elapsed":0.,"status":"nieuw","output_dir":str(Path(self.outdir.get() or BASE_DIR/"Output").resolve()),"output_file":"","last_error":""}
+        return {"source":str(Path(s).resolve()),"source_language":LANGUAGES.get(self.language.get(),"fr"),"model":self.whisper.get(),"voice":VOICES[self.voice_choice.get()],"voice_label":self.voice_choice.get(),"use_uvr":bool(self.use_uvr.get()),"keep_stems":bool(self.keep_stems.get()),"bg_volume":int(round(float(self.bg_volume.get()))),"voice_volume":int(round(float(self.voice_volume.get()))),"sync_timing":bool(self.sync_timing.get()),"edit_transcript":bool(self.edit_transcript.get()),"max_speed":int(self.max_speed.get()),"completed_steps":0,"elapsed":0.,"status":"nieuw","output_dir":str(Path(self.outdir.get() or BASE_DIR/"Output").resolve()),"output_file":"","subtitle_file":"","last_error":""}
     def load(self,p):
         try:return json.loads(p["state"].read_text(encoding="utf-8"))
         except:return None
@@ -785,7 +1121,7 @@ class App(tk.Tk):
         if voice_label not in VOICES:
             voice_label=next((name for name,key in VOICES.items() if key==st.get("voice")),None)
         if voice_label in VOICES: self.voice_choice.set(voice_label)
-        self.use_uvr.set(bool(st.get("use_uvr",False))); self.keep_stems.set(bool(st.get("keep_stems",True))); self.sync_timing.set(bool(st.get("sync_timing",True)))
+        self.use_uvr.set(bool(st.get("use_uvr",False))); self.keep_stems.set(bool(st.get("keep_stems",True))); self.sync_timing.set(bool(st.get("sync_timing",True))); self.edit_transcript.set(bool(st.get("edit_transcript",False)))
         try:
             self.bg_volume.set(float(st.get("bg_volume",100))); self.voice_volume.set(float(st.get("voice_volume",100)))
             speed=int(st.get("max_speed",15))
@@ -809,7 +1145,7 @@ class App(tk.Tk):
     def running(self,on):
         self.start.config(state="disabled" if on else "normal"); self.stop.config(state="normal" if on else "disabled")
         if on: self.resume.config(state="disabled")
-        for widget in (self.source_entry,self.out_entry,self.source_button,self.out_button,self.uvr_check,self.keep_stems_check,self.sync_check,self.bg_scale,self.voice_scale):
+        for widget in (self.source_entry,self.out_entry,self.source_button,self.out_button,self.uvr_check,self.keep_stems_check,self.sync_check,self.edit_check,self.bg_scale,self.voice_scale):
             widget.config(state="disabled" if on else "normal")
         for widget in (self.lang,self.model,self.voice,self.speed_box):
             widget.config(state="disabled" if on else "readonly")
@@ -825,6 +1161,9 @@ class App(tk.Tk):
         except Exception: pass
     def request_stop(self):
         self.stop_event.set(); self.status.set("Stop aangevraagd..."); self.stop.config(state="disabled")
+        editor=getattr(self,"_transcript_editor",None)
+        if editor is not None:
+            editor.close_for_stop()
         threading.Thread(target=self._stop_child,daemon=True).start()
     def check_stop(self):
         if self.stop_event.is_set():raise StoppedByUser
@@ -835,6 +1174,44 @@ class App(tk.Tk):
         self._refresh_hint()
     def stage(self,i,f,msg):
         f=max(0,min(1,float(f))); val=(sum(WEIGHTS[:i])+WEIGHTS[i]*f)*100; self.progress=val; self.q.put(("progress",val,i,msg))
+    def wait_for_transcript_edit(self, segments, audio_path):
+        """Wacht tot het venster de gecorrigeerde zinnen teruggeeft. Tijden blijven staan."""
+        self.edit_ready.clear()
+        self._edit_result=None
+        payload=[{"start":float(item["start"]),"end":float(item["end"]),"text":spoken_text(item)} for item in segments]
+        self.stage(3,0,f"Bewerk de {len(payload)} herkende zinnen. De tijden blijven staan.")
+        audio="" if audio_path is None else str(audio_path)
+        self.q.put(("edit_transcript",payload,audio))
+        while not self.edit_ready.wait(0.2):
+            if self.stop_event.is_set():
+                raise StoppedByUser
+        if self.stop_event.is_set() or self._edit_result is None:
+            raise StoppedByUser
+        return self._edit_result
+    def _open_transcript_editor(self, segments, audio_path):
+        if self.stop_event.is_set() or not (self.worker and self.worker.is_alive()):
+            self._edit_result=None
+            self.edit_ready.set()
+            return
+        if self._transcript_editor is not None:
+            return
+        def confirm(edited):
+            self._transcript_editor=None
+            self._edit_result=edited
+            self.edit_ready.set()
+        def cancel():
+            self._transcript_editor=None
+            self._edit_result=None
+            self.stop_event.set()
+            self.edit_ready.set()
+        try:
+            self._transcript_editor=TranscriptEditor(self, segments, confirm, cancel, audio_path or None)
+        except Exception as exc:
+            self._transcript_editor=None
+            self._edit_result=None
+            self.stop_event.set()
+            self.edit_ready.set()
+            messagebox.showerror(APP_TITLE, "De transcriptie kon niet worden geopend.\n"+str(exc))
     def finish(self,p,st,n):
         self.check_stop(); st["completed_steps"]=n; st["elapsed"]=self.elapsed_now(); st["status"]="bezig"; self.save(p,st); self.stage(n-1,1,f"Voltooid: {STEPS[n-1]}")
     def elapsed_now(self):return self.elapsed_before+(time.monotonic()-self.started if self.started else 0)
@@ -890,19 +1267,25 @@ class App(tk.Tk):
                     self.stage(2,min(.995,float(seg.end)/dur),f"Spraak herkennen: {seg.end:.0f}/{dur:.0f} sec")
                 text=" ".join(parts).strip()
                 if not text:raise RuntimeError("Whisper heeft geen spraak herkend.")
-                p["transcript"].write_text("\n".join(f"[{hhmmss_ms(x['start'])} - {hhmmss_ms(x['end'])}] {x['text']}" for x in timed),encoding="utf-8")
+                p["transcript"].write_text(format_timed_text(timed),encoding="utf-8")
                 p["segments"].write_text(json.dumps(timed,ensure_ascii=False,indent=2),encoding="utf-8"); self.finish(p,st,3); done=3
             if done<4:
+                timed=json.loads(p["segments"].read_text(encoding="utf-8"))
+                if st.get("edit_transcript"):
+                    timed=self.wait_for_transcript_edit(timed, recognition_source)
+                    p["segments"].write_text(json.dumps(timed,ensure_ascii=False,indent=2),encoding="utf-8")
+                    p["transcript"].write_text(format_timed_text(timed),encoding="utf-8")
+                    st["transcript_edited"]=True
+                    self.save(p,st)
                 note=translation_route_note(st["source_language"])
                 self.stage(3,.01,"Vertaalpakket controleren. "+note if note else "Vertaalpakket controleren...")
                 from telecine_setup import ensure_argos_package
                 ensure_argos_package(st["source_language"])
-                timed=json.loads(p["segments"].read_text(encoding="utf-8"))
                 busy="Segmenten naar Nederlands vertalen. "+note if note else "Segmenten naar Nederlands vertalen..."
                 translated=translate_segments(timed,st["source_language"],self.stop_event,lambda f:self.stage(3,f,busy))
                 if not any(x.get("translation","").strip() for x in translated):raise RuntimeError("De vertaling is leeg.")
                 p["translated_segments"].write_text(json.dumps(translated,ensure_ascii=False,indent=2),encoding="utf-8")
-                p["translation"].write_text("\n".join(f"[{hhmmss_ms(x['start'])} - {hhmmss_ms(x['end'])}] {x['translation']}" for x in translated),encoding="utf-8"); self.finish(p,st,4); done=4
+                p["translation"].write_text(format_timed_text(translated,"translation"),encoding="utf-8"); self.finish(p,st,4); done=4
             if done<5:
                 self.stage(4,.01,"Gesynchroniseerde Vlaamse segmenten genereren..."); p["voice"].unlink(missing_ok=True)
                 translated=json.loads(p["translated_segments"].read_text(encoding="utf-8"))
@@ -911,7 +1294,7 @@ class App(tk.Tk):
                     warnings=build_synchronized_voice(translated,p["voice"],p["segment_audio"],st["voice"],int(st.get("max_speed",15)),src_duration,self.stop_event,lambda f:self.stage(4,f,"Vlaamse segmenten op tijdcode plaatsen..."),lambda proc:setattr(self,"child",proc))
                     st["timing_warnings"]=warnings
                 else:
-                    full=" ".join(x.get("translation","") for x in translated)
+                    full=" ".join(spoken_text(x,"translation") for x in translated if spoken_text(x,"translation"))
                     run_piper(full,p["voice"],st["voice"],self.stop_event,lambda proc:setattr(self,"child",proc))
                 self.queue_measure("voice",p["voice"],"voice_raw"); self.finish(p,st,5); done=5
             if done<6:
@@ -924,10 +1307,14 @@ class App(tk.Tk):
                 self.stage(6,.2,"Resultaten opslaan..."); out=Path(st["output_dir"]); out.mkdir(parents=True,exist_ok=True); stem=safe_name(source.stem)
                 final=out/f"{stem}_Vlaams_met_achtergrond.wav" if st.get("use_uvr") else out/f"{stem}_Vlaams.wav"; shutil.copy2(p["mixed"],final)
                 shutil.copy2(p["transcript"],out/f"{stem}_transcript_{st['source_language']}.txt"); shutil.copy2(p["translation"],out/f"{stem}_vertaling_nl.txt")
+                source_segments=json.loads(p["segments"].read_text(encoding="utf-8")); translated_segments=json.loads(p["translated_segments"].read_text(encoding="utf-8"))
+                source_srt=out/f"{stem}_transcript_{st['source_language']}.srt"; dutch_srt=out/f"{stem}_vertaling_nl.srt"
+                write_srt(source_segments,source_srt,"text"); write_srt(translated_segments,dutch_srt,"translation")
+                st["subtitle_file"]=str(dutch_srt)
                 if st.get("use_uvr") and st.get("keep_stems"):
                     shutil.copy2(p["vocals"],out/f"{stem}_UVR_stem.wav"); shutil.copy2(p["background"],out/f"{stem}_UVR_achtergrond.wav")
                 st["output_file"]=str(final); self.finish(p,st,7)
-            st["status"]="voltooid"; st["elapsed"]=self.elapsed_now(); self.save(p,st); self.q.put(("completed",st["output_file"]))
+            st["status"]="voltooid"; st["elapsed"]=self.elapsed_now(); self.save(p,st); self.q.put(("completed",st["output_file"],st.get("subtitle_file","")))
         except StoppedByUser:
             st["status"]="gestopt"; st["elapsed"]=self.elapsed_now(); self.save(p,st); self.q.put(("stopped",st.get("completed_steps",0)))
         except Exception as e:
@@ -958,6 +1345,9 @@ class App(tk.Tk):
                 elif kind=="meter_error":
                     self.hint.set("Niveau niet gemeten: "+x[2])
                     if hasattr(self,"hint_label"): self.hint_label.configure(fg="#8a3b00")
+                elif kind=="edit_transcript":
+                    _,segments,audio=x
+                    self._open_transcript_editor(segments,audio)
                 elif kind=="progress":
                     _,v,i,msg=x; self.set_progress(v); self.status.set(msg); self.step.set(f"Stap {i+1} van {len(STEPS)}: {STEPS[i]}"); self.show_steps(i,"running")
                 elif kind=="stopped":
@@ -965,7 +1355,8 @@ class App(tk.Tk):
                 elif kind=="completed":
                     self.stop_audio(); self.play_status.set("Eindmix gereed voor live afspelen")
                     done_note=translation_route_note((self.state or {}).get("source_language",""))
-                    self.set_progress(100); self.running(False); self.resume.config(state="disabled"); self.status.set("Klaar! "+done_note if done_note else "Klaar!"); self.remaining.set("00:00:00"); self.show_steps(len(STEPS),"completed"); messagebox.showinfo(APP_TITLE,"Verwerking voltooid.\n\n"+x[1]+(("\n\n"+done_note) if done_note else "")+("\n\nLet op: enkele segmenten waren langer dan hun tijdvak en kunnen overlappen." if self.state and self.state.get("timing_warnings") else ""))
+                    srt=x[2] if len(x)>2 and x[2] else ""
+                    self.set_progress(100); self.running(False); self.resume.config(state="disabled"); self.status.set("Klaar! "+done_note if done_note else "Klaar!"); self.remaining.set("00:00:00"); self.show_steps(len(STEPS),"completed"); messagebox.showinfo(APP_TITLE,"Verwerking voltooid.\n\n"+x[1]+(("\n\nNederlandse ondertitels:\n"+srt) if srt else "")+(("\n\n"+done_note) if done_note else "")+("\n\nLet op: enkele segmenten waren langer dan hun tijdvak en kunnen overlappen." if self.state and self.state.get("timing_warnings") else ""))
                 elif kind=="error":
                     _,err,n=x; self.running(False); self.resume.config(state="normal"); self.status.set("Fout tijdens verwerking"); self.resume_text.set(f"Hervatten vanaf stap {n+1}: {STEPS[min(n,len(STEPS)-1)]}"); self.show_steps(min(n,len(STEPS)-1),"error"); messagebox.showerror(APP_TITLE,err)
         except queue.Empty:pass
