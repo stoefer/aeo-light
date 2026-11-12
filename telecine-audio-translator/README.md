@@ -51,7 +51,10 @@ Op Linux start je `./start.sh` in een terminal, zodat de melding zichtbaar blijf
 ## Tijdens het gebruik
 
 - Bron: een WAV-bestand.
-- Resultaat: de map `Output` (knop **UITVOERMAP OPENEN**).
+- Resultaat: de map `Output` (knop **UITVOERMAP OPENEN**). Daar staan de Vlaamse WAV, de tekstbestanden en de ondertitels `..._vertaling_nl.srt` en `..._transcript_<taal>.srt`.
+- **Transcriptie bewerken voor de vertaling** staat standaard aan. Na de spraakherkenning verschijnt een venster met elke zin en haar begin- en eindtijd. Pas de zinsbouw aan en kies **Vertaling starten**.
+- **Nederlandse vertaling bewerken voor de spraak** staat ook standaard aan. Na de vertaling kun je het Nederlands corrigeren. De bronzin staat erboven. Kies daarna **Spraak starten**. De tijden blijven die van de herkenning, zodat de Nederlandse ondertitel en de Vlaamse stem op dezelfde plaats vallen.
+- Een leeg vak wordt niet uitgesproken en schuift de andere zinnen niet op. **Samenvoegen met volgende** maakt van twee opeenvolgende stukken één zin, van de eerste begintijd tot de tweede eindtijd. Zet een vinkje uit als die stap automatisch mag doorlopen.
 - De niveaumeters, het vinkje voor stemscheiding, de afspeelknoppen, **AUDIO VERTALEN**, **STOP**, **HERVATTEN**, **UITVOERMAP OPENEN** en het voortgangsvak blijven in beeld. Volumes en synchronisatie schuiven mee als het venster te laag is.
 - Ontbreekt een stem, eSpeak NG, stemscheiding of een vertaalpakket, dan staat dat in het vak boven de knoppen.
 - Stemscheiding (UVR) is standaard aan en is een grote extra download. Lukt die niet, vink **Stem met UVR scheiden** uit. Het programma start dan nog steeds.
