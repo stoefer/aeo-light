@@ -1,8 +1,15 @@
-# AEO-Light 3.1.59 (fork release)
+# AEO-Light 3.1.60 (fork release)
 
-Deze 3.1.59 patchrelease fixt de Windows release-build voor de linker-zoekzone update, zodat de GitHub release opnieuw correct gepubliceerd wordt.
+Deze 3.1.60 patchrelease verbetert de verticale UI-layout op HD-schermen, zodat overlappende velden in A/V-track verdwijnen en er meer leesruimte ontstaat.
 
-## Nieuw in 3.1.59
+## Nieuw in 3.1.60
+- Verdere HD-layout finetuning voor de A/V-track tab:
+  - extra verticale ruimte voor Optical Audio, Frame Pitch en Video blokken
+  - grotere verticale spacing en binnenmarges tussen labels, sliders en invoervelden
+  - actieknoppen onderaan de sectie schuiven netjes mee naar beneden
+- Horizontale uitlijning/breedtes blijven ongewijzigd.
+
+## Eerder toegevoegd in 3.1.59
 - Buildfix voor Windows release pipeline:
   - compilefout opgelost (`std::max(int, unsigned int)`) in de nieuwe linker-zoekzone code.
   - gevolg: release-workflow kan opnieuw succesvol bouwen en publiceren.
@@ -368,28 +375,28 @@ Deze 3.1.59 patchrelease fixt de Windows release-build voor de linker-zoekzone u
 4. Als SmartScreen waarschuwt: klik **Meer informatie** → **Toch uitvoeren**.
 
 ## Ultra-korte package checklist (5 punten)
-- [ ] Release-tag = `v3.1.59`.
+- [ ] Release-tag = `v3.1.60`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` staat op de release.
 - [ ] ZIP uitgepakt naar een lokale map.
-- [ ] `AEO-Light.exe` start en toont versie **3.1.59**.
+- [ ] `AEO-Light.exe` start en toont versie **3.1.60**.
 - [ ] Korte **Test Run** slaagt en maakt output aan.
 
-## Package checklist (v3.1.59, Windows x64)
-- [ ] Release-tag is `v3.1.59`.
+## Package checklist (v3.1.60, Windows x64)
+- [ ] Release-tag is `v3.1.60`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` is aanwezig op de releasepagina.
 - [ ] ZIP uitgepakt naar een lokale map (niet rechtstreeks uit de ZIP starten).
 - [ ] In de uitgepakte map staan minimaal:
   - `AEO-Light.exe`
   - `LICENSE.txt`
   - `ffmpeg.exe`
-- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.59**.
+- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.60**.
 - [ ] Snelle rooktest:
   - bron laden
   - korte **Test Run** uitvoeren
   - outputbestand wordt aangemaakt
 - [ ] (Optioneel) checksumcontrole van download:
   - `certutil -hashfile AEO-Light-Windows-x64.zip SHA256`
-  - verwacht: waarde op de `v3.1.59` releasepagina
+  - verwacht: waarde op de `v3.1.60` releasepagina
 
 ## Snelle start (aanbevolen)
 - Container: **MP4**
