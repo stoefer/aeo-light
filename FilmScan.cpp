@@ -545,6 +545,7 @@ void FilmScan::Reset()
 			cleanupDir.removeRecursively();
 		generatedFrameDir.clear();
 	}
+	explicitFramePath.clear();
 
 	inputName.clear();
 }
@@ -827,6 +828,7 @@ bool FilmScan::SourceIdentifyImageSet(const std::string filename)
 		assignPathNameAndBuffer(dirPath, fixedName, 0);
 		this->firstFrame = 1;
 		this->numFrames = 1;
+		this->explicitFramePath = sourceInfo.absoluteFilePath();
 		return true;
 	};
 
@@ -907,6 +909,8 @@ bool FilmScan::SourceIdentifyImageSet(const std::string filename)
 	patternName.replace("%", "%%");
 	patternName += QString("%%0%1ld.%2").arg(numDigits).arg(extension);
 	assignPathNameAndBuffer(dirPath, patternName, 16);
+	this->explicitFramePath = (this->numFrames == 1) ?
+			sourceInfo.absoluteFilePath() : QString();
 	return true;
 }
 
@@ -1340,6 +1344,7 @@ FilmScan::~FilmScan()
 			cleanupDir.removeRecursively();
 		this->generatedFrameDir.clear();
 	}
+	this->explicitFramePath.clear();
 	#ifdef USELIBAV
 	if(this->vid) delete this->vid;
 	#endif
@@ -1366,12 +1371,28 @@ double* FilmScan::GetFrame(long frameNum, double *buf) const
 		buf = ReadFrameTIFF(fnbuf, buf);
 		break;
 	case SOURCE_JPEG:
-		sprintf(this->fnbuf+strlen(this->path)+1, this->name, frameNum);
-		buf = ReadFrameJPG(fnbuf, buf);
+		if(!this->explicitFramePath.isEmpty() && this->numFrames == 1)
+		{
+			const QByteArray explicitUtf8 = this->explicitFramePath.toUtf8();
+			buf = ReadFrameJPG(explicitUtf8.constData(), buf);
+		}
+		else
+		{
+			sprintf(this->fnbuf+strlen(this->path)+1, this->name, frameNum);
+			buf = ReadFrameJPG(fnbuf, buf);
+		}
 		break;
 	case SOURCE_PNG:
-		sprintf(this->fnbuf+strlen(this->path)+1, this->name, frameNum);
-		buf = ReadFramePNG(fnbuf, buf);
+		if(!this->explicitFramePath.isEmpty() && this->numFrames == 1)
+		{
+			const QByteArray explicitUtf8 = this->explicitFramePath.toUtf8();
+			buf = ReadFramePNG(explicitUtf8.constData(), buf);
+		}
+		else
+		{
+			sprintf(this->fnbuf+strlen(this->path)+1, this->name, frameNum);
+			buf = ReadFramePNG(fnbuf, buf);
+		}
 		break;
 	case SOURCE_LIBAV:
 #ifdef USELIBAV
@@ -1440,16 +1461,36 @@ FrameTexture* FilmScan::GetFrameImage(long frameNum, FrameTexture *frame) const
 				frame->format, frame->nComponents);
 		break;
 	case SOURCE_JPEG:
-		sprintf(this->fnbuf+strlen(this->path)+1, this->name, frameNum);
-		frame->buf = ReadFrameJPG_ImageData(fnbuf, frame->buf,
-				frame->width, frame->height, frame->isNonNativeEndianess,
-				frame->format, frame->nComponents);
+		if(!this->explicitFramePath.isEmpty() && this->numFrames == 1)
+		{
+			const QByteArray explicitUtf8 = this->explicitFramePath.toUtf8();
+			frame->buf = ReadFrameJPG_ImageData(explicitUtf8.constData(), frame->buf,
+					frame->width, frame->height, frame->isNonNativeEndianess,
+					frame->format, frame->nComponents);
+		}
+		else
+		{
+			sprintf(this->fnbuf+strlen(this->path)+1, this->name, frameNum);
+			frame->buf = ReadFrameJPG_ImageData(fnbuf, frame->buf,
+					frame->width, frame->height, frame->isNonNativeEndianess,
+					frame->format, frame->nComponents);
+		}
 		break;
 	case SOURCE_PNG:
-		sprintf(this->fnbuf+strlen(this->path)+1, this->name, frameNum);
-		frame->buf = ReadFramePNG_ImageData(fnbuf, frame->buf,
-				frame->width, frame->height, frame->isNonNativeEndianess,
-				frame->format, frame->nComponents);
+		if(!this->explicitFramePath.isEmpty() && this->numFrames == 1)
+		{
+			const QByteArray explicitUtf8 = this->explicitFramePath.toUtf8();
+			frame->buf = ReadFramePNG_ImageData(explicitUtf8.constData(), frame->buf,
+					frame->width, frame->height, frame->isNonNativeEndianess,
+					frame->format, frame->nComponents);
+		}
+		else
+		{
+			sprintf(this->fnbuf+strlen(this->path)+1, this->name, frameNum);
+			frame->buf = ReadFramePNG_ImageData(fnbuf, frame->buf,
+					frame->width, frame->height, frame->isNonNativeEndianess,
+					frame->format, frame->nComponents);
+		}
 		break;
 	case SOURCE_LIBAV:
 #ifdef USELIBAV

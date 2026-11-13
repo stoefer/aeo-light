@@ -147,6 +147,7 @@ private:
 #endif
 	wav *synth = NULL;
 	QString generatedFrameDir;
+	QString explicitFramePath;
 
 	std::string inputName;
 
