@@ -526,6 +526,8 @@ private:
 	void CaptureUiScaleBaseGeometry();
 	void UpdateAdaptiveUiScale();
 	void PositionExtractTabAuxSections();
+	void PositionTransportBarBelowTabs();
+	void ArrangeQueueActionBar();
 	void RestoreUiWindowSettings();
 	void SaveUiWindowSettings() const;
 	QString SerializeCurrentSettings();

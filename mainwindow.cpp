@@ -75,6 +75,8 @@
 #include <QMap>
 #include <QVBoxLayout>
 #include <QSlider>
+#include <QAbstractButton>
+#include <QSizePolicy>
 #include <QVariantMap>
 #include <QFontMetrics>
 
@@ -1412,10 +1414,18 @@ MainWindow::MainWindow(QWidget *parent) :
 		if(movedViewLayout)
 		{
 			movedViewLayout->setParent(nullptr);
+			// The designer spacer only existed to fill the old bottom strip.
+			// Inside the Extract group it stretches the box over the slider.
+			for(int i = movedViewLayout->count() - 1; i >= 0; --i)
+			{
+				QLayoutItem *item = movedViewLayout->itemAt(i);
+				if(item && item->spacerItem())
+					delete movedViewLayout->takeAt(i);
+			}
 			extractViewOptionsGroupBox = new QGroupBox(tr("View options"), ui->tab_3);
 			extractViewOptionsGroupBox->setObjectName("extractViewOptionsGroupBox");
 			QVBoxLayout *extractViewOptionsLayout = new QVBoxLayout(extractViewOptionsGroupBox);
-			extractViewOptionsLayout->setContentsMargins(8, 8, 8, 8);
+			extractViewOptionsLayout->setContentsMargins(8, 16, 8, 8);
 			extractViewOptionsLayout->setSpacing(4);
 			extractViewOptionsLayout->addLayout(movedViewLayout);
 			if(ui->label_3)
@@ -1804,7 +1814,14 @@ void MainWindow::CaptureUiScaleBaseGeometry()
 	uiScaleBaseGeometry.clear();
 	uiScaleBaseFontPt.clear();
 
-	const QList<QWidget*> topChildren = cw->findChildren<QWidget*>(
+	// The positioned panels live on the scroll contents, not on the
+	// QScrollArea itself. Capturing the scroll area missed the tab and
+	// the transport bar, so the bar stayed on top of Extract A/V.
+	QWidget *layoutRoot = (ui && ui->scrollAreaWidgetContents) ?
+			ui->scrollAreaWidgetContents : cw;
+	uiScaleBaseGeometry.insert(layoutRoot, layoutRoot->geometry());
+
+	const QList<QWidget*> topChildren = layoutRoot->findChildren<QWidget*>(
 			QString(), Qt::FindDirectChildrenOnly);
 	for(QWidget *w : topChildren)
 	{
@@ -1829,17 +1846,29 @@ void MainWindow::PositionExtractTabAuxSections()
 {
 	if(!ui || !ui->tab_3) return;
 	const int margin = 10;
-	const int gap = 8;
+	const int gap = 10;
 	const int tabWidth = std::max(280, ui->tab_3->width() - (2 * margin));
-	const int tabHeight = std::max(200, ui->tab_3->height());
 	int nextY = margin;
 	if(ui->extractOutputGroupBox)
-		nextY = ui->extractOutputGroupBox->geometry().bottom() + gap + 1;
+	{
+		QGroupBox *output = ui->extractOutputGroupBox;
+		int hinted = output->minimumSizeHint().height();
+		if(hinted < output->height() || hinted > 480)
+			hinted = output->height();
+		if(output->height() < hinted)
+		{
+			QRect outputRect = output->geometry();
+			outputRect.setHeight(hinted);
+			output->setGeometry(outputRect);
+		}
+		nextY = output->geometry().bottom() + gap + 1;
+	}
 
 	if(extractViewOptionsGroupBox)
 	{
-		const int viewHeight = std::max(
-				116, extractViewOptionsGroupBox->sizeHint().height() + 4);
+		const int viewHeight = std::min(
+				260,
+				std::max(188, extractViewOptionsGroupBox->sizeHint().height() + 6));
 		extractViewOptionsGroupBox->setGeometry(
 				margin,
 				nextY,
@@ -1850,17 +1879,203 @@ void MainWindow::PositionExtractTabAuxSections()
 
 	if(ui->gridLayoutWidget_3)
 	{
-		const int sampleHeight = std::max(
-				120, ui->gridLayoutWidget_3->sizeHint().height() + 2);
-		int sampleY = nextY;
-		if((sampleY + sampleHeight + margin) > tabHeight)
-			sampleY = std::max(nextY, tabHeight - sampleHeight - margin);
+		// Four sample rows plus Auto Load Settings. Do not pull this
+		// block upward: that hid the lower rows under the tab edge.
+		const int sampleHeight = std::min(
+				220,
+				std::max(168, ui->gridLayoutWidget_3->sizeHint().height() + 8));
+		ui->gridLayoutWidget_3->setMinimumHeight(sampleHeight);
 		ui->gridLayoutWidget_3->setGeometry(
 				margin,
-				sampleY,
+				nextY,
 				tabWidth,
 				sampleHeight);
+		nextY += sampleHeight + margin;
 	}
+
+	if(ui->tabWidget)
+	{
+		const int tabBarHeight = ui->tabWidget->tabBar() ?
+				std::max(28, ui->tabWidget->tabBar()->height()) : 34;
+		const int neededTabHeight = tabBarHeight + nextY + 12;
+		ui->tab_3->setMinimumHeight(nextY + 4);
+		if(ui->tabWidget->height() < neededTabHeight)
+		{
+			QRect tabRect = ui->tabWidget->geometry();
+			tabRect.setHeight(neededTabHeight);
+			ui->tabWidget->setGeometry(tabRect);
+		}
+	}
+}
+
+void MainWindow::PositionTransportBarBelowTabs()
+{
+	if(!ui || !ui->horizontalLayoutWidget_2 || !ui->tabWidget) return;
+
+	QRect bar = ui->horizontalLayoutWidget_2->geometry();
+	if(uiScaleBaseGeometry.contains(ui->horizontalLayoutWidget_2))
+		bar.setHeight(uiScaleBaseGeometry.value(ui->horizontalLayoutWidget_2).height());
+	else if(bar.height() < 90)
+		bar.setHeight(114);
+
+	const QRect tabRect = ui->tabWidget->geometry();
+	bar.moveTop(tabRect.bottom() + 12);
+	bar.moveLeft(tabRect.left() + 18);
+	bar.setWidth(std::max(420, tabRect.width() - 36));
+	ui->horizontalLayoutWidget_2->setGeometry(bar);
+	ui->horizontalLayoutWidget_2->raise();
+
+	if(ui->playSlider)
+	{
+		// The view-options column used to share this row. Without a cap
+		// the slider stretches across the whole panel.
+		ui->playSlider->setMinimumWidth(280);
+		ui->playSlider->setMaximumWidth(420);
+		ui->playSlider->setFixedHeight(22);
+		ui->playSlider->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+	}
+	if(ui->horizontalLayout_4)
+	{
+		for(int i = 0; i < ui->horizontalLayout_4->count(); ++i)
+		{
+			QLayoutItem *item = ui->horizontalLayout_4->itemAt(i);
+			if(item && item->spacerItem())
+			{
+				item->spacerItem()->changeSize(
+						24, 20, QSizePolicy::Fixed, QSizePolicy::Minimum);
+			}
+		}
+		ui->horizontalLayout_4->invalidate();
+	}
+	if(ui->horizontalLayout_3 &&
+			!ui->horizontalLayoutWidget_2->property("transportBarSpacerAdded").toBool())
+	{
+		ui->horizontalLayout_3->addStretch(1);
+		ui->horizontalLayoutWidget_2->setProperty("transportBarSpacerAdded", true);
+	}
+	if(ui->horizontalLayout_3 && ui->horizontalLayout_3->count() > 1)
+	{
+		ui->horizontalLayout_3->setStretch(0, 0);
+		ui->horizontalLayout_3->setStretch(ui->horizontalLayout_3->count() - 1, 1);
+	}
+}
+
+void MainWindow::ArrangeQueueActionBar()
+{
+	if(!ui || !ui->horizontalLayoutWidget_4 || !ui->horizontalLayout_7)
+		return;
+
+	QWidget *bar = ui->horizontalLayoutWidget_4;
+	if(!bar->property("queueActionBarArranged").toBool())
+	{
+		auto detach = [this](QWidget *widget)
+		{
+			if(!widget || !ui->horizontalLayout_7) return;
+			for(int i = 0; i < ui->horizontalLayout_7->count(); ++i)
+			{
+				QLayoutItem *item = ui->horizontalLayout_7->itemAt(i);
+				if(item && item->widget() == widget)
+				{
+					ui->horizontalLayout_7->takeAt(i);
+					delete item;
+					return;
+				}
+			}
+		};
+
+		const QList<QWidget*> row0 = {
+			ui->queueImportVFBClipsButton,
+			ui->queueStopAfterCurrentCheckBox,
+			ui->queueSavePresetButton,
+			ui->queueLoadPresetButton,
+			ui->queueDeletePresetButton
+		};
+		const QList<QWidget*> row1 = {
+			ui->queuePauseResumeButton,
+			ui->queueSkipCurrentButton,
+			ui->queueRetryFailedButton,
+			ui->queueExtractButton
+		};
+		for(QWidget *widget : row0)
+			detach(widget);
+		for(QWidget *widget : row1)
+			detach(widget);
+		while(ui->horizontalLayout_7->count() > 0)
+		{
+			QLayoutItem *item = ui->horizontalLayout_7->takeAt(0);
+			delete item;
+		}
+
+		QGridLayout *grid = new QGridLayout();
+		grid->setContentsMargins(0, 2, 0, 2);
+		grid->setHorizontalSpacing(6);
+		grid->setVerticalSpacing(6);
+		auto place = [&](const QList<QWidget*> &row, int rowIndex)
+		{
+			int column = 0;
+			for(QWidget *widget : row)
+			{
+				if(!widget) continue;
+				grid->addWidget(widget, rowIndex, column);
+				grid->setColumnStretch(column, 1);
+				++column;
+			}
+		};
+		place(row0, 0);
+		place(row1, 1);
+		ui->horizontalLayout_7->setContentsMargins(0, 0, 0, 0);
+		ui->horizontalLayout_7->addLayout(grid);
+
+		auto twoLine = [](QAbstractButton *button, const QString &text, const QString &tip)
+		{
+			if(!button) return;
+			button->setText(text);
+			button->setToolTip(tip);
+			button->setMinimumHeight(40);
+		};
+		twoLine(ui->queueImportVFBClipsButton,
+				tr("Import\nfrom VFB"), tr("Import from VFB"));
+		twoLine(ui->queueStopAfterCurrentCheckBox,
+				tr("Stop na\nhuidig item"), tr("Stop na huidig item"));
+		twoLine(ui->queueSavePresetButton,
+				tr("Save\nQueue Preset"), tr("Save Queue Preset"));
+		twoLine(ui->queueLoadPresetButton,
+				tr("Load\nQueue Preset"), tr("Load Queue Preset"));
+		twoLine(ui->queueDeletePresetButton,
+				tr("Delete\nQueue Preset"), tr("Delete Queue Preset"));
+		bar->setProperty("queueActionBarArranged", true);
+	}
+
+	auto compactFont = [](QWidget *widget)
+	{
+		if(!widget) return;
+		QFont font = widget->font();
+		font.setPointSize(8);
+		widget->setFont(font);
+	};
+	const QList<QWidget*> queueButtons = {
+		ui->queueImportVFBClipsButton,
+		ui->queueStopAfterCurrentCheckBox,
+		ui->queueSavePresetButton,
+		ui->queueLoadPresetButton,
+		ui->queueDeletePresetButton,
+		ui->queuePauseResumeButton,
+		ui->queueSkipCurrentButton,
+		ui->queueRetryFailedButton,
+		ui->queueExtractButton
+	};
+	for(QWidget *widget : queueButtons)
+		compactFont(widget);
+
+	const int barX = 10;
+	const int barY = 220;
+	const int barW = 631;
+	const int barH = 98;
+	bar->setGeometry(barX, barY, barW, barH);
+	if(ui->queueBatchStatusLabel)
+		ui->queueBatchStatusLabel->setGeometry(barX, barY + barH + 8, barW, 36);
+	if(ui->horizontalLayoutWidget_8)
+		ui->horizontalLayoutWidget_8->setGeometry(barX, barY + barH + 50, barW, 28);
 }
 
 void MainWindow::UpdateAdaptiveUiScale()
@@ -2095,12 +2310,6 @@ void MainWindow::UpdateAdaptiveUiScale()
 	const int gridNeededHeight =
 			opticalNeeded + videoNeeded + tuning.rowSpacing + 24;
 
-	int tabHeightShift = 0;
-	if(ui->tabWidget && uiScaleBaseGeometry.contains(ui->tabWidget))
-	{
-		const QRect baseTabRect = uiScaleBaseGeometry.value(ui->tabWidget);
-		tabHeightShift = ui->tabWidget->geometry().height() - baseTabRect.height();
-	}
 	const int tabControlsShift = std::max(0, tuning.tabControlsOffsetY);
 
 	auto baseRectForWidget = [](QWidget *w) -> QRect
@@ -2176,59 +2385,28 @@ void MainWindow::UpdateAdaptiveUiScale()
 		}
 	}
 
-	if(ui->tabWidget && uiScaleBaseGeometry.contains(ui->tabWidget))
-	{
-		const QRect baseTabRect = uiScaleBaseGeometry.value(ui->tabWidget);
-		tabHeightShift = ui->tabWidget->geometry().height() - baseTabRect.height();
-	}
-
-	if(ui->horizontalLayoutWidget_2 &&
-			uiScaleBaseGeometry.contains(ui->horizontalLayoutWidget_2))
-	{
-		QRect viewRect = uiScaleBaseGeometry.value(ui->horizontalLayoutWidget_2);
-		viewRect.moveTop(viewRect.y() + tabHeightShift);
-		ui->horizontalLayoutWidget_2->setGeometry(viewRect);
-	}
-
-	const bool samplePanelInMainFlow = (
-			ui->gridLayoutWidget_3 &&
-			ui->gridLayoutWidget_3->parentWidget() == cw);
-
-	if(samplePanelInMainFlow &&
-			ui->gridLayoutWidget_3 &&
-			uiScaleBaseGeometry.contains(ui->gridLayoutWidget_3))
-	{
-		QRect sampleRect = uiScaleBaseGeometry.value(ui->gridLayoutWidget_3);
-		sampleRect.moveTop(sampleRect.y() + tabHeightShift);
-		if(ui->horizontalLayoutWidget_2)
-		{
-			const QRect viewRect = ui->horizontalLayoutWidget_2->geometry();
-			const int minTop = viewRect.bottom() + tuning.panelGap;
-			if(sampleRect.top() < minTop)
-				sampleRect.moveTop(minTop);
-		}
-		ui->gridLayoutWidget_3->setGeometry(sampleRect);
-	}
+	PositionExtractTabAuxSections();
+	PositionTransportBarBelowTabs();
+	ArrangeQueueActionBar();
 
 	if(ui->scrollAreaWidgetContents &&
 			uiScaleBaseGeometry.contains(ui->scrollAreaWidgetContents))
 	{
 		QRect contentRect = uiScaleBaseGeometry.value(ui->scrollAreaWidgetContents);
 		int targetContentHeight = contentRect.height() + tuning.contentHeightDelta;
-		if(samplePanelInMainFlow && ui->gridLayoutWidget_3)
+		if(ui->horizontalLayoutWidget_2)
 			targetContentHeight = std::max(
 					targetContentHeight,
-					ui->gridLayoutWidget_3->geometry().bottom() + (tuning.panelGap + 10));
-		else if(ui->horizontalLayoutWidget_2)
+					ui->horizontalLayoutWidget_2->geometry().bottom() + 28);
+		if(ui->tabWidget)
 			targetContentHeight = std::max(
 					targetContentHeight,
-					ui->horizontalLayoutWidget_2->geometry().bottom() + 120);
+					ui->tabWidget->geometry().bottom() + 28);
 		targetContentHeight = std::max(tuning.contentMinHeight, targetContentHeight);
 		contentRect.setHeight(targetContentHeight);
 		ui->scrollAreaWidgetContents->setGeometry(contentRect);
 		ui->scrollAreaWidgetContents->setMinimumHeight(targetContentHeight);
 	}
-	PositionExtractTabAuxSections();
 
 	const QString resolvedProfileKey =
 			(profile == RES_PROFILE_HD) ? "hd" :
