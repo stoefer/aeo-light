@@ -2036,10 +2036,11 @@ void MainWindow::UpdateAdaptiveUiScale()
 	{
 		ui->audioTrackGridLayout->setVerticalSpacing(tuning.audioTrackGridSpacing);
 		ui->audioTrackGridLayout->setContentsMargins(8, 10, 8, 10);
+		// Rows 1 and 2 each stack two spinboxes and two sliders.
 		ui->audioTrackGridLayout->setRowMinimumHeight(0, 24);
-		ui->audioTrackGridLayout->setRowMinimumHeight(1, 36);
-		ui->audioTrackGridLayout->setRowMinimumHeight(2, 36);
-		ui->audioTrackGridLayout->setRowMinimumHeight(3, 28);
+		ui->audioTrackGridLayout->setRowMinimumHeight(1, 56);
+		ui->audioTrackGridLayout->setRowMinimumHeight(2, 56);
+		ui->audioTrackGridLayout->setRowMinimumHeight(3, 32);
 	}
 	if(ui->verticalLayout_2)
 		ui->verticalLayout_2->setSpacing(tuning.pairedControlSpacing);
@@ -2053,12 +2054,37 @@ void MainWindow::UpdateAdaptiveUiScale()
 	{
 		ui->framePitchGridLayout->setVerticalSpacing(tuning.framePitchGridSpacing);
 		ui->framePitchGridLayout->setContentsMargins(8, 10, 8, 10);
+		ui->framePitchGridLayout->setRowMinimumHeight(0, 56);
+		ui->framePitchGridLayout->setRowMinimumHeight(1, 32);
+		ui->framePitchGridLayout->setRowMinimumHeight(2, 34);
 	}
 	if(ui->videoGridLayout)
 	{
 		ui->videoGridLayout->setVerticalSpacing(tuning.videoGridSpacing);
 		ui->videoGridLayout->setContentsMargins(8, 10, 8, 10);
+		ui->videoGridLayout->setRowMinimumHeight(0, 56);
+		for(int row = 1; row <= 5; ++row)
+			ui->videoGridLayout->setRowMinimumHeight(row, 30);
+		ui->videoGridLayout->setRowMinimumHeight(6, 42);
 	}
+
+	const int audioTrackMinHeight = 24 + 56 + 56 + 32 + 28;
+	const int framePitchMinHeight = 56 + 32 + 34 + 28;
+	const int opticalNeeded = std::max(
+			tuning.opticalGroupMinHeight,
+			audioTrackMinHeight + framePitchMinHeight +
+					tuning.opticalOuterSpacing + 30);
+	const int videoNeeded = std::max(tuning.videoGroupMinHeight, 360);
+	if(ui->audioTrackGroupBox)
+		ui->audioTrackGroupBox->setMinimumHeight(audioTrackMinHeight);
+	if(ui->framePitchGroupBox)
+		ui->framePitchGroupBox->setMinimumHeight(framePitchMinHeight);
+	if(ui->opticalAudioGroupBox)
+		ui->opticalAudioGroupBox->setMinimumHeight(opticalNeeded);
+	if(ui->videoGroupBox)
+		ui->videoGroupBox->setMinimumHeight(videoNeeded);
+	const int gridNeededHeight =
+			opticalNeeded + videoNeeded + tuning.rowSpacing + 24;
 
 	int tabHeightShift = 0;
 	if(ui->tabWidget && uiScaleBaseGeometry.contains(ui->tabWidget))
@@ -2079,27 +2105,46 @@ void MainWindow::UpdateAdaptiveUiScale()
 		return initial;
 	};
 
+	if(ui->tab && ui->tabWidget)
+	{
+		const int tabBarHeight = ui->tabWidget->tabBar() ?
+				ui->tabWidget->tabBar()->height() : 34;
+		const int neededTabHeight = tabBarHeight + 10 + gridNeededHeight + 54;
+		if(ui->tabWidget->height() < neededTabHeight)
+		{
+			QRect tabRect = ui->tabWidget->geometry();
+			tabRect.setHeight(neededTabHeight);
+			ui->tabWidget->setGeometry(tabRect);
+		}
+	}
 	if(ui->gridLayoutWidget)
 	{
 		const QRect baseRect = baseRectForWidget(ui->gridLayoutWidget);
 		QRect expandedRect = baseRect;
 		expandedRect.setHeight(std::max(
-				baseRect.height(),
+				gridNeededHeight,
 				baseRect.height() + tabControlsShift));
 		ui->gridLayoutWidget->setGeometry(expandedRect);
 	}
+	const int soundtrackButtonTop = ui->gridLayoutWidget ?
+			(ui->gridLayoutWidget->geometry().bottom() + 10) :
+			0;
 	if(ui->soundtrackDefaultsButton)
 	{
 		const QRect baseRect = baseRectForWidget(ui->soundtrackDefaultsButton);
 		QRect adjustedRect = baseRect;
-		adjustedRect.moveTop(baseRect.top() + tabControlsShift);
+		adjustedRect.moveTop(std::max(
+				baseRect.top() + tabControlsShift,
+				soundtrackButtonTop));
 		ui->soundtrackDefaultsButton->setGeometry(adjustedRect);
 	}
 	if(ui->soundtrackResetButton)
 	{
 		const QRect baseRect = baseRectForWidget(ui->soundtrackResetButton);
 		QRect adjustedRect = baseRect;
-		adjustedRect.moveTop(baseRect.top() + tabControlsShift);
+		adjustedRect.moveTop(std::max(
+				baseRect.top() + tabControlsShift,
+				soundtrackButtonTop));
 		ui->soundtrackResetButton->setGeometry(adjustedRect);
 		if(ui->tab)
 		{
@@ -2120,6 +2165,12 @@ void MainWindow::UpdateAdaptiveUiScale()
 				button->setGeometry(factoryRect);
 			}
 		}
+	}
+
+	if(ui->tabWidget && uiScaleBaseGeometry.contains(ui->tabWidget))
+	{
+		const QRect baseTabRect = uiScaleBaseGeometry.value(ui->tabWidget);
+		tabHeightShift = ui->tabWidget->geometry().height() - baseTabRect.height();
 	}
 
 	if(ui->horizontalLayoutWidget_2 &&
