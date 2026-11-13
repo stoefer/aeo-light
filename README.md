@@ -1,8 +1,20 @@
-# AEO-Light 3.1.55 (fork release)
+# AEO-Light 3.1.56 (fork release)
 
-Deze 3.1.55 patchrelease voegt instelbare display-beeldverhoudingen toe aan video-export, inclusief anamorfische presets.
+Deze 3.1.56 patchrelease voegt gerichte RGB-kleurbalans toe om rode kleurzweem in oudere scans te corrigeren.
 
-## Nieuw in 3.1.55
+## Nieuw in 3.1.56
+- Nieuwe kleurcorrectie in **Image Processing**:
+  - **R balance**
+  - **G balance**
+  - **B balance**
+- Bereik per kanaal: **0.00 - 2.00** (standaard **1.00**).
+- Praktisch voor oude film met rode kleurzweem:
+  - rood onderdrukken via lagere R balance
+  - groen/blauw subtiel versterken via hogere G/B balance
+- Correctie wordt toegepast in zowel **preview** als **video-export**.
+- RGB-balancewaarden worden opgeslagen in defaults, queue-presets en `.aeo` projectbestanden.
+
+## Eerder toegevoegd in 3.1.55
 - Nieuwe optie in **Video instellingen**: **Beeldverhouding (DAR)**.
 - Ondersteunt zowel standaard als filmische/anamorfische presets, o.a.:
   - 1:1, 4:3, 16:9, 16:10, 5:4
@@ -333,28 +345,28 @@ Deze 3.1.55 patchrelease voegt instelbare display-beeldverhoudingen toe aan vide
 4. Als SmartScreen waarschuwt: klik **Meer informatie** → **Toch uitvoeren**.
 
 ## Ultra-korte package checklist (5 punten)
-- [ ] Release-tag = `v3.1.55`.
+- [ ] Release-tag = `v3.1.56`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` staat op de release.
 - [ ] ZIP uitgepakt naar een lokale map.
-- [ ] `AEO-Light.exe` start en toont versie **3.1.55**.
+- [ ] `AEO-Light.exe` start en toont versie **3.1.56**.
 - [ ] Korte **Test Run** slaagt en maakt output aan.
 
-## Package checklist (v3.1.55, Windows x64)
-- [ ] Release-tag is `v3.1.55`.
+## Package checklist (v3.1.56, Windows x64)
+- [ ] Release-tag is `v3.1.56`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` is aanwezig op de releasepagina.
 - [ ] ZIP uitgepakt naar een lokale map (niet rechtstreeks uit de ZIP starten).
 - [ ] In de uitgepakte map staan minimaal:
   - `AEO-Light.exe`
   - `LICENSE.txt`
   - `ffmpeg.exe`
-- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.55**.
+- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.56**.
 - [ ] Snelle rooktest:
   - bron laden
   - korte **Test Run** uitvoeren
   - outputbestand wordt aangemaakt
 - [ ] (Optioneel) checksumcontrole van download:
   - `certutil -hashfile AEO-Light-Windows-x64.zip SHA256`
-  - verwacht: waarde op de `v3.1.55` releasepagina
+  - verwacht: waarde op de `v3.1.56` releasepagina
 
 ## Snelle start (aanbevolen)
 - Container: **MP4**
