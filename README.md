@@ -1,8 +1,13 @@
-# AEO-Light 3.1.53 (fork release)
+# AEO-Light 3.1.54 (fork release)
 
-Deze 3.1.53 patchrelease fixt het resterende single-frame laadprobleem voor bepaalde JPG/PNG bronbestanden.
+Deze 3.1.54 patchrelease maakt JPG/PNG frame-laden nog robuuster door per framenummer het exact gevonden bronpad te gebruiken.
 
-## Nieuw in 3.1.53
+## Nieuw in 3.1.54
+- JPG/PNG bronframes worden nu geladen via een interne mapping van **framenummer -> exact bestandspad** (`resolvedFramePathByNumber`).
+- Hierdoor is het laden niet meer afhankelijk van gereconstrueerde pattern-bestandsnamen bij probleemgevallen.
+- Voorkomt extra “Cannot open ... File not found” scenario’s bij afwijkende naam-/padpatronen.
+
+## Eerder toegevoegd in 3.1.53
 - Extra single-frame fallback: JPG/PNG worden bij 1-frame bron nu geladen via het exacte originele bronpad (zonder afhankelijkheid van afgeleid sequence-pattern).
 - Dit voorkomt “File not found” door pattern-opbouw bij specifieke bestandsnamen of padstructuren.
 
@@ -319,28 +324,28 @@ Deze 3.1.53 patchrelease fixt het resterende single-frame laadprobleem voor bepa
 4. Als SmartScreen waarschuwt: klik **Meer informatie** → **Toch uitvoeren**.
 
 ## Ultra-korte package checklist (5 punten)
-- [ ] Release-tag = `v3.1.53`.
+- [ ] Release-tag = `v3.1.54`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` staat op de release.
 - [ ] ZIP uitgepakt naar een lokale map.
-- [ ] `AEO-Light.exe` start en toont versie **3.1.53**.
+- [ ] `AEO-Light.exe` start en toont versie **3.1.54**.
 - [ ] Korte **Test Run** slaagt en maakt output aan.
 
-## Package checklist (v3.1.53, Windows x64)
-- [ ] Release-tag is `v3.1.53`.
+## Package checklist (v3.1.54, Windows x64)
+- [ ] Release-tag is `v3.1.54`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` is aanwezig op de releasepagina.
 - [ ] ZIP uitgepakt naar een lokale map (niet rechtstreeks uit de ZIP starten).
 - [ ] In de uitgepakte map staan minimaal:
   - `AEO-Light.exe`
   - `LICENSE.txt`
   - `ffmpeg.exe`
-- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.53**.
+- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.54**.
 - [ ] Snelle rooktest:
   - bron laden
   - korte **Test Run** uitvoeren
   - outputbestand wordt aangemaakt
 - [ ] (Optioneel) checksumcontrole van download:
   - `certutil -hashfile AEO-Light-Windows-x64.zip SHA256`
-  - verwacht: waarde op de `v3.1.53` releasepagina
+  - verwacht: waarde op de `v3.1.54` releasepagina
 
 ## Snelle start (aanbevolen)
 - Container: **MP4**
