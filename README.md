@@ -1,8 +1,17 @@
-# AEO-Light 3.1.54 (fork release)
+# AEO-Light 3.1.55 (fork release)
 
-Deze 3.1.54 patchrelease maakt JPG/PNG frame-laden nog robuuster door per framenummer het exact gevonden bronpad te gebruiken.
+Deze 3.1.55 patchrelease voegt instelbare display-beeldverhoudingen toe aan video-export, inclusief anamorfische presets.
 
-## Nieuw in 3.1.54
+## Nieuw in 3.1.55
+- Nieuwe optie in **Video instellingen**: **Beeldverhouding (DAR)**.
+- Ondersteunt zowel standaard als filmische/anamorfische presets, o.a.:
+  - 1:1, 4:3, 16:9, 16:10, 5:4
+  - 1.37, 1.66, 1.85, 2.00, 2.20
+  - 2.35, 2.39 (**Anamorphic Scope**), 2.40, 2.55, 2.66, 2.76
+- MP4/MOV/MKV export past de gekozen verhouding toe via `setdar` in de FFmpeg-filterchain.
+- DAR-keuze wordt onthouden in settings en zichtbaar in export summary + TXT/JSON exportrapport.
+
+## Eerder toegevoegd in 3.1.54
 - JPG/PNG bronframes worden nu geladen via een interne mapping van **framenummer -> exact bestandspad** (`resolvedFramePathByNumber`).
 - Hierdoor is het laden niet meer afhankelijk van gereconstrueerde pattern-bestandsnamen bij probleemgevallen.
 - Voorkomt extra “Cannot open ... File not found” scenario’s bij afwijkende naam-/padpatronen.
@@ -324,28 +333,28 @@ Deze 3.1.54 patchrelease maakt JPG/PNG frame-laden nog robuuster door per framen
 4. Als SmartScreen waarschuwt: klik **Meer informatie** → **Toch uitvoeren**.
 
 ## Ultra-korte package checklist (5 punten)
-- [ ] Release-tag = `v3.1.54`.
+- [ ] Release-tag = `v3.1.55`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` staat op de release.
 - [ ] ZIP uitgepakt naar een lokale map.
-- [ ] `AEO-Light.exe` start en toont versie **3.1.54**.
+- [ ] `AEO-Light.exe` start en toont versie **3.1.55**.
 - [ ] Korte **Test Run** slaagt en maakt output aan.
 
-## Package checklist (v3.1.54, Windows x64)
-- [ ] Release-tag is `v3.1.54`.
+## Package checklist (v3.1.55, Windows x64)
+- [ ] Release-tag is `v3.1.55`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` is aanwezig op de releasepagina.
 - [ ] ZIP uitgepakt naar een lokale map (niet rechtstreeks uit de ZIP starten).
 - [ ] In de uitgepakte map staan minimaal:
   - `AEO-Light.exe`
   - `LICENSE.txt`
   - `ffmpeg.exe`
-- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.54**.
+- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.55**.
 - [ ] Snelle rooktest:
   - bron laden
   - korte **Test Run** uitvoeren
   - outputbestand wordt aangemaakt
 - [ ] (Optioneel) checksumcontrole van download:
   - `certutil -hashfile AEO-Light-Windows-x64.zip SHA256`
-  - verwacht: waarde op de `v3.1.54` releasepagina
+  - verwacht: waarde op de `v3.1.55` releasepagina
 
 ## Snelle start (aanbevolen)
 - Container: **MP4**
