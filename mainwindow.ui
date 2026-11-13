@@ -357,6 +357,42 @@
                 </item>
                </layout>
               </item>
+              <item row="3" column="1">
+               <widget class="QLabel" name="leftPixSearchTextLabel">
+                <property name="text">
+                 <string>Linker lijn zoekgebied</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="2">
+               <widget class="QLabel" name="leftPixSearchValueLabel">
+                <property name="text">
+                 <string>60 px</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="3">
+               <widget class="QSlider" name="leftPixSearchSlider">
+                <property name="minimum">
+                 <number>4</number>
+                </property>
+                <property name="maximum">
+                 <number>240</number>
+                </property>
+                <property name="value">
+                 <number>60</number>
+                </property>
+                <property name="orientation">
+                 <enum>Qt::Horizontal</enum>
+                </property>
+               </widget>
+              </item>
              </layout>
             </widget>
            </item>
@@ -4027,6 +4063,7 @@ QPushButton:disabled {
   <tabstop>leftPixSlider</tabstop>
   <tabstop>rightPixSpinBox</tabstop>
   <tabstop>rightPixSlider</tabstop>
+  <tabstop>leftPixSearchSlider</tabstop>
   <tabstop>framepitchstartSlider</tabstop>
   <tabstop>FramePitchendSlider</tabstop>
   <tabstop>videoFrameTopSlider</tabstop>

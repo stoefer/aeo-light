@@ -74,6 +74,7 @@ public:
 	uint32_t frameOut;
 	uint16_t bounds[2]; // left, right pixel columns
 	uint16_t pixBounds[2]; // left, right pixel columns
+	uint16_t leftPixSearchSize; // left picture-strip edge search radius in pixels
 	uint16_t framePitch[2]; // top, bottom pixel rows
 	uint16_t videoFrameCrop[2]; // top, bottom crop fractions for video export
 	bool videoStableCrop; // use fixed crop instead of overlap-driven drift
@@ -261,6 +262,7 @@ private slots:
 	void on_rightPixSlider_valueChanged(int value);
 	void on_leftPixSlider_sliderMoved(int position);
 	void on_rightPixSlider_sliderMoved(int position);
+	void on_leftPixSearchSlider_valueChanged(int value);
 	void on_leftPixSpinBox_valueChanged(int arg1);
 	void on_rightPixSpinBox_valueChanged(int arg1);
 	void on_monostereo_PD_currentIndexChanged(int index);

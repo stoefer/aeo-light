@@ -419,6 +419,7 @@ static QVariantMap SerializeExtractedSoundParams(const ExtractedSound &params)
 	map.insert("bounds1", static_cast<uint>(params.bounds[1]));
 	map.insert("pixBounds0", static_cast<uint>(params.pixBounds[0]));
 	map.insert("pixBounds1", static_cast<uint>(params.pixBounds[1]));
+	map.insert("leftPixSearchSize", static_cast<uint>(params.leftPixSearchSize));
 	map.insert("framePitch0", static_cast<uint>(params.framePitch[0]));
 	map.insert("framePitch1", static_cast<uint>(params.framePitch[1]));
 	map.insert("videoFrameCrop0", static_cast<uint>(params.videoFrameCrop[0]));
@@ -459,6 +460,8 @@ static ExtractedSound DeserializeExtractedSoundParams(const QVariantMap &map)
 	params.bounds[1] = static_cast<uint16_t>(map.value("bounds1", 0).toUInt());
 	params.pixBounds[0] = static_cast<uint16_t>(map.value("pixBounds0", 0).toUInt());
 	params.pixBounds[1] = static_cast<uint16_t>(map.value("pixBounds1", 0).toUInt());
+	params.leftPixSearchSize = static_cast<uint16_t>(
+			map.value("leftPixSearchSize", 60).toUInt());
 	params.framePitch[0] = static_cast<uint16_t>(map.value("framePitch0", 0).toUInt());
 	params.framePitch[1] = static_cast<uint16_t>(map.value("framePitch1", 0).toUInt());
 	params.videoFrameCrop[0] = static_cast<uint16_t>(map.value("videoFrameCrop0", 100).toUInt());
@@ -1170,6 +1173,7 @@ ExtractedSound::ExtractedSound() :
 {
 	bounds[0] = bounds[1] = 0;
 	pixBounds[0] = pixBounds[1] = 0;
+	leftPixSearchSize = 60;
 	framePitch[0] = framePitch[1] = 0;
 	videoFrameCrop[0] = videoFrameCrop[1] = 100;
 }
@@ -1211,6 +1215,7 @@ bool ExtractedSound::operator ==(const ExtractedSound &ref) const
 			((pixBounds[0] != ref.pixBounds[0]) ||
 			(pixBounds[1] != ref.pixBounds[1])))
 		return false;
+	if(leftPixSearchSize != ref.leftPixSearchSize) return false;
 
 	if(gamma != ref.gamma) return false;
 	if(gain != ref.gain) return false;
@@ -2460,6 +2465,7 @@ void MainWindow::SaveDefaultsSoundtrack()
 	settings.setValue("pixbounds/left", ui->leftPixSpinBox->value()/w);
 	settings.setValue("pixbounds/right", ui->rightPixSpinBox->value()/w);
 	settings.setValue("pixbounds/use", ui->OverlapPixCheckBox->isChecked());
+	settings.setValue("pixbounds/left-search", ui->leftPixSearchSlider->value());
 	settings.setValue("framepitch/start", ui->framepitchstartSlider->value()/h);
 	settings.setValue("framepitch/end", ui->FramePitchendSlider->value()/h);
 	settings.setValue("videoframe/top", ui->videoFrameTopSlider->value()/1000.0);
@@ -2554,6 +2560,8 @@ void MainWindow::LoadDefaults()
 	ui->rightPixSlider->setValue(intv);
 	ui->OverlapPixCheckBox->setChecked(
 			settings.value("pixbounds/use", false).toBool());
+	ui->leftPixSearchSlider->setValue(
+			settings.value("pixbounds/left-search", 60).toInt());
 	on_OverlapPixCheckBox_clicked(ui->OverlapPixCheckBox->isChecked());
 
 	intv = int(settings.value("framepitch/start", 0.1).toDouble() * h + 0.5);
@@ -2811,6 +2819,7 @@ ExtractedSound MainWindow::ExtractionParamsFromGUI()
 		params.pixBounds[0] = ui->leftPixSpinBox->value();
 		params.pixBounds[1] = ui->rightPixSpinBox->value();
 	}
+	params.leftPixSearchSize = ui->leftPixSearchSlider->value();
 
 	params.framePitch[0] = ui->framepitchstartSlider->value();
 	params.framePitch[1] = ui->FramePitchendSlider->value();
@@ -2880,6 +2889,7 @@ void MainWindow::ExtractionParametersToGUI(const ExtractedSound &params)
 		ui->rightPixSpinBox->setValue(params.pixBounds[1]);
 		ui->rightPixSlider->setValue(params.pixBounds[1]);
 	}
+	ui->leftPixSearchSlider->setValue(params.leftPixSearchSize);
 
 	ui->FramePitchendSlider->setValue(params.framePitch[1]);
 	ui->framePitchLabel->setText(
@@ -3409,6 +3419,7 @@ bool MainWindow::saveproject(QTextStream &out)
 	out<<"Use Pix Track = "<<ui->OverlapPixCheckBox->isChecked()<<"\n";
 	out<<"Left Pix Boundary = "<<ui->leftPixSpinBox->value()<<"\n";
 	out<<"Right Pix Boundary = "<<ui->rightPixSpinBox->value()<<"\n";
+	out<<"Left Pix Search Size = "<<ui->leftPixSearchSlider->value()<<"\n";
 	out<<"Frame Pitch Start = "<<ui->framepitchstartSlider->value()<<"\n";
 	out<<"Frame Pitch End = "<<ui->FramePitchendSlider->value()<<"\n";
 	out<<"Video Frame Top = "<<ui->videoFrameTopSlider->value()<<"\n";
@@ -4556,6 +4567,8 @@ bool MainWindow::LoadProjectSettings(QString fn)
 			ui->leftPixSpinBox->setValue(value.toInt());
 		if (key.contains("Right Pix Bound"))
 			ui->rightPixSpinBox->setValue(value.toInt());
+		if (key.contains("Left Pix Search Size"))
+			ui->leftPixSearchSlider->setValue(value.toInt());
 		if (key.contains("Frame Pitch Start"))
 		{
 			ui->framepitchstartSlider->setValue(value.toInt());
@@ -5137,8 +5150,12 @@ bool MainWindow::EstimatePictureStripCenterX(long absoluteFrameNumber, float &ce
 	if(!horizontalPictureStabilizationFrameBuffer)
 		return false;
 
-	const int searchRadius = std::max(8, std::min(120, (right - left) / 3));
-	auto detectEdge = [&](int anchor) -> int
+	const int defaultSearchRadius = std::max(8, std::min(120, (right - left) / 3));
+	const int configuredLeftRadius = std::max(4, ui->leftPixSearchSlider->value());
+	const int leftSearchRadius = std::min(
+			std::max(4, configuredLeftRadius),
+			std::max(4, right - left - 2));
+	auto detectEdge = [&](int anchor, int searchRadius) -> int
 	{
 		int start = std::max(left + 1, anchor - searchRadius);
 		int end = std::min(right - 1, anchor + searchRadius);
@@ -5166,8 +5183,8 @@ bool MainWindow::EstimatePictureStripCenterX(long absoluteFrameNumber, float &ce
 		return bestX;
 	};
 
-	const int leftEdge = detectEdge(left);
-	const int rightEdge = detectEdge(right);
+	const int leftEdge = detectEdge(left, leftSearchRadius);
+	const int rightEdge = detectEdge(right, defaultSearchRadius);
 	if(rightEdge <= leftEdge)
 		return false;
 
@@ -9082,6 +9099,15 @@ void MainWindow::on_rightPixSlider_valueChanged(int value)
 	GPU_Params_Update(1);
 }
 
+void MainWindow::on_leftPixSearchSlider_valueChanged(int value)
+{
+	ui->leftPixSearchValueLabel->setText(
+			QString("%1 px").arg(std::max(4, value)));
+	horizontalPictureStabilizationReferenceReady = false;
+	horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
+	GPU_Params_Update(1);
+}
+
 void MainWindow::on_negBox_clicked()
 {
 	GPU_Params_Update(1);
@@ -10757,6 +10783,7 @@ void MainWindow::ResetSoundtrackSectionToFactoryDefaults()
 	ui->OverlapPixCheckBox->setChecked(false);
 	ui->leftPixSpinBox->setValue(int(w * 0.475));
 	ui->rightPixSpinBox->setValue(int(w * 0.525));
+	ui->leftPixSearchSlider->setValue(60);
 	on_OverlapPixCheckBox_clicked(false);
 
 	ui->framepitchstartSlider->setValue(100);
@@ -10812,6 +10839,8 @@ void MainWindow::on_soundtrackResetButton_clicked()
 	ui->rightPixSpinBox->setValue(intv);
 	ui->OverlapPixCheckBox->setChecked(
 			settings.value("pixbounds/use", false).toBool());
+	ui->leftPixSearchSlider->setValue(
+			settings.value("pixbounds/left-search", 60).toInt());
 	on_OverlapPixCheckBox_clicked(ui->OverlapPixCheckBox->isChecked());
 
 	intv = int(settings.value("framepitch/start", 0.1).toDouble() * h + 0.5);
@@ -11044,6 +11073,9 @@ void MainWindow::on_OverlapPixCheckBox_clicked(bool checked)
 	ui->rightPixSpinBox->setEnabled(checked);
 	ui->leftPixSlider->setEnabled(checked);
 	ui->rightPixSlider->setEnabled(checked);
+	ui->leftPixSearchTextLabel->setEnabled(checked);
+	ui->leftPixSearchValueLabel->setEnabled(checked);
+	ui->leftPixSearchSlider->setEnabled(checked);
 
 	horizontalPictureStabilizationReferenceReady = false;
 	horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
