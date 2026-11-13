@@ -76,6 +76,7 @@
 #include <QVBoxLayout>
 #include <QSlider>
 #include <QVariantMap>
+#include <QFontMetrics>
 
 #include <cstdio>
 #include <exception>
@@ -1862,20 +1863,41 @@ void MainWindow::UpdateAdaptiveUiScale()
 			profile = RES_PROFILE_HD;
 	}
 
-	const int tabHeightDelta =
-			(profile == RES_PROFILE_HD) ? -8 :
-			(profile == RES_PROFILE_UHD) ? 24 : 0;
-	const int contentHeightDelta =
-			(profile == RES_PROFILE_HD) ? 0 :
-			(profile == RES_PROFILE_UHD) ? 64 : 0;
-	const int minTabHeight = (profile == RES_PROFILE_HD) ? 540 : 520;
+	struct LayoutProfileTuning
+	{
+		int tabHeightDelta;
+		int contentHeightDelta;
+		int minTabHeight;
+		int tabFontDeltaPt;
+		int tabMinHeight;
+		int tabMinWidth;
+		int tabPaddingV;
+		int tabPaddingH;
+		int opticalGroupMinHeight;
+		int videoGroupMinHeight;
+		int opticalRowStretch;
+		int videoRowStretch;
+		int rowSpacing;
+		int contentMinHeight;
+		int panelGap;
+	};
+
+	const LayoutProfileTuning tuning =
+			(profile == RES_PROFILE_HD) ? LayoutProfileTuning{
+					12, 28, 560, -1, 28, 68, 4, 2, 190, 240, 1, 3, 4, 900, 8
+			} :
+			(profile == RES_PROFILE_UHD) ? LayoutProfileTuning{
+					36, 96, 620, 1, 36, 90, 5, 8, 230, 270, 2, 3, 8, 980, 12
+			} : LayoutProfileTuning{
+					16, 44, 560, 0, 32, 80, 4, 6, 210, 230, 2, 3, 6, 920, 10
+			};
 
 	if(ui->tabWidget && uiScaleBaseGeometry.contains(ui->tabWidget))
 	{
 		const QRect baseTabRect = uiScaleBaseGeometry.value(ui->tabWidget);
 		int targetTabHeight = std::max(
-				minTabHeight,
-				baseTabRect.height() + tabHeightDelta);
+				tuning.minTabHeight,
+				baseTabRect.height() + tuning.tabHeightDelta);
 		QRect targetTabRect = baseTabRect;
 		targetTabRect.setHeight(targetTabHeight);
 		ui->tabWidget->setGeometry(targetTabRect);
@@ -1890,27 +1912,55 @@ void MainWindow::UpdateAdaptiveUiScale()
 
 		QFont tabFont = tabs->font();
 		const int basePt = (tabFont.pointSize() > 0) ? tabFont.pointSize() : 9;
-		const int targetPt =
-				(profile == RES_PROFILE_HD) ? std::max(8, basePt - 1) :
-				(profile == RES_PROFILE_UHD) ? (basePt + 1) :
-				basePt;
+		const int targetPt = std::max(7, basePt + tuning.tabFontDeltaPt);
 		tabFont.setPointSize(targetPt);
-		tabs->setFont(tabFont);
-		const int tabMinHeight =
-				(profile == RES_PROFILE_HD) ? 28 :
-				(profile == RES_PROFILE_UHD) ? 36 : 32;
+
 		const int tabCount = std::max(1, tabs->count());
 		const int availableTabWidth = std::max(
 				360,
 				(ui->tabWidget ? ui->tabWidget->width() : tabs->width()) - 12);
+
+		auto requiredTabWidthForFont = [&](const QFont &font) -> int
+		{
+			QFontMetrics metrics(font);
+			int widestLabel = 0;
+			for(int i = 0; i < tabs->count(); ++i)
+				widestLabel = std::max(
+						widestLabel,
+						metrics.horizontalAdvance(tabs->tabText(i)));
+			return widestLabel + (2 * tuning.tabPaddingH) + 18;
+		};
+
+		int requiredTabWidth = requiredTabWidthForFont(tabFont);
+		while(requiredTabWidth > (availableTabWidth / tabCount) - 2 &&
+				tabFont.pointSize() > 7)
+		{
+			tabFont.setPointSize(tabFont.pointSize() - 1);
+			requiredTabWidth = requiredTabWidthForFont(tabFont);
+		}
+		tabs->setFont(tabFont);
+
 		const int forcedTabWidth = std::max(
-				72,
+				tuning.tabMinWidth,
 				(availableTabWidth / tabCount) - 2);
 		tabs->setStyleSheet(QString(
 				"QTabBar::tab { min-height: %1px; min-width: %2px; "
-				"max-width: %2px; padding: 4px 2px; }")
-				.arg(tabMinHeight)
-				.arg(forcedTabWidth));
+				"max-width: %2px; padding: %3px %4px; }")
+				.arg(tuning.tabMinHeight)
+				.arg(forcedTabWidth)
+				.arg(tuning.tabPaddingV)
+				.arg(tuning.tabPaddingH));
+	}
+
+	if(ui->opticalAudioGroupBox)
+		ui->opticalAudioGroupBox->setMinimumHeight(tuning.opticalGroupMinHeight);
+	if(ui->videoGroupBox)
+		ui->videoGroupBox->setMinimumHeight(tuning.videoGroupMinHeight);
+	if(ui->soundtrackSettingGrid)
+	{
+		ui->soundtrackSettingGrid->setRowStretch(0, tuning.opticalRowStretch);
+		ui->soundtrackSettingGrid->setRowStretch(1, tuning.videoRowStretch);
+		ui->soundtrackSettingGrid->setVerticalSpacing(tuning.rowSpacing);
 	}
 
 	int tabHeightShift = 0;
@@ -1936,7 +1986,7 @@ void MainWindow::UpdateAdaptiveUiScale()
 		if(ui->horizontalLayoutWidget_2)
 		{
 			const QRect viewRect = ui->horizontalLayoutWidget_2->geometry();
-			const int minTop = viewRect.bottom() + 8;
+			const int minTop = viewRect.bottom() + tuning.panelGap;
 			if(sampleRect.top() < minTop)
 				sampleRect.moveTop(minTop);
 		}
@@ -1947,12 +1997,12 @@ void MainWindow::UpdateAdaptiveUiScale()
 			uiScaleBaseGeometry.contains(ui->scrollAreaWidgetContents))
 	{
 		QRect contentRect = uiScaleBaseGeometry.value(ui->scrollAreaWidgetContents);
-		int targetContentHeight = contentRect.height() + contentHeightDelta;
+		int targetContentHeight = contentRect.height() + tuning.contentHeightDelta;
 		if(ui->gridLayoutWidget_3)
 			targetContentHeight = std::max(
 					targetContentHeight,
-					ui->gridLayoutWidget_3->geometry().bottom() + 18);
-		targetContentHeight = std::max(860, targetContentHeight);
+					ui->gridLayoutWidget_3->geometry().bottom() + (tuning.panelGap + 10));
+		targetContentHeight = std::max(tuning.contentMinHeight, targetContentHeight);
 		contentRect.setHeight(targetContentHeight);
 		ui->scrollAreaWidgetContents->setGeometry(contentRect);
 		ui->scrollAreaWidgetContents->setMinimumHeight(targetContentHeight);
