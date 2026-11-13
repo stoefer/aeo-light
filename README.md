@@ -1,8 +1,14 @@
-# AEO-Light 3.1.51 (fork release)
+# AEO-Light 3.1.52 (fork release)
 
-Deze 3.1.51 patchrelease verbetert bronherkenning verder voor probleem-JPG en MP4 (o.a. Avidemux-export).
+Deze 3.1.52 patchrelease bevat een extra hardening van de bronherkenning met gedetailleerdere foutdiagnose bij mislukte source-load.
 
-## Nieuw in 3.1.51
+## Nieuw in 3.1.52
+- Source sequence-detectie herschreven met Qt-bestandslisting voor robuustere verwerking van scanner-JPG reeksen.
+- Verbeterde UTF-8 padafhandeling voor JPG/PNG source-open.
+- Veiliger opbouw van interne source-pattern strings (`name/path/fnbuf`), inclusief escape van `%` in bestandsnamen.
+- Uitgebreide parserdiagnose bij laadfouten: popup toont nu onderliggende redenen per bronparser (DPX/TIFF/JPG/PNG/WAV/Video).
+
+## Eerder toegevoegd in 3.1.51
 - Betere bron-auto-detectie: als gekozen filefilter niet exact matcht, probeert AEO-Light nu automatisch alternatieve bronparsers i.p.v. direct te falen.
 - MP4 fallback in builds zonder ingebouwde libav: video wordt via `ffmpeg` naar tijdelijke PNG-frames gedecodeerd en daarna geladen.
 - Extra robuustheid voor pad/encoding bij bronopenen (UTF-8 overdracht).
@@ -309,28 +315,28 @@ Deze 3.1.51 patchrelease verbetert bronherkenning verder voor probleem-JPG en MP
 4. Als SmartScreen waarschuwt: klik **Meer informatie** → **Toch uitvoeren**.
 
 ## Ultra-korte package checklist (5 punten)
-- [ ] Release-tag = `v3.1.51`.
+- [ ] Release-tag = `v3.1.52`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` staat op de release.
 - [ ] ZIP uitgepakt naar een lokale map.
-- [ ] `AEO-Light.exe` start en toont versie **3.1.51**.
+- [ ] `AEO-Light.exe` start en toont versie **3.1.52**.
 - [ ] Korte **Test Run** slaagt en maakt output aan.
 
-## Package checklist (v3.1.51, Windows x64)
-- [ ] Release-tag is `v3.1.51`.
+## Package checklist (v3.1.52, Windows x64)
+- [ ] Release-tag is `v3.1.52`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` is aanwezig op de releasepagina.
 - [ ] ZIP uitgepakt naar een lokale map (niet rechtstreeks uit de ZIP starten).
 - [ ] In de uitgepakte map staan minimaal:
   - `AEO-Light.exe`
   - `LICENSE.txt`
   - `ffmpeg.exe`
-- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.51**.
+- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.52**.
 - [ ] Snelle rooktest:
   - bron laden
   - korte **Test Run** uitvoeren
   - outputbestand wordt aangemaakt
 - [ ] (Optioneel) checksumcontrole van download:
   - `certutil -hashfile AEO-Light-Windows-x64.zip SHA256`
-  - verwacht: waarde op de `v3.1.51` releasepagina
+  - verwacht: waarde op de `v3.1.52` releasepagina
 
 ## Snelle start (aanbevolen)
 - Container: **MP4**
