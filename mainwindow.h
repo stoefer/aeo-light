@@ -355,6 +355,7 @@ private slots:
 	void on_videoExportResolutionComboBox_currentIndexChanged(int index);
 	void on_videoExportContainerComboBox_currentIndexChanged(int index);
 	void on_videoExportCodecComboBox_currentIndexChanged(int index);
+	void on_videoExportAspectRatioComboBox_currentIndexChanged(int index);
 	void on_videoExportPresetComboBox_currentIndexChanged(int index);
 	void on_videoExportQualitySlider_valueChanged(int value);
 	void on_videoExportAudioBitrateSpinBox_valueChanged(int arg1);
@@ -394,6 +395,7 @@ private:
 	int videoContainerMode;
 	int videoCodecMode;
 	int videoResolutionMode;
+	int videoAspectRatioMode;
 	int videoQualityPercent;
 	int videoAudioBitrateKbps;
 	int videoPresetMode;

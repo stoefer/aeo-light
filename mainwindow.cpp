@@ -220,6 +220,27 @@ enum VideoResolutionMode
 	VIDEO_RESOLUTION_3840X2160 = 5
 };
 
+enum VideoAspectRatioMode
+{
+	VIDEO_ASPECT_RATIO_SOURCE = 0,
+	VIDEO_ASPECT_RATIO_1_1 = 1,
+	VIDEO_ASPECT_RATIO_4_3 = 2,
+	VIDEO_ASPECT_RATIO_16_9 = 3,
+	VIDEO_ASPECT_RATIO_16_10 = 4,
+	VIDEO_ASPECT_RATIO_5_4 = 5,
+	VIDEO_ASPECT_RATIO_1_37 = 6,
+	VIDEO_ASPECT_RATIO_1_66 = 7,
+	VIDEO_ASPECT_RATIO_1_85 = 8,
+	VIDEO_ASPECT_RATIO_2_00 = 9,
+	VIDEO_ASPECT_RATIO_2_20 = 10,
+	VIDEO_ASPECT_RATIO_2_35 = 11,
+	VIDEO_ASPECT_RATIO_2_39 = 12,
+	VIDEO_ASPECT_RATIO_2_40 = 13,
+	VIDEO_ASPECT_RATIO_2_55 = 14,
+	VIDEO_ASPECT_RATIO_2_66 = 15,
+	VIDEO_ASPECT_RATIO_2_76 = 16
+};
+
 static QSize VideoResolutionSizeForMode(int mode)
 {
 	switch(mode)
@@ -247,6 +268,58 @@ static QString VideoResolutionLabelForMode(int mode)
 	case VIDEO_RESOLUTION_SOURCE:
 	default:
 		return QObject::tr("Bronresolutie (crop)");
+	}
+}
+
+static QString VideoAspectRatioLabelForMode(int mode)
+{
+	switch(mode)
+	{
+	case VIDEO_ASPECT_RATIO_1_1: return "1:1 (Square)";
+	case VIDEO_ASPECT_RATIO_4_3: return "4:3 (Classic)";
+	case VIDEO_ASPECT_RATIO_16_9: return "16:9 (Widescreen)";
+	case VIDEO_ASPECT_RATIO_16_10: return "16:10";
+	case VIDEO_ASPECT_RATIO_5_4: return "5:4";
+	case VIDEO_ASPECT_RATIO_1_37: return "1.37:1 (Academy)";
+	case VIDEO_ASPECT_RATIO_1_66: return "1.66:1";
+	case VIDEO_ASPECT_RATIO_1_85: return "1.85:1";
+	case VIDEO_ASPECT_RATIO_2_00: return "2.00:1";
+	case VIDEO_ASPECT_RATIO_2_20: return "2.20:1 (70mm)";
+	case VIDEO_ASPECT_RATIO_2_35: return "2.35:1 (Scope)";
+	case VIDEO_ASPECT_RATIO_2_39: return "2.39:1 (Anamorphic Scope)";
+	case VIDEO_ASPECT_RATIO_2_40: return "2.40:1";
+	case VIDEO_ASPECT_RATIO_2_55: return "2.55:1 (CinemaScope)";
+	case VIDEO_ASPECT_RATIO_2_66: return "2.66:1 (Anamorphic 2x)";
+	case VIDEO_ASPECT_RATIO_2_76: return "2.76:1 (Ultra Panavision)";
+	case VIDEO_ASPECT_RATIO_SOURCE:
+	default:
+		return QObject::tr("Bron (geen override)");
+	}
+}
+
+static QString VideoAspectRatioDarExprForMode(int mode)
+{
+	switch(mode)
+	{
+	case VIDEO_ASPECT_RATIO_1_1: return "1/1";
+	case VIDEO_ASPECT_RATIO_4_3: return "4/3";
+	case VIDEO_ASPECT_RATIO_16_9: return "16/9";
+	case VIDEO_ASPECT_RATIO_16_10: return "16/10";
+	case VIDEO_ASPECT_RATIO_5_4: return "5/4";
+	case VIDEO_ASPECT_RATIO_1_37: return "11/8";
+	case VIDEO_ASPECT_RATIO_1_66: return "166/100";
+	case VIDEO_ASPECT_RATIO_1_85: return "185/100";
+	case VIDEO_ASPECT_RATIO_2_00: return "2/1";
+	case VIDEO_ASPECT_RATIO_2_20: return "11/5";
+	case VIDEO_ASPECT_RATIO_2_35: return "235/100";
+	case VIDEO_ASPECT_RATIO_2_39: return "239/100";
+	case VIDEO_ASPECT_RATIO_2_40: return "12/5";
+	case VIDEO_ASPECT_RATIO_2_55: return "255/100";
+	case VIDEO_ASPECT_RATIO_2_66: return "8/3";
+	case VIDEO_ASPECT_RATIO_2_76: return "69/25";
+	case VIDEO_ASPECT_RATIO_SOURCE:
+	default:
+		return QString();
 	}
 }
 
@@ -828,6 +901,7 @@ static void EncodeVideoWithExternalFfmpeg(const QString &frameDir,
 		int containerMode,
 		int codecMode,
 		int resolutionMode,
+		int aspectRatioMode,
 		int qualityPercent,
 		int audioBitrateKbps,
 		int presetMode,
@@ -926,6 +1000,9 @@ static void EncodeVideoWithExternalFfmpeg(const QString &frameDir,
 			eq += QString(":saturation=%1").arg(autoSaturation, 0, 'f', 3);
 		vfParts << eq;
 	}
+	const QString darExpr = VideoAspectRatioDarExprForMode(aspectRatioMode);
+	if(!darExpr.isEmpty())
+		vfParts << QString("setdar=%1").arg(darExpr);
 	if(!vfParts.isEmpty())
 	{
 		args << "-vf" << vfParts.join(",");
@@ -1329,6 +1406,7 @@ MainWindow::MainWindow(QWidget *parent) :
 	videoContainerMode = VIDEO_CONTAINER_MP4;
 	videoCodecMode = VIDEO_CODEC_H264;
 	videoResolutionMode = VIDEO_RESOLUTION_SOURCE;
+	videoAspectRatioMode = VIDEO_ASPECT_RATIO_SOURCE;
 	videoQualityPercent = 85;
 	videoAudioBitrateKbps = 192;
 	videoPresetMode = 1;
@@ -4099,6 +4177,7 @@ void MainWindow::WriteSingleExportReport(
 			out << "Export profile = " << ui->videoExportTargetProfileComboBox->currentText() << "\n";
 			out << "Video mode = " << ui->videoExportModeComboBox->currentText() << "\n";
 			out << "Video size = " << ui->videoExportResolutionComboBox->currentText() << "\n";
+			out << "Display aspect ratio = " << ui->videoExportAspectRatioComboBox->currentText() << "\n";
 			out << "Video container = " << ui->videoExportContainerComboBox->currentText() << "\n";
 			out << "Video codec = " << ui->videoExportCodecComboBox->currentText() << "\n";
 			out << "Encoder preset = " << ui->videoExportPresetComboBox->currentText() << "\n";
@@ -4138,6 +4217,7 @@ void MainWindow::WriteSingleExportReport(
 			root.insert("exportProfile", ui->videoExportTargetProfileComboBox->currentText());
 			root.insert("videoMode", ui->videoExportModeComboBox->currentText());
 			root.insert("videoSize", ui->videoExportResolutionComboBox->currentText());
+			root.insert("displayAspectRatio", ui->videoExportAspectRatioComboBox->currentText());
 			root.insert("videoContainer", ui->videoExportContainerComboBox->currentText());
 			root.insert("videoCodec", ui->videoExportCodecComboBox->currentText());
 			root.insert("encoderPreset", ui->videoExportPresetComboBox->currentText());
@@ -5275,6 +5355,9 @@ void MainWindow::LoadVideoExportSettings()
 	videoResolutionMode = ClampRangeInt(
 			settings.value("resolution-mode", VIDEO_RESOLUTION_SOURCE).toInt(),
 			VIDEO_RESOLUTION_SOURCE, VIDEO_RESOLUTION_3840X2160);
+	videoAspectRatioMode = ClampRangeInt(
+			settings.value("aspect-ratio-mode", VIDEO_ASPECT_RATIO_SOURCE).toInt(),
+			VIDEO_ASPECT_RATIO_SOURCE, VIDEO_ASPECT_RATIO_2_76);
 	videoQualityPercent = ClampRangeInt(
 			settings.value("quality-percent", 85).toInt(), 1, 100);
 	videoAudioBitrateKbps = ClampRangeInt(
@@ -5301,6 +5384,7 @@ void MainWindow::SaveVideoExportSettings() const
 	settings.setValue("container", videoContainerMode);
 	settings.setValue("codec", videoCodecMode);
 	settings.setValue("resolution-mode", videoResolutionMode);
+	settings.setValue("aspect-ratio-mode", videoAspectRatioMode);
 	settings.setValue("quality-percent", videoQualityPercent);
 	settings.setValue("audio-bitrate-kbps", videoAudioBitrateKbps);
 	settings.setValue("preset-mode", videoPresetMode);
@@ -5323,6 +5407,7 @@ void MainWindow::ApplyVideoTargetProfile(int profileMode)
 		videoContainerMode = VIDEO_CONTAINER_MP4;
 		videoCodecMode = VIDEO_CODEC_H264;
 		videoResolutionMode = VIDEO_RESOLUTION_1280X720;
+		videoAspectRatioMode = VIDEO_ASPECT_RATIO_SOURCE;
 		videoPresetMode = 0;
 		videoQualityPercent = 60;
 		videoAudioBitrateKbps = 128;
@@ -5332,6 +5417,7 @@ void MainWindow::ApplyVideoTargetProfile(int profileMode)
 		videoContainerMode = VIDEO_CONTAINER_MP4;
 		videoCodecMode = VIDEO_CODEC_H264;
 		videoResolutionMode = VIDEO_RESOLUTION_1920X1080;
+		videoAspectRatioMode = VIDEO_ASPECT_RATIO_SOURCE;
 		videoPresetMode = 1;
 		videoQualityPercent = 76;
 		videoAudioBitrateKbps = 160;
@@ -5341,6 +5427,7 @@ void MainWindow::ApplyVideoTargetProfile(int profileMode)
 		videoContainerMode = VIDEO_CONTAINER_MOV;
 		videoCodecMode = VIDEO_CODEC_H264;
 		videoResolutionMode = VIDEO_RESOLUTION_SOURCE;
+		videoAspectRatioMode = VIDEO_ASPECT_RATIO_SOURCE;
 		videoPresetMode = 2;
 		videoQualityPercent = 95;
 		videoAudioBitrateKbps = 320;
@@ -5358,6 +5445,7 @@ void MainWindow::UpdateVideoTargetProfileFromControls()
 			videoContainerMode == VIDEO_CONTAINER_MP4 &&
 			videoCodecMode == VIDEO_CODEC_H264 &&
 			videoResolutionMode == VIDEO_RESOLUTION_1280X720 &&
+			videoAspectRatioMode == VIDEO_ASPECT_RATIO_SOURCE &&
 			videoPresetMode == 0 &&
 			videoQualityPercent == 60 &&
 			videoAudioBitrateKbps == 128)
@@ -5369,6 +5457,7 @@ void MainWindow::UpdateVideoTargetProfileFromControls()
 			videoContainerMode == VIDEO_CONTAINER_MP4 &&
 			videoCodecMode == VIDEO_CODEC_H264 &&
 			videoResolutionMode == VIDEO_RESOLUTION_1920X1080 &&
+			videoAspectRatioMode == VIDEO_ASPECT_RATIO_SOURCE &&
 			videoPresetMode == 1 &&
 			videoQualityPercent == 76 &&
 			videoAudioBitrateKbps == 160)
@@ -5380,6 +5469,7 @@ void MainWindow::UpdateVideoTargetProfileFromControls()
 			videoContainerMode == VIDEO_CONTAINER_MOV &&
 			videoCodecMode == VIDEO_CODEC_H264 &&
 			videoResolutionMode == VIDEO_RESOLUTION_SOURCE &&
+			videoAspectRatioMode == VIDEO_ASPECT_RATIO_SOURCE &&
 			videoPresetMode == 2 &&
 			videoQualityPercent == 95 &&
 			videoAudioBitrateKbps == 320)
@@ -5397,6 +5487,7 @@ void MainWindow::UpdateVideoExportControls()
 	QSignalBlocker blockContainer(ui->videoExportContainerComboBox);
 	QSignalBlocker blockCodec(ui->videoExportCodecComboBox);
 	QSignalBlocker blockResolution(ui->videoExportResolutionComboBox);
+	QSignalBlocker blockAspect(ui->videoExportAspectRatioComboBox);
 	QSignalBlocker blockPreset(ui->videoExportPresetComboBox);
 	QSignalBlocker blockQuality(ui->videoExportQualitySlider);
 	QSignalBlocker blockAudio(ui->videoExportAudioBitrateSpinBox);
@@ -5420,6 +5511,9 @@ void MainWindow::UpdateVideoExportControls()
 	ui->videoExportResolutionComboBox->setCurrentIndex(
 			ClampRangeInt(videoResolutionMode,
 					VIDEO_RESOLUTION_SOURCE, VIDEO_RESOLUTION_3840X2160));
+	ui->videoExportAspectRatioComboBox->setCurrentIndex(
+			ClampRangeInt(videoAspectRatioMode,
+					VIDEO_ASPECT_RATIO_SOURCE, VIDEO_ASPECT_RATIO_2_76));
 	ui->outputVideoSizeComboBox->setCurrentIndex(
 			ClampRangeInt(videoResolutionMode,
 					VIDEO_RESOLUTION_SOURCE, VIDEO_RESOLUTION_3840X2160));
@@ -5456,12 +5550,13 @@ void MainWindow::UpdateVideoExportControls()
 
 	ui->videoExportQualityValueLabel->setText(
 			QString("%1%").arg(videoQualityPercent));
-	QString summaryText = tr("Profiel: %1.\nActief: %2, %3, %4, %5, preset %6, kwaliteit %7%, audio %8 kbps.")
+	QString summaryText = tr("Profiel: %1.\nActief: %2, %3, %4, %5, aspect %6, preset %7, kwaliteit %8%, audio %9 kbps.")
 			.arg(profileNames[ClampRangeInt(videoTargetProfileMode, 0, 3)])
 			.arg(modeNames[ClampRangeInt(videoExportMode, 0, 3)])
 			.arg(containerNames[ClampRangeInt(videoContainerMode, 0, 2)])
 			.arg(codecNames[ClampRangeInt(videoCodecMode, 0, 2)])
 			.arg(VideoResolutionLabelForMode(videoResolutionMode))
+			.arg(VideoAspectRatioLabelForMode(videoAspectRatioMode))
 			.arg(presetNames[ClampRangeInt(videoPresetMode, 0, 2)])
 			.arg(videoQualityPercent)
 			.arg(videoAudioBitrateKbps);
@@ -8765,6 +8860,7 @@ bool MainWindow::WriteAudioToFile(const char *fn, const char *videoFn,
 					videoContainerMode,
 					videoCodecMode,
 					videoResolutionMode,
+					videoAspectRatioMode,
 					videoQualityPercent,
 					videoAudioBitrateKbps,
 					videoPresetMode,
@@ -10766,6 +10862,7 @@ void MainWindow::ResetExtractSectionToFactoryDefaults()
 	ui->outputFlipVerticalCheckBox->setChecked(false);
 	ui->outputRotationComboBox->setCurrentIndex(0);
 	ui->outputVideoSizeComboBox->setCurrentIndex(VIDEO_RESOLUTION_SOURCE);
+	videoAspectRatioMode = VIDEO_ASPECT_RATIO_SOURCE;
 	ui->outputFilenameTemplateEdit->setText("{source}_{datetime}");
 	ui->outputConflictModeComboBox->setCurrentIndex(0);
 	ui->outputOpenFolderCheckBox->setChecked(false);
@@ -11156,6 +11253,14 @@ void MainWindow::on_videoExportContainerComboBox_currentIndexChanged(int index)
 void MainWindow::on_videoExportCodecComboBox_currentIndexChanged(int index)
 {
 	videoCodecMode = ClampRangeInt(index, VIDEO_CODEC_H264, VIDEO_CODEC_MPEG4);
+	SaveVideoExportSettings();
+	UpdateVideoExportControls();
+}
+
+void MainWindow::on_videoExportAspectRatioComboBox_currentIndexChanged(int index)
+{
+	videoAspectRatioMode = ClampRangeInt(
+			index, VIDEO_ASPECT_RATIO_SOURCE, VIDEO_ASPECT_RATIO_2_76);
 	SaveVideoExportSettings();
 	UpdateVideoExportControls();
 }
