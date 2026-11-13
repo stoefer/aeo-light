@@ -1,8 +1,18 @@
-# AEO-Light 3.1.56 (fork release)
+# AEO-Light 3.1.57 (fork release)
 
-Deze 3.1.56 patchrelease voegt gerichte RGB-kleurbalans toe om rode kleurzweem in oudere scans te corrigeren.
+Deze 3.1.57 patchrelease voegt perforatie-bewuste horizontale/verticale stabilisatie toe, plus een instelbaar zoekgebied voor de linker gele lijn.
 
-## Nieuw in 3.1.56
+## Nieuw in 3.1.57
+- Nieuwe optie in **Picture Strip**: **Linker lijn zoekgebied** (px).
+  - bepaalt hoe breed rond de linker gele lijn gezocht wordt.
+- Nieuwe perforatie-bewuste stabilisatie in **Video**:
+  - **Perforatie-bewust** (aan/uit)
+  - **Polarity**: Auto / White on Black / Black on White
+  - **Verticale perforatie lock** + **Max Y shift**
+- Stabilisatie gebruikt nu perforatiecontrast als extra anker voor rustiger X en Y correctie op moeilijk materiaal.
+- Nieuwe perforatie-instellingen worden opgeslagen in defaults, queue-presets en `.aeo` projectbestanden.
+
+## Eerder toegevoegd in 3.1.56
 - Nieuwe kleurcorrectie in **Image Processing**:
   - **R balance**
   - **G balance**
@@ -345,28 +355,28 @@ Deze 3.1.56 patchrelease voegt gerichte RGB-kleurbalans toe om rode kleurzweem i
 4. Als SmartScreen waarschuwt: klik **Meer informatie** → **Toch uitvoeren**.
 
 ## Ultra-korte package checklist (5 punten)
-- [ ] Release-tag = `v3.1.56`.
+- [ ] Release-tag = `v3.1.57`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` staat op de release.
 - [ ] ZIP uitgepakt naar een lokale map.
-- [ ] `AEO-Light.exe` start en toont versie **3.1.56**.
+- [ ] `AEO-Light.exe` start en toont versie **3.1.57**.
 - [ ] Korte **Test Run** slaagt en maakt output aan.
 
-## Package checklist (v3.1.56, Windows x64)
-- [ ] Release-tag is `v3.1.56`.
+## Package checklist (v3.1.57, Windows x64)
+- [ ] Release-tag is `v3.1.57`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` is aanwezig op de releasepagina.
 - [ ] ZIP uitgepakt naar een lokale map (niet rechtstreeks uit de ZIP starten).
 - [ ] In de uitgepakte map staan minimaal:
   - `AEO-Light.exe`
   - `LICENSE.txt`
   - `ffmpeg.exe`
-- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.56**.
+- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.57**.
 - [ ] Snelle rooktest:
   - bron laden
   - korte **Test Run** uitvoeren
   - outputbestand wordt aangemaakt
 - [ ] (Optioneel) checksumcontrole van download:
   - `certutil -hashfile AEO-Light-Windows-x64.zip SHA256`
-  - verwacht: waarde op de `v3.1.56` releasepagina
+  - verwacht: waarde op de `v3.1.57` releasepagina
 
 ## Snelle start (aanbevolen)
 - Container: **MP4**
