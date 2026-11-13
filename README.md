@@ -1,8 +1,14 @@
-# AEO-Light 3.1.50 (fork release)
+# AEO-Light 3.1.51 (fork release)
 
-Deze 3.1.50 patchrelease rondt de JPG-compatibiliteit verder af met robuustere sequence-herkenning.
+Deze 3.1.51 patchrelease verbetert bronherkenning verder voor probleem-JPG en MP4 (o.a. Avidemux-export).
 
-## Nieuw in 3.1.50
+## Nieuw in 3.1.51
+- Betere bron-auto-detectie: als gekozen filefilter niet exact matcht, probeert AEO-Light nu automatisch alternatieve bronparsers i.p.v. direct te falen.
+- MP4 fallback in builds zonder ingebouwde libav: video wordt via `ffmpeg` naar tijdelijke PNG-frames gedecodeerd en daarna geladen.
+- Extra robuustheid voor pad/encoding bij bronopenen (UTF-8 overdracht).
+- Tijdelijke frame-mappen uit video-fallback worden automatisch opgeruimd.
+
+## Eerder toegevoegd in 3.1.50
 - Fix: JPG-bronnen met niet-strikte sequence-naam worden nu veilig geaccepteerd als single-frame bron in plaats van geweigerd.
 - Fix: sequence-scan voor beeldreeksen vergelijkt extensies nu case-insensitive (`.jpg`/`.JPG` mix werkt).
 - Fix: wanneer geen geldige sequence kan worden afgeleid, valt AEO-Light automatisch terug op een single-frame source.
@@ -303,28 +309,28 @@ Deze 3.1.50 patchrelease rondt de JPG-compatibiliteit verder af met robuustere s
 4. Als SmartScreen waarschuwt: klik **Meer informatie** → **Toch uitvoeren**.
 
 ## Ultra-korte package checklist (5 punten)
-- [ ] Release-tag = `v3.1.50`.
+- [ ] Release-tag = `v3.1.51`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` staat op de release.
 - [ ] ZIP uitgepakt naar een lokale map.
-- [ ] `AEO-Light.exe` start en toont versie **3.1.50**.
+- [ ] `AEO-Light.exe` start en toont versie **3.1.51**.
 - [ ] Korte **Test Run** slaagt en maakt output aan.
 
-## Package checklist (v3.1.50, Windows x64)
-- [ ] Release-tag is `v3.1.50`.
+## Package checklist (v3.1.51, Windows x64)
+- [ ] Release-tag is `v3.1.51`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` is aanwezig op de releasepagina.
 - [ ] ZIP uitgepakt naar een lokale map (niet rechtstreeks uit de ZIP starten).
 - [ ] In de uitgepakte map staan minimaal:
   - `AEO-Light.exe`
   - `LICENSE.txt`
   - `ffmpeg.exe`
-- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.50**.
+- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.51**.
 - [ ] Snelle rooktest:
   - bron laden
   - korte **Test Run** uitvoeren
   - outputbestand wordt aangemaakt
 - [ ] (Optioneel) checksumcontrole van download:
   - `certutil -hashfile AEO-Light-Windows-x64.zip SHA256`
-  - verwacht: waarde op de `v3.1.50` releasepagina
+  - verwacht: waarde op de `v3.1.51` releasepagina
 
 ## Snelle start (aanbevolen)
 - Container: **MP4**
