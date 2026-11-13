@@ -1337,10 +1337,12 @@ MainWindow::MainWindow(QWidget *parent) :
 		QTabBar *tabs = ui->tabWidget->tabBar();
 		tabs->setExpanding(true);
 		tabs->setUsesScrollButtons(false);
-		tabs->setElideMode(Qt::ElideRight);
+		tabs->setElideMode(Qt::ElideNone);
 	}
 	// Shorter labels avoid clipping while tabs stretch across full width.
-	ui->tabWidget->setTabText(0, tr("A/V-track Settings"));
+	ui->tabWidget->setTabText(0, tr("A/V-track"));
+	ui->tabWidget->setTabText(1, tr("Image Proc"));
+	ui->tabWidget->setTabText(2, tr("Video"));
 	ui->tabWidget->setTabText(3, tr("Extract A/V"));
 	if(ui->statusBar && !layoutProfileStatusLabel)
 	{
@@ -1861,12 +1863,12 @@ void MainWindow::UpdateAdaptiveUiScale()
 	}
 
 	const int tabHeightDelta =
-			(profile == RES_PROFILE_HD) ? -26 :
+			(profile == RES_PROFILE_HD) ? -8 :
 			(profile == RES_PROFILE_UHD) ? 24 : 0;
 	const int contentHeightDelta =
-			(profile == RES_PROFILE_HD) ? -28 :
+			(profile == RES_PROFILE_HD) ? 0 :
 			(profile == RES_PROFILE_UHD) ? 64 : 0;
-	const int minTabHeight = (profile == RES_PROFILE_HD) ? 500 : 520;
+	const int minTabHeight = (profile == RES_PROFILE_HD) ? 540 : 520;
 
 	if(ui->tabWidget && uiScaleBaseGeometry.contains(ui->tabWidget))
 	{
@@ -1884,7 +1886,7 @@ void MainWindow::UpdateAdaptiveUiScale()
 		QTabBar *tabs = ui->tabWidget->tabBar();
 		tabs->setExpanding(true);
 		tabs->setUsesScrollButtons(false);
-		tabs->setElideMode(Qt::ElideRight);
+		tabs->setElideMode(Qt::ElideNone);
 
 		QFont tabFont = tabs->font();
 		const int basePt = (tabFont.pointSize() > 0) ? tabFont.pointSize() : 9;
@@ -1897,9 +1899,18 @@ void MainWindow::UpdateAdaptiveUiScale()
 		const int tabMinHeight =
 				(profile == RES_PROFILE_HD) ? 28 :
 				(profile == RES_PROFILE_UHD) ? 36 : 32;
+		const int tabCount = std::max(1, tabs->count());
+		const int availableTabWidth = std::max(
+				360,
+				(ui->tabWidget ? ui->tabWidget->width() : tabs->width()) - 12);
+		const int forcedTabWidth = std::max(
+				72,
+				(availableTabWidth / tabCount) - 2);
 		tabs->setStyleSheet(QString(
-				"QTabBar::tab { min-height: %1px; padding: 5px 8px; }")
-				.arg(tabMinHeight));
+				"QTabBar::tab { min-height: %1px; min-width: %2px; "
+				"max-width: %2px; padding: 4px 2px; }")
+				.arg(tabMinHeight)
+				.arg(forcedTabWidth));
 	}
 
 	int tabHeightShift = 0;

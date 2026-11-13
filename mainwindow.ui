@@ -119,7 +119,7 @@
         <height>445</height>
         </rect>
        </property>
-      <layout class="QGridLayout" name="soundtrackSettingGrid" rowstretch="3,2,0" columnstretch="1">
+      <layout class="QGridLayout" name="soundtrackSettingGrid" rowstretch="2,2,0" columnstretch="1">
         <property name="sizeConstraint">
          <enum>QLayout::SetDefaultConstraint</enum>
         </property>
@@ -131,7 +131,7 @@
          <property name="minimumSize">
           <size>
            <width>0</width>
-           <height>250</height>
+           <height>210</height>
           </size>
          </property>
           <property name="title">
@@ -694,7 +694,7 @@
          <property name="minimumSize">
           <size>
            <width>0</width>
-           <height>128</height>
+           <height>220</height>
           </size>
          </property>
           <property name="title">
@@ -991,7 +991,7 @@
            <item row="6" column="0" colspan="4">
             <widget class="QLabel" name="videoHelpLabel">
              <property name="text">
-              <string>Tip: Video Frame Top/Bottom stuurt aparte videohulplijnen (cyaan/oranje) en de verticale video-crop bij export. Zet &quot;Stabiele crop&quot; uit om Search Size ook op videodrift toe te passen; gebruik Gevoeligheid voor fine-tuning. Activeer &quot;Picture-strip lock&quot; voor horizontale stabilisatie op basis van de verticale picture-strip lijnen. Met perforatie-lock kan de app witte perforaties op donkere achtergrond gebruiken voor stabielere horizontale en verticale tracking.</string>
+              <string>Tip: Picture-strip lock stabiliseert horizontaal. Perforatie-lock gebruikt perforaties voor extra stabiele X/Y-tracking. Zet &quot;Stabiele crop&quot; uit om Search Size ook op videodrift toe te passen.</string>
              </property>
              <property name="wordWrap">
               <bool>true</bool>
