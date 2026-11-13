@@ -3050,7 +3050,9 @@ bool MainWindow::NewSource(QString filename, SourceFormat ft)
 	try
 	{
 		traceCurrentOperation = "Opening Source";
-		const bool sourceOpened = this->scan.SourceScan(filename.toStdString(), ft);
+		const QByteArray filenameUtf8 = filename.toUtf8();
+		const bool sourceOpened = this->scan.SourceScan(
+				std::string(filenameUtf8.constData()), ft);
 		if(!sourceOpened || !this->scan.inFile.IsReady())
 		{
 			QMessageBox::warning(

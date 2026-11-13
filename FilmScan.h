@@ -146,6 +146,7 @@ private:
 	Video *vid = NULL;
 #endif
 	wav *synth = NULL;
+	QString generatedFrameDir;
 
 	std::string inputName;
 

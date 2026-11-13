@@ -52,6 +52,10 @@
 #include <QFileInfo>
 #include <QImageReader>
 #include <QMessageBox>
+#include <QDir>
+#include <QProcess>
+#include <QCoreApplication>
+#include <QUuid>
 
 #ifdef Q_OS_WIN32
 // Depending on the way you've built libtiff on Windows, you may have
@@ -352,6 +356,47 @@ bool FilmScan::Source(const std::string filename, SourceFormat fmt)
 	this->Reset();
 	this->inputName = filename;
 
+	auto tryAutoDetect = [&]() -> bool
+	{
+		try
+		{
+			if(SourceDPX(filename)) return true;
+		}
+		catch(...) {;}
+
+		try
+		{
+			if(SourceTIFF(filename)) return true;
+		}
+		catch(...) {;}
+
+		try
+		{
+			if(SourceJPG(filename)) return true;
+		}
+		catch(...) {;}
+
+		try
+		{
+			if(SourcePNG(filename)) return true;
+		}
+		catch(...) {;}
+
+		try
+		{
+			if(SourceWav(filename)) return true;
+		}
+		catch(...) {;}
+
+		try
+		{
+			if(SourceLibAV(filename)) return true;
+		}
+		catch(...) { throw; }
+
+		return false;
+	};
+
 	if(fmt != SOURCE_UNKNOWN)
 	{
 		this->srcFormat = fmt;
@@ -401,38 +446,16 @@ bool FilmScan::Source(const std::string filename, SourceFormat fmt)
 		default:
 			throw AeoException("Unrecognized FileType Request");
 		}
+
+		// If the user selected a restrictive file filter that does not match
+		// the actual content, fall back to auto-detection before failing.
+		if(tryAutoDetect())
+			return true;
 	}
 	else
 	{
-		try
-		{
-			if(SourceDPX(filename)) return true;
-		}
-		catch(...) {;}
-
-		try
-		{
-			if(SourceJPG(filename)) return true;
-		}
-		catch(...) {;}
-
-		try
-		{
-			if(SourcePNG(filename)) return true;
-		}
-		catch(...) {;}
-
-		try
-		{
-			if(SourceWav(filename)) return true;
-		}
-		catch(...) {;}
-
-		try
-		{
-			if(SourceLibAV(filename)) return true;
-		}
-		catch(...) { throw; }
+		if(tryAutoDetect())
+			return true;
 	}
 
 	throw AeoException("Unable to recognize source file");
@@ -453,6 +476,13 @@ void FilmScan::Reset()
 	if(vid) { delete vid; vid = NULL; }
 	#endif
 	if(synth) {delete synth; synth = NULL; }
+	if(!generatedFrameDir.isEmpty())
+	{
+		QDir cleanupDir(generatedFrameDir);
+		if(cleanupDir.exists())
+			cleanupDir.removeRecursively();
+		generatedFrameDir.clear();
+	}
 
 	inputName.clear();
 }
@@ -1239,7 +1269,93 @@ bool FilmScan::SourceLibAV(const std::string filename)
 	}
 	#else
 	{
-	return false;
+		QString qfilename = QString::fromUtf8(filename.c_str());
+		QFileInfo srcInfo(qfilename);
+		if(!srcInfo.exists() || !srcInfo.isFile())
+			return false;
+
+		QString ffmpegProgram;
+		#ifdef Q_OS_WIN32
+		{
+			const QString bundled = QDir(
+					QCoreApplication::applicationDirPath()).filePath("ffmpeg.exe");
+			if(QFileInfo::exists(bundled))
+				ffmpegProgram = bundled;
+			else
+				ffmpegProgram = "ffmpeg";
+		}
+		#else
+		ffmpegProgram = "ffmpeg";
+		#endif
+
+		const QString outDirPath = QDir(QDir::tempPath()).filePath(
+				QString("aeo-light-video-%1")
+				.arg(QUuid::createUuid().toString(QUuid::WithoutBraces)));
+		if(!QDir().mkpath(outDirPath))
+			return false;
+
+		const QString framePattern = QDir(outDirPath).filePath("frame_%06d.png");
+		QProcess ffmpeg;
+		QStringList args;
+		args << "-hide_banner"
+			 << "-loglevel" << "error"
+			 << "-nostdin"
+			 << "-y"
+			 << "-i" << qfilename
+			 << framePattern;
+		ffmpeg.start(ffmpegProgram, args);
+		if(!ffmpeg.waitForStarted(5000))
+		{
+			QString msg("Unable to start ffmpeg for video decoding.");
+			const QString err = ffmpeg.errorString().trimmed();
+			if(!err.isEmpty())
+				msg += "\n" + err;
+			QDir(outDirPath).removeRecursively();
+			throw AeoException(msg);
+		}
+		if(!ffmpeg.waitForFinished(-1) ||
+				ffmpeg.exitStatus() != QProcess::NormalExit ||
+				ffmpeg.exitCode() != 0)
+		{
+			const QString ffmpegErr = QString::fromUtf8(ffmpeg.readAllStandardError());
+			QDir(outDirPath).removeRecursively();
+			if(!ffmpegErr.trimmed().isEmpty())
+			{
+				QString msg("Unable to decode video source via ffmpeg:\n");
+				msg += ffmpegErr.trimmed();
+				throw AeoException(msg);
+			}
+			return false;
+		}
+
+		const QDir outDir(outDirPath);
+		const QStringList frames = outDir.entryList(
+				QStringList() << "frame_*.png",
+				QDir::Files,
+				QDir::Name);
+		if(frames.isEmpty())
+		{
+			QDir(outDirPath).removeRecursively();
+			return false;
+		}
+
+		const QString firstFramePath = outDir.filePath(frames.first());
+		try
+		{
+			if(SourcePNG(firstFramePath.toUtf8().constData()))
+			{
+				generatedFrameDir = outDirPath;
+				return true;
+			}
+		}
+		catch(...)
+		{
+			QDir(outDirPath).removeRecursively();
+			throw;
+		}
+
+		QDir(outDirPath).removeRecursively();
+		return false;
 	}
 	#endif
 }
@@ -1250,6 +1366,13 @@ FilmScan::~FilmScan()
 	if(this->name) delete [] this->name;
 	if(this->path) delete [] this->path;
 	if(this->fnbuf) delete [] this->fnbuf;
+	if(!this->generatedFrameDir.isEmpty())
+	{
+		QDir cleanupDir(this->generatedFrameDir);
+		if(cleanupDir.exists())
+			cleanupDir.removeRecursively();
+		this->generatedFrameDir.clear();
+	}
 	#ifdef USELIBAV
 	if(this->vid) delete this->vid;
 	#endif
