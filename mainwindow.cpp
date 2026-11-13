@@ -1398,20 +1398,29 @@ MainWindow::MainWindow(QWidget *parent) :
 	if(ui->tab_3 && ui->horizontalLayout_3 && ui->viewOptionsLayout)
 	{
 		// Move View options from the global bottom strip into Extract A/V.
+		// takeAt() returns the nested layout itself; deleting that item
+		// destroys the layout and crashes on the next use.
 		QLayoutItem *viewItem = ui->horizontalLayout_3->takeAt(0);
-		delete viewItem;
+		QLayout *movedViewLayout = (viewItem && viewItem->layout()) ?
+				viewItem->layout() : nullptr;
+		if(viewItem && !movedViewLayout)
+			delete viewItem;
 		QLayoutItem *leadingSpacer = ui->horizontalLayout_3->itemAt(0);
 		if(leadingSpacer && leadingSpacer->spacerItem())
 			delete ui->horizontalLayout_3->takeAt(0);
 
-		extractViewOptionsGroupBox = new QGroupBox(tr("View options"), ui->tab_3);
-		extractViewOptionsGroupBox->setObjectName("extractViewOptionsGroupBox");
-		QVBoxLayout *extractViewOptionsLayout = new QVBoxLayout(extractViewOptionsGroupBox);
-		extractViewOptionsLayout->setContentsMargins(8, 8, 8, 8);
-		extractViewOptionsLayout->setSpacing(4);
-		extractViewOptionsLayout->addLayout(ui->viewOptionsLayout);
-		if(ui->label_3)
-			ui->label_3->setVisible(false);
+		if(movedViewLayout)
+		{
+			movedViewLayout->setParent(nullptr);
+			extractViewOptionsGroupBox = new QGroupBox(tr("View options"), ui->tab_3);
+			extractViewOptionsGroupBox->setObjectName("extractViewOptionsGroupBox");
+			QVBoxLayout *extractViewOptionsLayout = new QVBoxLayout(extractViewOptionsGroupBox);
+			extractViewOptionsLayout->setContentsMargins(8, 8, 8, 8);
+			extractViewOptionsLayout->setSpacing(4);
+			extractViewOptionsLayout->addLayout(movedViewLayout);
+			if(ui->label_3)
+				ui->label_3->setVisible(false);
+		}
 	}
 	if(ui->tab_3 && ui->gridLayoutWidget_3)
 	{
