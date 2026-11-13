@@ -7802,13 +7802,12 @@ bool MainWindow::extractGL(QString filename, bool doTimer,
 				timingMsg,
 				processMsg);
 	}
+	QString folderToOpen;
 	if(success && !batch && outputOpenFolderAfterExport && !suppressResultDialog)
 	{
 		const QString preferredPath =
 				!videoFilename.isEmpty() ? videoFilename : filename;
-		const QString outDir = QFileInfo(preferredPath).absolutePath();
-		if(!outDir.isEmpty())
-			QDesktopServices::openUrl(QUrl::fromLocalFile(outDir));
+		folderToOpen = QFileInfo(preferredPath).absolutePath();
 	}
 
 	if(!batch)
@@ -7818,26 +7817,60 @@ bool MainWindow::extractGL(QString filename, bool doTimer,
 
 		if(!suppressResultDialog)
 		{
-			QMessageBox msg;
+			// The embedded preview is a native window. Without an owner
+			// and topmost flag, this dialog falls behind the main window
+			// and its modality freezes the rest of the app.
+			const bool restorePreview = previewContainerWidget &&
+					previewContainerWidget->isVisible();
+			if(restorePreview)
+				previewContainerWidget->setVisible(false);
+
+			QMessageBox msg(this);
+			msg.setWindowTitle(tr("AEO-Light"));
+			msg.setIcon(QMessageBox::Information);
 			msg.setText(processMsg);
 			msg.setInformativeText(timingMsg);
+			msg.setWindowModality(Qt::ApplicationModal);
+			msg.setWindowFlag(Qt::WindowStaysOnTopHint, true);
 			QPushButton *viewButton =
-					msg.addButton("View Log", QMessageBox::HelpRole);
-			msg.addButton(QMessageBox::Ok);
-
+					msg.addButton(tr("View Log"), QMessageBox::ActionRole);
+			QPushButton *okButton = msg.addButton(QMessageBox::Ok);
+			msg.setDefaultButton(okButton);
+			const QRect host = this->frameGeometry();
+			msg.adjustSize();
+			msg.move(host.center() - QPoint(msg.width() / 2, msg.height() / 2));
+			this->raise();
+			this->activateWindow();
+			QTimer *raiseTimer = new QTimer(&msg);
+			raiseTimer->setSingleShot(true);
+			QObject::connect(raiseTimer, &QTimer::timeout, &msg, [&msg]()
+			{
+				if(!msg.isVisible()) return;
+				msg.raise();
+				msg.activateWindow();
+			});
+			raiseTimer->start(50);
 			msg.exec();
+
+			if(restorePreview && previewContainerWidget)
+				previewContainerWidget->setVisible(true);
 
 			if(msg.clickedButton() == viewButton)
 			{
 				#ifdef Q_OS_WIN32
-				system(QString("start %1/%2").arg(QDir::homePath(),"AEO-log.txt")
-						.toStdString().c_str());
+				QProcess::startDetached("cmd", QStringList()
+						<< "/c" << "start" << ""
+						<< QDir(QDir::homePath()).filePath("AEO-log.txt"));
 				#else
-				system("open ~/.aeolight.log.txt");
+				QProcess::startDetached("open", QStringList()
+						<< QDir::home().filePath(".aeolight.log.txt"));
 				#endif
 			}
 		}
 	}
+
+	if(!folderToOpen.isEmpty())
+		QDesktopServices::openUrl(QUrl::fromLocalFile(folderToOpen));
 
 	return success;
 }

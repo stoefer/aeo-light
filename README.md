@@ -1,8 +1,12 @@
-# AEO-Light 3.1.63 (fork release)
+# AEO-Light 3.1.64 (fork release)
 
-Deze 3.1.63 patchrelease maakt Extract A/V en Queue weer leesbaar. View options, de afspeelslider en de sampleknoppen liggen niet meer over elkaar. De Queue-knoppen staan op twee regels.
+Deze 3.1.64 patchrelease houdt het venster **Sound Extraction Complete** vooraan, zodat je het kunt sluiten en de app daarna weer kunt bedienen.
 
-## Nieuw in 3.1.63
+## Nieuw in 3.1.64
+- Het voltooiingsvenster na extractie blijft boven het hoofdvenster en de preview.
+- **OK** en **View Log** sluiten dat venster. De exportmap opent pas daarna, zodat die het venster niet bedekt.
+
+## Eerder toegevoegd in 3.1.63
 - **Extract A/V**: View options blijven volledig leesbaar. De afspeelslider houdt een normale breedte en staat onder de tabs, niet meer over de view-opties.
 - Sampleknoppen en **Auto Load Settings** blijven helemaal zichtbaar onder View options.
 - **Queue**: Import, Stop en de presetknoppen staan op een eerste regel, Pause/Skip/Retry/Extract op een tweede. Lange labels gebruiken twee regels tekst en een iets kleiner lettertype.
@@ -390,28 +394,28 @@ Deze 3.1.63 patchrelease maakt Extract A/V en Queue weer leesbaar. View options,
 4. Als SmartScreen waarschuwt: klik **Meer informatie** → **Toch uitvoeren**.
 
 ## Ultra-korte package checklist (5 punten)
-- [ ] Release-tag = `v3.1.63`.
+- [ ] Release-tag = `v3.1.64`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` staat op de release.
 - [ ] ZIP uitgepakt naar een lokale map.
-- [ ] `AEO-Light.exe` start en toont versie **3.1.63**.
+- [ ] `AEO-Light.exe` start en toont versie **3.1.64**.
 - [ ] Korte **Test Run** slaagt en maakt output aan.
 
-## Package checklist (v3.1.63, Windows x64)
-- [ ] Release-tag is `v3.1.63`.
+## Package checklist (v3.1.64, Windows x64)
+- [ ] Release-tag is `v3.1.64`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` is aanwezig op de releasepagina.
 - [ ] ZIP uitgepakt naar een lokale map (niet rechtstreeks uit de ZIP starten).
 - [ ] In de uitgepakte map staan minimaal:
   - `AEO-Light.exe`
   - `LICENSE.txt`
   - `ffmpeg.exe`
-- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.63**.
+- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.64**.
 - [ ] Snelle rooktest:
   - bron laden
   - korte **Test Run** uitvoeren
   - outputbestand wordt aangemaakt
 - [ ] (Optioneel) checksumcontrole van download:
   - `certutil -hashfile AEO-Light-Windows-x64.zip SHA256`
-  - verwacht: waarde op de `v3.1.63` releasepagina
+  - verwacht: waarde op de `v3.1.64` releasepagina
 
 ## Snelle start (aanbevolen)
 - Container: **MP4**
