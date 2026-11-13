@@ -909,10 +909,89 @@
              </property>
             </widget>
            </item>
-           <item row="4" column="0" colspan="4">
+           <item row="4" column="0">
+            <widget class="QLabel" name="perforationStabilizationTextLabel">
+             <property name="text">
+              <string>Perforatie lock</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="1">
+            <widget class="QCheckBox" name="perforationAwareStabilizationCheckBox">
+             <property name="text">
+              <string>Perforatie-bewust</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="2" colspan="2">
+            <widget class="QComboBox" name="perforationPolarityComboBox">
+             <item>
+              <property name="text">
+               <string>Polarity: Auto</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Polarity: White on Black</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Polarity: Black on White</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+           <item row="5" column="0">
+            <widget class="QLabel" name="verticalPerforationLockTextLabel">
+             <property name="text">
+              <string>Verticale perforatie lock</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="1">
+            <widget class="QCheckBox" name="verticalPerforationLockCheckBox">
+             <property name="text">
+              <string>Actief</string>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="2">
+            <widget class="QSpinBox" name="verticalPerforationMaxShiftSpinBox">
+             <property name="minimum">
+              <number>0</number>
+             </property>
+             <property name="maximum">
+              <number>400</number>
+             </property>
+             <property name="value">
+              <number>80</number>
+             </property>
+             <property name="suffix">
+              <string> px</string>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="3">
+            <widget class="QLabel" name="verticalPerforationMaxShiftTextLabel">
+             <property name="text">
+              <string>Max Y shift</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="0" colspan="4">
             <widget class="QLabel" name="videoHelpLabel">
              <property name="text">
-              <string>Tip: Video Frame Top/Bottom stuurt aparte videohulplijnen (cyaan/oranje) en de verticale video-crop bij export. Zet &quot;Stabiele crop&quot; uit om Search Size ook op videodrift toe te passen; gebruik Gevoeligheid voor fine-tuning. Activeer &quot;Picture-strip lock&quot; voor horizontale stabilisatie op basis van de verticale picture-strip lijnen.</string>
+              <string>Tip: Video Frame Top/Bottom stuurt aparte videohulplijnen (cyaan/oranje) en de verticale video-crop bij export. Zet &quot;Stabiele crop&quot; uit om Search Size ook op videodrift toe te passen; gebruik Gevoeligheid voor fine-tuning. Activeer &quot;Picture-strip lock&quot; voor horizontale stabilisatie op basis van de verticale picture-strip lijnen. Met perforatie-lock kan de app witte perforaties op donkere achtergrond gebruiken voor stabielere horizontale en verticale tracking.</string>
              </property>
              <property name="wordWrap">
               <bool>true</bool>
@@ -4073,6 +4152,10 @@ QPushButton:disabled {
   <tabstop>horizontalPictureStabilizationCheckBox</tabstop>
   <tabstop>horizontalPictureStabilizationStrengthSlider</tabstop>
   <tabstop>horizontalPictureStabilizationMaxShiftSpinBox</tabstop>
+  <tabstop>perforationAwareStabilizationCheckBox</tabstop>
+  <tabstop>perforationPolarityComboBox</tabstop>
+  <tabstop>verticalPerforationLockCheckBox</tabstop>
+  <tabstop>verticalPerforationMaxShiftSpinBox</tabstop>
   <tabstop>overlapSlider</tabstop>
   <tabstop>HeightCalculateBtn</tabstop>
   <tabstop>soundtrackDefaultsButton</tabstop>

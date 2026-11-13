@@ -355,6 +355,13 @@ enum VideoTargetProfileMode
 	VIDEO_TARGET_PROFILE_ARCHIVE = 3
 };
 
+enum PerforationPolarityMode
+{
+	PERFORATION_POLARITY_AUTO = 0,
+	PERFORATION_POLARITY_WHITE_ON_BLACK = 1,
+	PERFORATION_POLARITY_BLACK_ON_WHITE = 2
+};
+
 static QString ReadLastExportDirMain(const QString &key, const QString &fallback)
 {
 	QSettings settings;
@@ -431,6 +438,12 @@ static QVariantMap SerializeExtractedSoundParams(const ExtractedSound &params)
 			static_cast<uint>(params.horizontalPictureStabilizeStrength));
 	map.insert("horizontalPictureStabilizeMaxShift",
 			static_cast<uint>(params.horizontalPictureStabilizeMaxShift));
+	map.insert("perforationAwareStabilize", params.perforationAwareStabilize);
+	map.insert("perforationPolarityMode",
+			static_cast<uint>(params.perforationPolarityMode));
+	map.insert("verticalPerforationLock", params.verticalPerforationLock);
+	map.insert("verticalPerforationMaxShift",
+			static_cast<uint>(params.verticalPerforationMaxShift));
 	map.insert("gamma", static_cast<uint>(params.gamma));
 	map.insert("gain", static_cast<uint>(params.gain));
 	map.insert("redBalance", static_cast<uint>(params.redBalance));
@@ -475,6 +488,15 @@ static ExtractedSound DeserializeExtractedSoundParams(const QVariantMap &map)
 			map.value("horizontalPictureStabilizeStrength", 100).toUInt());
 	params.horizontalPictureStabilizeMaxShift = static_cast<uint16_t>(
 			map.value("horizontalPictureStabilizeMaxShift", 80).toUInt());
+	params.perforationAwareStabilize = map.value(
+			"perforationAwareStabilize", false).toBool();
+	params.perforationPolarityMode = static_cast<uint8_t>(
+			map.value("perforationPolarityMode",
+					PERFORATION_POLARITY_AUTO).toUInt());
+	params.verticalPerforationLock = map.value(
+			"verticalPerforationLock", false).toBool();
+	params.verticalPerforationMaxShift = static_cast<uint16_t>(
+			map.value("verticalPerforationMaxShift", 80).toUInt());
 	params.gamma = static_cast<uint16_t>(map.value("gamma", 100).toUInt());
 	params.gain = static_cast<uint16_t>(map.value("gain", 100).toUInt());
 	params.redBalance = static_cast<uint16_t>(
@@ -1151,6 +1173,10 @@ ExtractedSound::ExtractedSound() :
 	horizontalPictureStabilize(false),
 	horizontalPictureStabilizeStrength(100),
 	horizontalPictureStabilizeMaxShift(80),
+	perforationAwareStabilize(false),
+	perforationPolarityMode(PERFORATION_POLARITY_AUTO),
+	verticalPerforationLock(false),
+	verticalPerforationMaxShift(80),
 	gamma(100),
 	gain (100),
 	redBalance(100),
@@ -1204,6 +1230,10 @@ bool ExtractedSound::operator ==(const ExtractedSound &ref) const
 	if(horizontalPictureStabilize != ref.horizontalPictureStabilize) return false;
 	if(horizontalPictureStabilizeStrength != ref.horizontalPictureStabilizeStrength) return false;
 	if(horizontalPictureStabilizeMaxShift != ref.horizontalPictureStabilizeMaxShift) return false;
+	if(perforationAwareStabilize != ref.perforationAwareStabilize) return false;
+	if(perforationPolarityMode != ref.perforationPolarityMode) return false;
+	if(verticalPerforationLock != ref.verticalPerforationLock) return false;
+	if(verticalPerforationMaxShift != ref.verticalPerforationMaxShift) return false;
 	if(overlap != ref.overlap) return false;
 
 	if(useBounds != ref.useBounds) return false;
@@ -1445,6 +1475,14 @@ MainWindow::MainWindow(QWidget *parent) :
 	horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
 	horizontalPictureStabilizationReferenceCenterX = 0.0f;
 	horizontalPictureStabilizationReferenceReady = false;
+	perforationAwareStabilizationEnabled = false;
+	perforationPolarityMode = PERFORATION_POLARITY_AUTO;
+	verticalPerforationLockEnabled = false;
+	verticalPerforationMaxShiftPixels = 80;
+	verticalPerforationSmoothFactor = 0.75f;
+	verticalPerforationCurrentShiftPixels = 0.0f;
+	verticalPerforationReferenceCenterY = 0.0f;
+	verticalPerforationReferenceReady = false;
 	horizontalPictureStabilizationFrameBuffer = NULL;
 	videoFlipHorizontal = false;
 	videoFlipVertical = false;
@@ -2478,6 +2516,14 @@ void MainWindow::SaveDefaultsSoundtrack()
 			ui->horizontalPictureStabilizationStrengthSlider->value());
 	settings.setValue("video/horizontal-picture-stabilize-max-shift",
 			ui->horizontalPictureStabilizationMaxShiftSpinBox->value());
+	settings.setValue("video/perforation-aware-stabilize",
+			ui->perforationAwareStabilizationCheckBox->isChecked());
+	settings.setValue("video/perforation-polarity",
+			ui->perforationPolarityComboBox->currentIndex());
+	settings.setValue("video/vertical-perforation-lock",
+			ui->verticalPerforationLockCheckBox->isChecked());
+	settings.setValue("video/vertical-perforation-max-shift",
+			ui->verticalPerforationMaxShiftSpinBox->value());
 	settings.setValue("overlap/radius", ui->overlapSlider->value());
 	settings.setValue("overlap/lock", ui->HeightCalculateBtn->isChecked());
 	settings.setValue("isstereo", ui->monostereo_PD->currentIndex());
@@ -2587,6 +2633,17 @@ void MainWindow::LoadDefaults()
 			settings.value("video/horizontal-picture-stabilize-strength", 100).toInt());
 	ui->horizontalPictureStabilizationMaxShiftSpinBox->setValue(
 			settings.value("video/horizontal-picture-stabilize-max-shift", 80).toInt());
+	ui->perforationAwareStabilizationCheckBox->setChecked(
+			settings.value("video/perforation-aware-stabilize", false).toBool());
+	ui->perforationPolarityComboBox->setCurrentIndex(ClampRangeInt(
+			settings.value("video/perforation-polarity",
+					PERFORATION_POLARITY_AUTO).toInt(),
+			PERFORATION_POLARITY_AUTO,
+			PERFORATION_POLARITY_BLACK_ON_WHITE));
+	ui->verticalPerforationLockCheckBox->setChecked(
+			settings.value("video/vertical-perforation-lock", false).toBool());
+	ui->verticalPerforationMaxShiftSpinBox->setValue(
+			settings.value("video/vertical-perforation-max-shift", 80).toInt());
 	UpdateVideoStabilizationControls();
 	UpdateHorizontalPictureStabilizationControls();
 
@@ -2833,6 +2890,16 @@ ExtractedSound MainWindow::ExtractionParamsFromGUI()
 			ui->horizontalPictureStabilizationStrengthSlider->value();
 	params.horizontalPictureStabilizeMaxShift =
 			ui->horizontalPictureStabilizationMaxShiftSpinBox->value();
+	params.perforationAwareStabilize =
+			ui->perforationAwareStabilizationCheckBox->isChecked();
+	params.perforationPolarityMode = ClampRangeInt(
+			ui->perforationPolarityComboBox->currentIndex(),
+			PERFORATION_POLARITY_AUTO,
+			PERFORATION_POLARITY_BLACK_ON_WHITE);
+	params.verticalPerforationLock =
+			ui->verticalPerforationLockCheckBox->isChecked();
+	params.verticalPerforationMaxShift =
+			ui->verticalPerforationMaxShiftSpinBox->value();
 
 	params.frameIn = ui->frameInSpinBox->value();
 	params.frameOut = ui->frameOutSpinBox->value();
@@ -2910,6 +2977,16 @@ void MainWindow::ExtractionParametersToGUI(const ExtractedSound &params)
 			params.horizontalPictureStabilizeStrength);
 	ui->horizontalPictureStabilizationMaxShiftSpinBox->setValue(
 			params.horizontalPictureStabilizeMaxShift);
+	ui->perforationAwareStabilizationCheckBox->setChecked(
+			params.perforationAwareStabilize);
+	ui->perforationPolarityComboBox->setCurrentIndex(ClampRangeInt(
+			params.perforationPolarityMode,
+			PERFORATION_POLARITY_AUTO,
+			PERFORATION_POLARITY_BLACK_ON_WHITE));
+	ui->verticalPerforationLockCheckBox->setChecked(
+			params.verticalPerforationLock);
+	ui->verticalPerforationMaxShiftSpinBox->setValue(
+			params.verticalPerforationMaxShift);
 	UpdateHorizontalPictureStabilizationControls();
 
 	ui->maxFrequencyLabel->setText(
@@ -3432,6 +3509,14 @@ bool MainWindow::saveproject(QTextStream &out)
 			<<ui->horizontalPictureStabilizationStrengthSlider->value()<<"\n";
 	out<<"Horizontal Picture Stabilization Max Shift = "
 			<<ui->horizontalPictureStabilizationMaxShiftSpinBox->value()<<"\n";
+	out<<"Perforation Aware Stabilization = "
+			<<ui->perforationAwareStabilizationCheckBox->isChecked()<<"\n";
+	out<<"Perforation Polarity = "
+			<<ui->perforationPolarityComboBox->currentIndex()<<"\n";
+	out<<"Vertical Perforation Lock = "
+			<<ui->verticalPerforationLockCheckBox->isChecked()<<"\n";
+	out<<"Vertical Perforation Max Shift = "
+			<<ui->verticalPerforationMaxShiftSpinBox->value()<<"\n";
 	out<<"Overlap Search Size = "<<ui->overlapSlider->value()<<"\n";
 	out<<"Frame Translation = "<< TRANSSLIDER_VALUE <<"\n";
 
@@ -4591,6 +4676,17 @@ bool MainWindow::LoadProjectSettings(QString fn)
 			ui->horizontalPictureStabilizationStrengthSlider->setValue(value.toInt());
 		else if (key.contains("Horizontal Picture Stabilization"))
 			ui->horizontalPictureStabilizationCheckBox->setChecked(value.toInt());
+		else if (key.contains("Vertical Perforation Max Shift"))
+			ui->verticalPerforationMaxShiftSpinBox->setValue(value.toInt());
+		else if (key.contains("Vertical Perforation Lock"))
+			ui->verticalPerforationLockCheckBox->setChecked(value.toInt());
+		else if (key.contains("Perforation Polarity"))
+			ui->perforationPolarityComboBox->setCurrentIndex(ClampRangeInt(
+					value.toInt(),
+					PERFORATION_POLARITY_AUTO,
+					PERFORATION_POLARITY_BLACK_ON_WHITE));
+		else if (key.contains("Perforation Aware Stabilization"))
+			ui->perforationAwareStabilizationCheckBox->setChecked(value.toInt());
 		if (key.contains("Overlap Search Size"))
 			ui->overlapSlider->setValue(value.toInt());
 		if (key.contains("Lift"))
@@ -4843,6 +4939,8 @@ void MainWindow::on_leftPixSlider_sliderMoved(int position)
 	ui->leftPixSpinBox->setValue(position);
 	horizontalPictureStabilizationReferenceReady = false;
 	horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
+	verticalPerforationReferenceReady = false;
+	verticalPerforationCurrentShiftPixels = 0.0f;
 }
 
 void MainWindow::on_rightPixSlider_sliderMoved(int position)
@@ -4850,6 +4948,8 @@ void MainWindow::on_rightPixSlider_sliderMoved(int position)
 	ui->rightPixSpinBox->setValue(position);
 	horizontalPictureStabilizationReferenceReady = false;
 	horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
+	verticalPerforationReferenceReady = false;
+	verticalPerforationCurrentShiftPixels = 0.0f;
 }
 
 void MainWindow::on_leftPixSpinBox_valueChanged(int arg1)
@@ -4857,6 +4957,8 @@ void MainWindow::on_leftPixSpinBox_valueChanged(int arg1)
 	ui->leftPixSlider->setValue(arg1);
 	horizontalPictureStabilizationReferenceReady = false;
 	horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
+	verticalPerforationReferenceReady = false;
+	verticalPerforationCurrentShiftPixels = 0.0f;
 	GPU_Params_Update(1);
 }
 
@@ -4865,6 +4967,8 @@ void MainWindow::on_rightPixSpinBox_valueChanged(int arg1)
 	ui->rightPixSlider->setValue(arg1);
 	horizontalPictureStabilizationReferenceReady = false;
 	horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
+	verticalPerforationReferenceReady = false;
+	verticalPerforationCurrentShiftPixels = 0.0f;
 	GPU_Params_Update(1);
 }
 
@@ -4954,6 +5058,8 @@ void MainWindow::on_horizontalPictureStabilizationCheckBox_clicked(bool checked)
 	Q_UNUSED(checked);
 	horizontalPictureStabilizationReferenceReady = false;
 	horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
+	verticalPerforationReferenceReady = false;
+	verticalPerforationCurrentShiftPixels = 0.0f;
 	UpdateHorizontalPictureStabilizationControls();
 	GPU_Params_Update(1);
 }
@@ -4968,6 +5074,42 @@ void MainWindow::on_horizontalPictureStabilizationStrengthSlider_valueChanged(in
 void MainWindow::on_horizontalPictureStabilizationMaxShiftSpinBox_valueChanged(int arg1)
 {
 	Q_UNUSED(arg1);
+	UpdateHorizontalPictureStabilizationControls();
+	GPU_Params_Update(1);
+}
+
+void MainWindow::on_perforationAwareStabilizationCheckBox_clicked(bool checked)
+{
+	Q_UNUSED(checked);
+	horizontalPictureStabilizationReferenceReady = false;
+	horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
+	verticalPerforationReferenceReady = false;
+	verticalPerforationCurrentShiftPixels = 0.0f;
+	UpdateHorizontalPictureStabilizationControls();
+	GPU_Params_Update(1);
+}
+
+void MainWindow::on_perforationPolarityComboBox_currentIndexChanged(int index)
+{
+	Q_UNUSED(index);
+	horizontalPictureStabilizationReferenceReady = false;
+	verticalPerforationReferenceReady = false;
+	UpdateHorizontalPictureStabilizationControls();
+	GPU_Params_Update(1);
+}
+
+void MainWindow::on_verticalPerforationLockCheckBox_clicked(bool checked)
+{
+	Q_UNUSED(checked);
+	verticalPerforationReferenceReady = false;
+	verticalPerforationCurrentShiftPixels = 0.0f;
+	UpdateHorizontalPictureStabilizationControls();
+	GPU_Params_Update(1);
+}
+
+void MainWindow::on_verticalPerforationMaxShiftSpinBox_valueChanged(int value)
+{
+	Q_UNUSED(value);
 	UpdateHorizontalPictureStabilizationControls();
 	GPU_Params_Update(1);
 }
@@ -5095,9 +5237,25 @@ void MainWindow::UpdateHorizontalPictureStabilizationControls()
 			0, ui->horizontalPictureStabilizationMaxShiftSpinBox->value());
 	horizontalPictureStabilizationEnabled =
 			ui->horizontalPictureStabilizationCheckBox->isChecked();
+	perforationAwareStabilizationEnabled =
+			ui->perforationAwareStabilizationCheckBox->isChecked();
+	perforationPolarityMode = ClampRangeInt(
+			ui->perforationPolarityComboBox->currentIndex(),
+			PERFORATION_POLARITY_AUTO,
+			PERFORATION_POLARITY_BLACK_ON_WHITE);
+	verticalPerforationLockEnabled =
+			ui->verticalPerforationLockCheckBox->isChecked();
+	verticalPerforationMaxShiftPixels = std::max(
+			0, ui->verticalPerforationMaxShiftSpinBox->value());
 	const bool pixTrackEnabled = ui->OverlapPixCheckBox->isChecked();
 	const bool stabilizationActive =
 			horizontalPictureStabilizationEnabled && pixTrackEnabled;
+	const bool perforationControlsActive =
+			perforationAwareStabilizationEnabled && pixTrackEnabled;
+	const bool verticalActive =
+			perforationControlsActive && verticalPerforationLockEnabled;
+	ui->leftPixSearchValueLabel->setText(
+			QString("%1 px").arg(std::max(4, ui->leftPixSearchSlider->value())));
 
 	ui->horizontalPictureStabilizationStrengthLabel->setText(
 			QString("%1x").arg(
@@ -5110,6 +5268,11 @@ void MainWindow::UpdateHorizontalPictureStabilizationControls()
 			stabilizationActive);
 	ui->horizontalPictureStabilizationMaxShiftSpinBox->setEnabled(
 			stabilizationActive);
+	ui->perforationAwareStabilizationCheckBox->setEnabled(pixTrackEnabled);
+	ui->perforationPolarityComboBox->setEnabled(perforationControlsActive);
+	ui->verticalPerforationLockCheckBox->setEnabled(perforationControlsActive);
+	ui->verticalPerforationMaxShiftSpinBox->setEnabled(verticalActive);
+	ui->verticalPerforationMaxShiftTextLabel->setEnabled(verticalActive);
 
 	if(!stabilizationActive)
 	{
@@ -5118,9 +5281,17 @@ void MainWindow::UpdateHorizontalPictureStabilizationControls()
 		if(frame_window)
 			frame_window->horizontal_stabilize_shift = 0.0f;
 	}
+	if(!verticalActive)
+	{
+		verticalPerforationReferenceReady = false;
+		verticalPerforationCurrentShiftPixels = 0.0f;
+		if(frame_window)
+			frame_window->vertical_stabilize_shift = 0.0f;
+	}
 }
 
-bool MainWindow::EstimatePictureStripCenterX(long absoluteFrameNumber, float &centerX)
+bool MainWindow::EstimatePictureStripAnchor(
+		long absoluteFrameNumber, float &centerX, float *centerY)
 {
 	if(!scan.inFile.IsReady()) return false;
 	if(!ui->OverlapPixCheckBox->isChecked()) return false;
@@ -5149,6 +5320,82 @@ bool MainWindow::EstimatePictureStripCenterX(long absoluteFrameNumber, float &ce
 			absoluteFrameNumber, horizontalPictureStabilizationFrameBuffer);
 	if(!horizontalPictureStabilizationFrameBuffer)
 		return false;
+
+	if(perforationAwareStabilizationEnabled)
+	{
+		const int configuredLeftRadius = std::max(4, ui->leftPixSearchSlider->value());
+		const int leftSearchRadius = std::min(
+				std::max(4, configuredLeftRadius),
+				std::max(4, right - left - 2));
+		const int xStart = std::max(0, left - leftSearchRadius);
+		const int xEnd = std::min(width - 1, left + leftSearchRadius);
+		if(xEnd <= xStart) return false;
+
+		double minValue = std::numeric_limits<double>::max();
+		double maxValue = std::numeric_limits<double>::lowest();
+		double sumValue = 0.0;
+		long sampleCount = 0;
+		for(int y = top; y <= bottom; ++y)
+		{
+			const long row = long(y) * width;
+			for(int x = xStart; x <= xEnd; ++x)
+			{
+				const double value = horizontalPictureStabilizationFrameBuffer[row + x];
+				minValue = std::min(minValue, value);
+				maxValue = std::max(maxValue, value);
+				sumValue += value;
+				++sampleCount;
+			}
+		}
+		if(sampleCount <= 0) return false;
+		const double range = maxValue - minValue;
+		if(range <= 1e-9) return false;
+
+		bool whiteOnBlack = false;
+		switch(perforationPolarityMode)
+		{
+		case PERFORATION_POLARITY_WHITE_ON_BLACK:
+			whiteOnBlack = true;
+			break;
+		case PERFORATION_POLARITY_BLACK_ON_WHITE:
+			whiteOnBlack = false;
+			break;
+		case PERFORATION_POLARITY_AUTO:
+		default:
+		{
+			const double avg = sumValue / double(sampleCount);
+			whiteOnBlack = (avg <= (minValue + maxValue) * 0.5);
+			break;
+		}
+		}
+
+		const double threshold = whiteOnBlack ?
+				(minValue + range * 0.70) :
+				(minValue + range * 0.30);
+		double sumX = 0.0;
+		double sumY = 0.0;
+		long hitCount = 0;
+		for(int y = top; y <= bottom; ++y)
+		{
+			const long row = long(y) * width;
+			for(int x = xStart; x <= xEnd; ++x)
+			{
+				const double value = horizontalPictureStabilizationFrameBuffer[row + x];
+				const bool hit = whiteOnBlack ? (value >= threshold) : (value <= threshold);
+				if(!hit) continue;
+				sumX += x;
+				sumY += y;
+				++hitCount;
+			}
+		}
+		if(hitCount < std::max(32, (xEnd - xStart + 1)))
+			return false;
+
+		centerX = float(sumX / double(hitCount));
+		if(centerY)
+			*centerY = float(sumY / double(hitCount));
+		return true;
+	}
 
 	const int defaultSearchRadius = std::max(8, std::min(120, (right - left) / 3));
 	const int configuredLeftRadius = std::max(4, ui->leftPixSearchSlider->value());
@@ -5189,52 +5436,98 @@ bool MainWindow::EstimatePictureStripCenterX(long absoluteFrameNumber, float &ce
 		return false;
 
 	centerX = 0.5f * (leftEdge + rightEdge);
+	if(centerY)
+		*centerY = 0.5f * (top + bottom);
 	return true;
 }
 
 void MainWindow::ApplyHorizontalPictureStabilizationForFrame(int frameNum)
 {
 	if(!frame_window) return;
-	if(!horizontalPictureStabilizationEnabled)
+	const bool horizontalActive = horizontalPictureStabilizationEnabled;
+	const bool verticalActive =
+			perforationAwareStabilizationEnabled &&
+			verticalPerforationLockEnabled &&
+			ui->OverlapPixCheckBox->isChecked();
+	if(!horizontalActive && !verticalActive)
 	{
 		frame_window->horizontal_stabilize_shift = 0.0f;
+		frame_window->vertical_stabilize_shift = 0.0f;
 		return;
 	}
 	if(!ui->OverlapPixCheckBox->isChecked())
 	{
 		frame_window->horizontal_stabilize_shift = 0.0f;
+		frame_window->vertical_stabilize_shift = 0.0f;
 		return;
 	}
 
 	const long absoluteFrameNumber = scan.inFile.FirstFrame() + frameNum;
 	float centerX = 0.0f;
-	if(!EstimatePictureStripCenterX(absoluteFrameNumber, centerX))
+	float centerY = 0.0f;
+	if(!EstimatePictureStripAnchor(absoluteFrameNumber, centerX, &centerY))
 	{
 		frame_window->horizontal_stabilize_shift = 0.0f;
+		frame_window->vertical_stabilize_shift = 0.0f;
 		return;
 	}
 
-	if(!horizontalPictureStabilizationReferenceReady)
+	if(horizontalActive && !horizontalPictureStabilizationReferenceReady)
 	{
 		horizontalPictureStabilizationReferenceCenterX = centerX;
 		horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
 		horizontalPictureStabilizationReferenceReady = true;
 	}
+	if(verticalActive && !verticalPerforationReferenceReady)
+	{
+		verticalPerforationReferenceCenterY = centerY;
+		verticalPerforationCurrentShiftPixels = 0.0f;
+		verticalPerforationReferenceReady = true;
+	}
 
-	float targetShiftPixels =
-			(horizontalPictureStabilizationReferenceCenterX - centerX) *
-			horizontalPictureStabilizationStrengthFactor;
-	const float maxShift = std::max(0, horizontalPictureStabilizationMaxShiftPixels);
-	targetShiftPixels = std::max(-maxShift, std::min(maxShift, targetShiftPixels));
+	if(horizontalActive)
+	{
+		float targetShiftPixels =
+				(horizontalPictureStabilizationReferenceCenterX - centerX) *
+				horizontalPictureStabilizationStrengthFactor;
+		const float maxShift = std::max(0, horizontalPictureStabilizationMaxShiftPixels);
+		targetShiftPixels = std::max(-maxShift, std::min(maxShift, targetShiftPixels));
 
-	horizontalPictureStabilizationCurrentShiftPixels =
-			horizontalPictureStabilizationCurrentShiftPixels *
-			horizontalPictureStabilizationSmoothFactor +
-			targetShiftPixels * (1.0f - horizontalPictureStabilizationSmoothFactor);
+		horizontalPictureStabilizationCurrentShiftPixels =
+				horizontalPictureStabilizationCurrentShiftPixels *
+				horizontalPictureStabilizationSmoothFactor +
+				targetShiftPixels * (1.0f - horizontalPictureStabilizationSmoothFactor);
+	}
+	else
+	{
+		horizontalPictureStabilizationReferenceReady = false;
+		horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
+	}
+
+	if(verticalActive)
+	{
+		float targetShiftPixels =
+				(verticalPerforationReferenceCenterY - centerY);
+		const float maxShift = std::max(0, verticalPerforationMaxShiftPixels);
+		targetShiftPixels = std::max(-maxShift, std::min(maxShift, targetShiftPixels));
+
+		verticalPerforationCurrentShiftPixels =
+				verticalPerforationCurrentShiftPixels *
+				verticalPerforationSmoothFactor +
+				targetShiftPixels * (1.0f - verticalPerforationSmoothFactor);
+	}
+	else
+	{
+		verticalPerforationReferenceReady = false;
+		verticalPerforationCurrentShiftPixels = 0.0f;
+	}
 
 	const float width = std::max(1.0f, float(scan.inFile.Width()));
+	const float height = std::max(1.0f, float(scan.inFile.Height()));
 	frame_window->horizontal_stabilize_shift =
 			horizontalPictureStabilizationCurrentShiftPixels / width;
+	frame_window->vertical_stabilize_shift =
+			verticalPerforationCurrentShiftPixels / height;
 }
 
 void MainWindow::UpdateExtractOutputControls()
@@ -9088,6 +9381,8 @@ void MainWindow::on_leftPixSlider_valueChanged(int value)
 	Q_UNUSED(value);
 	horizontalPictureStabilizationReferenceReady = false;
 	horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
+	verticalPerforationReferenceReady = false;
+	verticalPerforationCurrentShiftPixels = 0.0f;
 	GPU_Params_Update(1);
 }
 
@@ -9096,6 +9391,8 @@ void MainWindow::on_rightPixSlider_valueChanged(int value)
 	Q_UNUSED(value);
 	horizontalPictureStabilizationReferenceReady = false;
 	horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
+	verticalPerforationReferenceReady = false;
+	verticalPerforationCurrentShiftPixels = 0.0f;
 	GPU_Params_Update(1);
 }
 
@@ -9105,6 +9402,8 @@ void MainWindow::on_leftPixSearchSlider_valueChanged(int value)
 			QString("%1 px").arg(std::max(4, value)));
 	horizontalPictureStabilizationReferenceReady = false;
 	horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
+	verticalPerforationReferenceReady = false;
+	verticalPerforationCurrentShiftPixels = 0.0f;
 	GPU_Params_Update(1);
 }
 
@@ -10804,6 +11103,10 @@ void MainWindow::ResetSoundtrackSectionToFactoryDefaults()
 	ui->horizontalPictureStabilizationCheckBox->setChecked(false);
 	ui->horizontalPictureStabilizationStrengthSlider->setValue(100);
 	ui->horizontalPictureStabilizationMaxShiftSpinBox->setValue(80);
+	ui->perforationAwareStabilizationCheckBox->setChecked(false);
+	ui->perforationPolarityComboBox->setCurrentIndex(PERFORATION_POLARITY_AUTO);
+	ui->verticalPerforationLockCheckBox->setChecked(false);
+	ui->verticalPerforationMaxShiftSpinBox->setValue(80);
 	UpdateHorizontalPictureStabilizationControls();
 
 	ui->overlapSlider->setValue(5);
@@ -10870,6 +11173,17 @@ void MainWindow::on_soundtrackResetButton_clicked()
 			settings.value("video/horizontal-picture-stabilize-strength", 100).toInt());
 	ui->horizontalPictureStabilizationMaxShiftSpinBox->setValue(
 			settings.value("video/horizontal-picture-stabilize-max-shift", 80).toInt());
+	ui->perforationAwareStabilizationCheckBox->setChecked(
+			settings.value("video/perforation-aware-stabilize", false).toBool());
+	ui->perforationPolarityComboBox->setCurrentIndex(ClampRangeInt(
+			settings.value("video/perforation-polarity",
+					PERFORATION_POLARITY_AUTO).toInt(),
+			PERFORATION_POLARITY_AUTO,
+			PERFORATION_POLARITY_BLACK_ON_WHITE));
+	ui->verticalPerforationLockCheckBox->setChecked(
+			settings.value("video/vertical-perforation-lock", false).toBool());
+	ui->verticalPerforationMaxShiftSpinBox->setValue(
+			settings.value("video/vertical-perforation-max-shift", 80).toInt());
 	UpdateHorizontalPictureStabilizationControls();
 
 	ui->overlapSlider->setValue(settings.value("overlap/radius", 5).toInt());
@@ -11079,6 +11393,8 @@ void MainWindow::on_OverlapPixCheckBox_clicked(bool checked)
 
 	horizontalPictureStabilizationReferenceReady = false;
 	horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
+	verticalPerforationReferenceReady = false;
+	verticalPerforationCurrentShiftPixels = 0.0f;
 	UpdateHorizontalPictureStabilizationControls();
 }
 

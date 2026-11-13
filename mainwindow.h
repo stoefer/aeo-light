@@ -82,6 +82,10 @@ public:
 	bool horizontalPictureStabilize; // picture-strip based X stabilization
 	uint16_t horizontalPictureStabilizeStrength; // percentage, 100 = neutral
 	uint16_t horizontalPictureStabilizeMaxShift; // maximum shift in pixels
+	bool perforationAwareStabilize; // use perforation contrast for lock
+	uint8_t perforationPolarityMode; // 0=auto, 1=white-on-black, 2=black-on-white
+	bool verticalPerforationLock; // apply vertical lock from perforation track
+	uint16_t verticalPerforationMaxShift; // maximum vertical shift in pixels
 	uint16_t gamma; // [0,500]
 	uint16_t gain; // [0,500]
 	uint16_t redBalance; // [0,200], 100 = neutral
@@ -230,6 +234,10 @@ private slots:
 	void on_horizontalPictureStabilizationCheckBox_clicked(bool checked);
 	void on_horizontalPictureStabilizationStrengthSlider_valueChanged(int value);
 	void on_horizontalPictureStabilizationMaxShiftSpinBox_valueChanged(int arg1);
+	void on_perforationAwareStabilizationCheckBox_clicked(bool checked);
+	void on_perforationPolarityComboBox_currentIndexChanged(int index);
+	void on_verticalPerforationLockCheckBox_clicked(bool checked);
+	void on_verticalPerforationMaxShiftSpinBox_valueChanged(int value);
 	void on_videoFrameTopSlider_valueChanged(int value);
 	void on_videoFrameBottomSlider_valueChanged(int value);
 	void on_testRunExportButton_clicked();
@@ -422,6 +430,14 @@ private:
 	float horizontalPictureStabilizationCurrentShiftPixels;
 	float horizontalPictureStabilizationReferenceCenterX;
 	bool horizontalPictureStabilizationReferenceReady;
+	bool perforationAwareStabilizationEnabled;
+	int perforationPolarityMode;
+	bool verticalPerforationLockEnabled;
+	int verticalPerforationMaxShiftPixels;
+	float verticalPerforationSmoothFactor;
+	float verticalPerforationCurrentShiftPixels;
+	float verticalPerforationReferenceCenterY;
+	bool verticalPerforationReferenceReady;
 	double *horizontalPictureStabilizationFrameBuffer;
 	bool videoFlipHorizontal;
 	bool videoFlipVertical;
@@ -460,7 +476,8 @@ private:
 	void UpdateVideoStabilizationControls();
 	void UpdateHorizontalPictureStabilizationControls();
 	void ApplyHorizontalPictureStabilizationForFrame(int frameNum);
-	bool EstimatePictureStripCenterX(long absoluteFrameNumber, float &centerX);
+	bool EstimatePictureStripAnchor(
+			long absoluteFrameNumber, float &centerX, float *centerY = nullptr);
 	void UpdateExtractOutputControls();
 	void UpdateHelpTextVisibility(bool visible, bool persistSetting);
 	void InstallInlineHelpIcons();
