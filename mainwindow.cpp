@@ -1878,18 +1878,24 @@ void MainWindow::UpdateAdaptiveUiScale()
 		int opticalRowStretch;
 		int videoRowStretch;
 		int rowSpacing;
+		int opticalOuterSpacing;
+		int audioTrackGridSpacing;
+		int pairedControlSpacing;
+		int framePitchGridSpacing;
+		int videoGridSpacing;
+		int tabControlsOffsetY;
 		int contentMinHeight;
 		int panelGap;
 	};
 
 	const LayoutProfileTuning tuning =
 			(profile == RES_PROFILE_HD) ? LayoutProfileTuning{
-					12, 28, 560, -1, 28, 68, 4, 2, 190, 240, 1, 3, 4, 900, 8
+					64, 96, 620, -1, 30, 68, 4, 2, 250, 300, 2, 3, 12, 8, 8, 7, 8, 8, 56, 1040, 14
 			} :
 			(profile == RES_PROFILE_UHD) ? LayoutProfileTuning{
-					36, 96, 620, 1, 36, 90, 5, 8, 230, 270, 2, 3, 8, 980, 12
+					96, 172, 700, 1, 38, 90, 5, 8, 300, 350, 2, 3, 14, 10, 10, 9, 10, 10, 74, 1160, 18
 			} : LayoutProfileTuning{
-					16, 44, 560, 0, 32, 80, 4, 6, 210, 230, 2, 3, 6, 920, 10
+					78, 128, 650, 0, 34, 80, 4, 6, 270, 320, 2, 3, 13, 9, 9, 8, 9, 9, 64, 1100, 16
 			};
 
 	if(ui->tabWidget && uiScaleBaseGeometry.contains(ui->tabWidget))
@@ -1962,12 +1968,89 @@ void MainWindow::UpdateAdaptiveUiScale()
 		ui->soundtrackSettingGrid->setRowStretch(1, tuning.videoRowStretch);
 		ui->soundtrackSettingGrid->setVerticalSpacing(tuning.rowSpacing);
 	}
+	if(ui->opticalAudioOuterLayout)
+		ui->opticalAudioOuterLayout->setSpacing(tuning.opticalOuterSpacing);
+	if(ui->audioTrackGridLayout)
+	{
+		ui->audioTrackGridLayout->setVerticalSpacing(tuning.audioTrackGridSpacing);
+		ui->audioTrackGridLayout->setRowMinimumHeight(0, 20);
+		ui->audioTrackGridLayout->setRowMinimumHeight(1, 30);
+		ui->audioTrackGridLayout->setRowMinimumHeight(2, 30);
+		ui->audioTrackGridLayout->setRowMinimumHeight(3, 24);
+	}
+	if(ui->verticalLayout_2)
+		ui->verticalLayout_2->setSpacing(tuning.pairedControlSpacing);
+	if(ui->verticalLayout_3)
+		ui->verticalLayout_3->setSpacing(tuning.pairedControlSpacing);
+	if(ui->verticalLayout_5)
+		ui->verticalLayout_5->setSpacing(tuning.pairedControlSpacing);
+	if(ui->verticalLayout_6)
+		ui->verticalLayout_6->setSpacing(tuning.pairedControlSpacing);
+	if(ui->framePitchGridLayout)
+		ui->framePitchGridLayout->setVerticalSpacing(tuning.framePitchGridSpacing);
+	if(ui->videoGridLayout)
+		ui->videoGridLayout->setVerticalSpacing(tuning.videoGridSpacing);
 
 	int tabHeightShift = 0;
 	if(ui->tabWidget && uiScaleBaseGeometry.contains(ui->tabWidget))
 	{
 		const QRect baseTabRect = uiScaleBaseGeometry.value(ui->tabWidget);
 		tabHeightShift = ui->tabWidget->geometry().height() - baseTabRect.height();
+	}
+	const int tabControlsShift = std::max(0, tuning.tabControlsOffsetY);
+
+	auto baseRectForWidget = [](QWidget *w) -> QRect
+	{
+		if(!w) return QRect();
+		const QVariant existing = w->property("uiScaleBaseRect");
+		if(existing.isValid() && existing.canConvert<QRect>())
+			return existing.toRect();
+		const QRect initial = w->geometry();
+		w->setProperty("uiScaleBaseRect", initial);
+		return initial;
+	};
+
+	if(ui->gridLayoutWidget)
+	{
+		const QRect baseRect = baseRectForWidget(ui->gridLayoutWidget);
+		QRect expandedRect = baseRect;
+		expandedRect.setHeight(std::max(
+				baseRect.height(),
+				baseRect.height() + tabControlsShift));
+		ui->gridLayoutWidget->setGeometry(expandedRect);
+	}
+	if(ui->soundtrackDefaultsButton)
+	{
+		const QRect baseRect = baseRectForWidget(ui->soundtrackDefaultsButton);
+		QRect adjustedRect = baseRect;
+		adjustedRect.moveTop(baseRect.top() + tabControlsShift);
+		ui->soundtrackDefaultsButton->setGeometry(adjustedRect);
+	}
+	if(ui->soundtrackResetButton)
+	{
+		const QRect baseRect = baseRectForWidget(ui->soundtrackResetButton);
+		QRect adjustedRect = baseRect;
+		adjustedRect.moveTop(baseRect.top() + tabControlsShift);
+		ui->soundtrackResetButton->setGeometry(adjustedRect);
+		if(ui->tab)
+		{
+			const QRect resetRect = ui->soundtrackResetButton->geometry();
+			const QList<QPushButton*> tabButtons = ui->tab->findChildren<QPushButton*>(
+					QString(), Qt::FindDirectChildrenOnly);
+			for(QPushButton *button : tabButtons)
+			{
+				if(!button || button == ui->soundtrackDefaultsButton ||
+						button == ui->soundtrackResetButton)
+					continue;
+				if(!button->text().contains("Factory", Qt::CaseInsensitive))
+					continue;
+				QRect factoryRect = button->geometry();
+				factoryRect.moveTop(resetRect.y());
+				factoryRect.setSize(resetRect.size());
+				factoryRect.moveLeft(resetRect.x() + resetRect.width() + 6);
+				button->setGeometry(factoryRect);
+			}
+		}
 	}
 
 	if(ui->horizontalLayoutWidget_2 &&
@@ -5342,7 +5425,7 @@ QString MainWindow::BuildLeftPixSearchLabelText() const
 {
 	const int configuredRadius = std::max(4, ui->leftPixSearchSlider->value());
 	if(!scan.inFile.IsReady())
-		return QString("%1 px (w~%2)")
+		return QString("%1 px (%2w)")
 				.arg(configuredRadius)
 				.arg(configuredRadius * 2 + 1);
 
@@ -5355,7 +5438,7 @@ QString MainWindow::BuildLeftPixSearchLabelText() const
 	const int searchStart = std::max(left + 1, left - activeRadius);
 	const int searchEnd = std::min(right - 1, left + activeRadius);
 	const int zoneWidth = std::max(0, searchEnd - searchStart + 1);
-	return QString("%1 px (w:%2)")
+	return QString("%1 px (%2w)")
 			.arg(activeRadius)
 			.arg(zoneWidth);
 }
