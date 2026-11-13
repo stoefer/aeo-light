@@ -1,0 +1,10 @@
+.venv/
+.telecine_jobs/
+uvr_models/
+Output/
+voices/*.onnx
+voices/*.onnx.json
+__pycache__/
+*.pyc
+telecine-start.log
+*.part
