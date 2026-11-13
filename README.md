@@ -1,8 +1,15 @@
-# AEO-Light 3.1.60 (fork release)
+# AEO-Light 3.1.61 (fork release)
 
-Deze 3.1.60 patchrelease verbetert de verticale UI-layout op HD-schermen, zodat overlappende velden in A/V-track verdwijnen en er meer leesruimte ontstaat.
+Deze 3.1.61 patchrelease maakt de A/V-track bediening leesbaar op HD en verplaatst view- en sampleknoppen naar Extract A/V.
 
-## Nieuw in 3.1.60
+## Nieuw in 3.1.61
+- Gestapelde sliders en invoervelden in **Soundtrack + Picture Strip**, **Frame Pitch** en **Video** krijgen een vaste minimale rijhoogte, zodat tekst en sliders niet meer over elkaar vallen.
+- Het A/V-blok groeit mee met die rijen. **Set as Default**, **Reset Section** en **Factory Reset** blijven direct eronder.
+- **View options** staan nu in de tab **Extract A/V**.
+- Sampleknoppen en **Auto Load Settings** staan nu ook in **Extract A/V**.
+- Horizontale breedtes blijven ongewijzigd.
+
+## Eerder toegevoegd in 3.1.60
 - Verdere HD-layout finetuning voor de A/V-track tab:
   - extra verticale ruimte voor Optical Audio, Frame Pitch en Video blokken
   - grotere verticale spacing en binnenmarges tussen labels, sliders en invoervelden
@@ -375,28 +382,28 @@ Deze 3.1.60 patchrelease verbetert de verticale UI-layout op HD-schermen, zodat 
 4. Als SmartScreen waarschuwt: klik **Meer informatie** → **Toch uitvoeren**.
 
 ## Ultra-korte package checklist (5 punten)
-- [ ] Release-tag = `v3.1.60`.
+- [ ] Release-tag = `v3.1.61`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` staat op de release.
 - [ ] ZIP uitgepakt naar een lokale map.
-- [ ] `AEO-Light.exe` start en toont versie **3.1.60**.
+- [ ] `AEO-Light.exe` start en toont versie **3.1.61**.
 - [ ] Korte **Test Run** slaagt en maakt output aan.
 
-## Package checklist (v3.1.60, Windows x64)
-- [ ] Release-tag is `v3.1.60`.
+## Package checklist (v3.1.61, Windows x64)
+- [ ] Release-tag is `v3.1.61`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` is aanwezig op de releasepagina.
 - [ ] ZIP uitgepakt naar een lokale map (niet rechtstreeks uit de ZIP starten).
 - [ ] In de uitgepakte map staan minimaal:
   - `AEO-Light.exe`
   - `LICENSE.txt`
   - `ffmpeg.exe`
-- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.60**.
+- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.61**.
 - [ ] Snelle rooktest:
   - bron laden
   - korte **Test Run** uitvoeren
   - outputbestand wordt aangemaakt
 - [ ] (Optioneel) checksumcontrole van download:
   - `certutil -hashfile AEO-Light-Windows-x64.zip SHA256`
-  - verwacht: waarde op de `v3.1.60` releasepagina
+  - verwacht: waarde op de `v3.1.61` releasepagina
 
 ## Snelle start (aanbevolen)
 - Container: **MP4**
