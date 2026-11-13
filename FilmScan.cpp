@@ -704,6 +704,33 @@ bool FilmScan::SourceIdentifyImageSet(const std::string filename)
 	this->fnbuf = new char [len+1];
 	strcpy(this->fnbuf, filename.c_str());
 
+	auto setSingleFrameSource = [&]() -> bool
+	{
+		QFileInfo info(QString::fromStdString(filename));
+		QString baseName = info.fileName();
+		if(baseName.isEmpty())
+			baseName = QString::fromStdString(filename);
+		QString dirName = info.path();
+		if(dirName.isEmpty())
+			dirName = ".";
+
+		QByteArray baseUtf8 = baseName.toUtf8();
+		QByteArray dirUtf8 = dirName.toUtf8();
+		if(this->name) { delete [] this->name; this->name = NULL; }
+		if(this->path) { delete [] this->path; this->path = NULL; }
+		this->name = new char[baseUtf8.size()+1];
+		strcpy(this->name, baseUtf8.constData());
+		this->path = new char[dirUtf8.size()+1];
+		strcpy(this->path, dirUtf8.constData());
+		#ifdef Q_OS_WIN32
+		for(char *cpw=this->path; *cpw; cpw++)
+			if(*cpw == '\\') *cpw = '/';
+		#endif
+		this->firstFrame = 1;
+		this->numFrames = 1;
+		return true;
+	};
+
 	// find the extension (or leave it blank if none)
 	ext = "";
 	lenE = 1;
@@ -732,7 +759,8 @@ bool FilmScan::SourceIdentifyImageSet(const std::string filename)
 
 	if(numdigits==0)
 	{
-		throw AeoException("Image filename contains no digits for frame number");
+		// Accept single still images even without trailing frame numbers.
+		return setSingleFrameSource();
 	}
 
 	long inputFrame;
@@ -792,6 +820,21 @@ bool FilmScan::SourceIdentifyImageSet(const std::string filename)
 	}
 
 	// find all files that match the pattern and record their frame numbers
+	auto sameExtNoCase = [](const char *lhs, const char *rhs) -> bool
+	{
+		if(!lhs || !rhs) return false;
+		while(*lhs && *rhs)
+		{
+			const unsigned char l = static_cast<unsigned char>(*lhs);
+			const unsigned char r = static_cast<unsigned char>(*rhs);
+			if(tolower(l) != tolower(r))
+				return false;
+			++lhs;
+			++rhs;
+		}
+		return (*lhs == '\0' && *rhs == '\0');
+	};
+
 	std::vector<long> frames;
 	long curFrame(0);
 	frames.reserve(1000);
@@ -814,7 +857,7 @@ bool FilmScan::SourceIdentifyImageSet(const std::string filename)
 			if(cp - dp->d_name != lenF+numdigits) continue;
 
 			// ... followed by extension?
-			if(strcmp(cp, ext) != 0) continue;
+			if(!sameExtNoCase(cp, ext)) continue;
 
 			// Then save this frame number in the list (vector) of frames
 			sscanf(dp->d_name+lenF, "%ld", &curFrame);
@@ -840,7 +883,8 @@ bool FilmScan::SourceIdentifyImageSet(const std::string filename)
 
 	if(frames.empty())
 	{
-		throw AeoException("No matching image frames found in source directory");
+		// Graceful fallback when no full sequence can be inferred.
+		return setSingleFrameSource();
 	}
 
 	// find the frame given in the input argument filename
@@ -849,7 +893,8 @@ bool FilmScan::SourceIdentifyImageSet(const std::string filename)
 	framei = std::lower_bound(frames.begin(), frames.end(), inputFrame);
 	if(framei == frames.end() || *framei != inputFrame)
 	{
-		throw AeoException("Input frame number not found in source sequence");
+		// Graceful fallback when selected file is not part of a strict sequence.
+		return setSingleFrameSource();
 	}
 
 	// seek in both directions to find the largest contiguous set of
