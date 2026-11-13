@@ -56,6 +56,7 @@
 #include <QProcess>
 #include <QCoreApplication>
 #include <QUuid>
+#include <QStringList>
 
 #ifdef Q_OS_WIN32
 // Depending on the way you've built libtiff on Windows, you may have
@@ -356,43 +357,90 @@ bool FilmScan::Source(const std::string filename, SourceFormat fmt)
 	this->Reset();
 	this->inputName = filename;
 
-	auto tryAutoDetect = [&]() -> bool
+	auto tryAutoDetect = [&](QString *detailsOut = NULL) -> bool
 	{
+		QStringList errors;
+
 		try
 		{
 			if(SourceDPX(filename)) return true;
 		}
-		catch(...) {;}
+		catch(std::exception &e)
+		{
+			errors << QString("DPX: %1").arg(e.what());
+		}
+		catch(...)
+		{
+			errors << "DPX: onbekende fout";
+		}
 
 		try
 		{
 			if(SourceTIFF(filename)) return true;
 		}
-		catch(...) {;}
+		catch(std::exception &e)
+		{
+			errors << QString("TIFF: %1").arg(e.what());
+		}
+		catch(...)
+		{
+			errors << "TIFF: onbekende fout";
+		}
 
 		try
 		{
 			if(SourceJPG(filename)) return true;
 		}
-		catch(...) {;}
+		catch(std::exception &e)
+		{
+			errors << QString("JPG: %1").arg(e.what());
+		}
+		catch(...)
+		{
+			errors << "JPG: onbekende fout";
+		}
 
 		try
 		{
 			if(SourcePNG(filename)) return true;
 		}
-		catch(...) {;}
+		catch(std::exception &e)
+		{
+			errors << QString("PNG: %1").arg(e.what());
+		}
+		catch(...)
+		{
+			errors << "PNG: onbekende fout";
+		}
 
 		try
 		{
 			if(SourceWav(filename)) return true;
 		}
-		catch(...) {;}
+		catch(std::exception &e)
+		{
+			errors << QString("WAV: %1").arg(e.what());
+		}
+		catch(...)
+		{
+			errors << "WAV: onbekende fout";
+		}
 
 		try
 		{
 			if(SourceLibAV(filename)) return true;
 		}
-		catch(...) { throw; }
+		catch(std::exception &e)
+		{
+			errors << QString("Video/LibAV: %1").arg(e.what());
+		}
+		catch(...)
+		{
+			errors << "Video/LibAV: onbekende fout";
+		}
+
+		if(detailsOut)
+			*detailsOut = errors.join("\n");
 
 		return false;
 	};
@@ -449,13 +497,27 @@ bool FilmScan::Source(const std::string filename, SourceFormat fmt)
 
 		// If the user selected a restrictive file filter that does not match
 		// the actual content, fall back to auto-detection before failing.
-		if(tryAutoDetect())
+		QString autoDetectErrors;
+		if(tryAutoDetect(&autoDetectErrors))
 			return true;
+		if(!autoDetectErrors.isEmpty())
+		{
+			QString msg("Unable to recognize source file\n\n");
+			msg += autoDetectErrors;
+			throw AeoException(msg);
+		}
 	}
 	else
 	{
-		if(tryAutoDetect())
+		QString autoDetectErrors;
+		if(tryAutoDetect(&autoDetectErrors))
 			return true;
+		if(!autoDetectErrors.isEmpty())
+		{
+			QString msg("Unable to recognize source file\n\n");
+			msg += autoDetectErrors;
+			throw AeoException(msg);
+		}
 	}
 
 	throw AeoException("Unable to recognize source file");
@@ -624,7 +686,7 @@ bool FilmScan::SourceTIFF(const std::string filename)
 //-----------------------------------------------------------------------------
 bool FilmScan::SourceJPG(const std::string filename)
 {
-	QString qfilename = QString::fromStdString(filename);
+	QString qfilename = QString::fromUtf8(filename.c_str());
 
 	QImageReader reader(qfilename);
 	reader.setAutoTransform(true);
@@ -673,7 +735,7 @@ bool FilmScan::SourceJPG(const std::string filename)
 //-----------------------------------------------------------------------------
 bool FilmScan::SourcePNG(const std::string filename)
 {
-	QString qfilename = QString::fromStdString(filename);
+	QString qfilename = QString::fromUtf8(filename.c_str());
 
 	QImageReader reader(qfilename);
 	reader.setAutoTransform(true);
@@ -720,215 +782,116 @@ bool FilmScan::SourcePNG(const std::string filename)
 //-----------------------------------------------------------------------------
 bool FilmScan::SourceIdentifyImageSet(const std::string filename)
 {
-	// Then find all the dpx files that go with this one by adjusting
-	// the number string at the end of the filename (before the extension)
-	// to find all the adjacent frames both before and after this one.
-	// break apart the filename to make a filename pattern for the rest
-	// of the frames.
+	const QString qfilename = QString::fromUtf8(filename.c_str());
+	const QFileInfo sourceInfo(qfilename);
+	const QString fileName = sourceInfo.fileName().trimmed();
+	const QString extension = sourceInfo.suffix();
+	QString dirPath = sourceInfo.absolutePath();
+	if(dirPath.isEmpty()) dirPath = ".";
 
-	int len, lenE, lenF, lenP;
-	const char *cp, *ext;
-	len = filename.length();
+	auto assignPathNameAndBuffer = [this](
+			const QString &pathValue,
+			const QString &nameValue,
+			int reserveExtraChars) -> void
+	{
+		QString normalizedPath = pathValue.isEmpty() ? "." : pathValue;
+		#ifdef Q_OS_WIN32
+		normalizedPath.replace("\\", "/");
+		#endif
 
-	// allocate a buffer for temporary filenames later
-	this->fnbuf = new char [len+1];
-	strcpy(this->fnbuf, filename.c_str());
+		QByteArray pathUtf8 = normalizedPath.toUtf8();
+		QByteArray nameUtf8 = nameValue.toUtf8();
+		if(this->path) { delete [] this->path; this->path = NULL; }
+		if(this->name) { delete [] this->name; this->name = NULL; }
+		if(this->fnbuf) { delete [] this->fnbuf; this->fnbuf = NULL; }
+
+		this->path = new char[pathUtf8.size() + 1];
+		strcpy(this->path, pathUtf8.constData());
+		this->name = new char[nameUtf8.size() + 1];
+		strcpy(this->name, nameUtf8.constData());
+
+		const int totalLen = pathUtf8.size() + 1 + nameUtf8.size() +
+				std::max(0, reserveExtraChars) + 1;
+		this->fnbuf = new char[totalLen];
+		strcpy(this->fnbuf, pathUtf8.constData());
+		this->fnbuf[pathUtf8.size()] = '/';
+		this->fnbuf[pathUtf8.size() + 1] = '\0';
+	};
 
 	auto setSingleFrameSource = [&]() -> bool
 	{
-		QFileInfo info(QString::fromStdString(filename));
-		QString baseName = info.fileName();
-		if(baseName.isEmpty())
-			baseName = QString::fromStdString(filename);
-		QString dirName = info.path();
-		if(dirName.isEmpty())
-			dirName = ".";
-
-		QByteArray baseUtf8 = baseName.toUtf8();
-		QByteArray dirUtf8 = dirName.toUtf8();
-		if(this->name) { delete [] this->name; this->name = NULL; }
-		if(this->path) { delete [] this->path; this->path = NULL; }
-		this->name = new char[baseUtf8.size()+1];
-		strcpy(this->name, baseUtf8.constData());
-		this->path = new char[dirUtf8.size()+1];
-		strcpy(this->path, dirUtf8.constData());
-		#ifdef Q_OS_WIN32
-		for(char *cpw=this->path; *cpw; cpw++)
-			if(*cpw == '\\') *cpw = '/';
-		#endif
+		QString fixedName = fileName.isEmpty() ?
+				QString::fromUtf8(filename.c_str()) : fileName;
+		// Escape percent so sprintf with fixed names remains safe.
+		fixedName.replace("%", "%%");
+		assignPathNameAndBuffer(dirPath, fixedName, 0);
 		this->firstFrame = 1;
 		this->numFrames = 1;
 		return true;
 	};
 
-	// find the extension (or leave it blank if none)
-	ext = "";
-	lenE = 1;
-	for(cp = filename.c_str()+len;
-			!isslash(*cp) && cp>filename.c_str();
-			--cp, lenE++)
-	{
-		if(*cp == '.')
-		{
-			ext = cp;
-			break;
-		}
-	}
-
-	// Count digits from the end (before the extension, if any)
-	if(*ext=='.')
-		cp = ext;
-	else
-	{
-		cp = filename.c_str()+len;
-		lenE = 0;
-	}
-
-	int numdigits;
-	for(numdigits = 0; cp>=filename.c_str() && isdigit(*(--cp)); numdigits++) ;
-
-	if(numdigits==0)
-	{
-		// Accept single still images even without trailing frame numbers.
+	if(fileName.isEmpty() || extension.isEmpty())
 		return setSingleFrameSource();
-	}
 
-	long inputFrame;
-	sscanf(cp+1, "%ld", &inputFrame);
+	const QString stem = sourceInfo.completeBaseName();
+	int digitStart = stem.size();
+	while(digitStart > 0 && stem.at(digitStart - 1).isDigit())
+		--digitStart;
+	const QString prefix = stem.left(digitStart);
+	const QString digits = stem.mid(digitStart);
+	if(digits.isEmpty())
+		return setSingleFrameSource();
 
-	// Continue back to the path portion.
+	bool okInputFrame = false;
+	const long inputFrame = digits.toLong(&okInputFrame);
+	if(!okInputFrame)
+		return setSingleFrameSource();
 
-	lenF = 0;
-	for( ; cp>=filename.c_str() && !isslash(*cp); --cp, lenF++) ;
-
-	// store the filename pattern (with extension, but without the path)
-	this->name = new char[
-		lenF                             // filename prefix
-		+2                               // "%0"
-		+int(floor(log10(numdigits)))+1  // number of digits in <numdigits>
-		+2                               // "ld"
-		+lenE                            // extension (including dot)
-		+1                               // null terminator
-		];
-
-	sprintf(this->name, "%.*s%%0%dld%.*s",lenF,cp+1,numdigits,lenE,ext);
-
-	// store the path (without the trailing slash)
-	if(!isslash(*cp))
-	{
-		this->path = new char[2];
-		strcpy(this->path,".");
-	}
-	else
-	{
-		int pl = cp - filename.c_str();
-
-		this->path = new char[pl+1];
-
-		strncpy(this->path, filename.c_str(), pl);
-		this->path[pl]='\0';
-
-		// adjust slashes on windows to avoid complications later
-        #ifdef Q_OS_WIN32
-		for(char *cpw=this->path; *cpw; cpw++)
-			if(*cpw == '\\') *cpw = '/';
-		#endif
-	}
-
-	DIR *dirp;
-
-	if((dirp = opendir(this->path)) == NULL)
-	{
-		QString msg;
-		int err;
-
-		msg += QString("FilmScan: Cannot read directory folder ");
-		msg += QString(this->path);
-		msg += QString("\n");
-		if((err=errno)!=0) msg += QString(strerror(err));
-		throw AeoException(msg);
-	}
-
-	// find all files that match the pattern and record their frame numbers
-	auto sameExtNoCase = [](const char *lhs, const char *rhs) -> bool
-	{
-		if(!lhs || !rhs) return false;
-		while(*lhs && *rhs)
-		{
-			const unsigned char l = static_cast<unsigned char>(*lhs);
-			const unsigned char r = static_cast<unsigned char>(*rhs);
-			if(tolower(l) != tolower(r))
-				return false;
-			++lhs;
-			++rhs;
-		}
-		return (*lhs == '\0' && *rhs == '\0');
-	};
-
+	const int numDigits = digits.size();
 	std::vector<long> frames;
-	long curFrame(0);
-	frames.reserve(1000);
-	while(1)
+	frames.reserve(1024);
+
+	QDir dir(dirPath);
+	const QFileInfoList entries = dir.entryInfoList(
+			QDir::Files | QDir::NoSymLinks | QDir::Readable,
+			QDir::Name);
+	for(const QFileInfo &entry : entries)
 	{
-		errno = 0;
-		struct dirent *dp;
-		if((dp = readdir(dirp)) != NULL)
+		if(entry.suffix().compare(extension, Qt::CaseInsensitive) != 0)
+			continue;
+		const QString entryStem = entry.completeBaseName();
+		if(!entryStem.startsWith(prefix))
+			continue;
+		const QString entryDigits = entryStem.mid(prefix.size());
+		if(entryDigits.size() != numDigits)
+			continue;
+		bool allDigits = true;
+		for(int i = 0; i < entryDigits.size(); ++i)
 		{
-			// is it a file?
-			#ifdef _DIRENT_HAVE_D_TYPE
-			if(!(dp->d_type == DT_REG || dp->d_type == DT_UNKNOWN)) continue;
-			#endif
-
-			// leading string of characters matches?
-			if(strncmp(dp->d_name, this->name, lenF)!=0) continue;
-
-			// ... followed by correct number of digits?
-			for(cp = dp->d_name+lenF; isdigit(*cp); cp++) ;
-			if(cp - dp->d_name != lenF+numdigits) continue;
-
-			// ... followed by extension?
-			if(!sameExtNoCase(cp, ext)) continue;
-
-			// Then save this frame number in the list (vector) of frames
-			sscanf(dp->d_name+lenF, "%ld", &curFrame);
-			if(frames.capacity() == frames.size())
-				frames.reserve(frames.capacity()+1000);
-			frames.push_back(curFrame);
+			if(!entryDigits.at(i).isDigit())
+			{
+				allDigits = false;
+				break;
+			}
 		}
-		else
-			break;
-	}
-	closedir(dirp);
-	if(errno!=0)
-	{
-		QString msg;
-		int err;
+		if(!allDigits)
+			continue;
 
-		msg += QString("FilmScan: Error reading directory folder ");
-		msg += QString(this->path);
-		msg += QString("\n");
-		if((err=errno)!=0) msg += QString(strerror(err));
-		throw AeoException(msg);
+		bool okFrame = false;
+		const long frameNum = entryDigits.toLong(&okFrame);
+		if(okFrame)
+			frames.push_back(frameNum);
 	}
 
 	if(frames.empty())
-	{
-		// Graceful fallback when no full sequence can be inferred.
 		return setSingleFrameSource();
-	}
 
-	// find the frame given in the input argument filename
-	std::vector<long>::iterator framei;
 	std::sort(frames.begin(), frames.end());
-	framei = std::lower_bound(frames.begin(), frames.end(), inputFrame);
+	std::vector<long>::iterator framei = std::lower_bound(
+			frames.begin(), frames.end(), inputFrame);
 	if(framei == frames.end() || *framei != inputFrame)
-	{
-		// Graceful fallback when selected file is not part of a strict sequence.
 		return setSingleFrameSource();
-	}
 
-	// seek in both directions to find the largest contiguous set of
-	// frames containing the given frame.
 	long firstIdx(framei - frames.begin());
 	while(firstIdx > 0 && frames[firstIdx-1] == frames[firstIdx] - 1)
 		firstIdx--;
@@ -940,6 +903,10 @@ bool FilmScan::SourceIdentifyImageSet(const std::string filename)
 		lastIdx++;
 	this->numFrames = frames[lastIdx] - this->firstFrame + 1;
 
+	QString patternName = prefix;
+	patternName.replace("%", "%%");
+	patternName += QString("%%0%1ld.%2").arg(numDigits).arg(extension);
+	assignPathNameAndBuffer(dirPath, patternName, 16);
 	return true;
 }
 
