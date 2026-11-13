@@ -22,6 +22,7 @@ uniform vec2 dminmax;
 uniform vec2 pix_boundry;
 uniform vec4 bounds; //x1,x2,y1,y2
 uniform vec4 color_controls; //lift, gamma, gain,sat;
+uniform vec3 color_balance; // per-channel gain for cast correction (R,G,B)
 uniform vec3 manip_controls; //thresh,threshold amount,  blur
 uniform vec4 overlap; //   y_search Area ,y_ offset,  bottom,  top;
 uniform vec2 video_crop; // top and bottom crop margins for video frame guides
@@ -310,6 +311,7 @@ vTexRotated = vTexRotated +vec2(0.5,0.5);
                 texel=clamp(texel,vec4(0),vec4(1.0));
                 texel=pow(texel,vec4(color_controls.y)); //gamma
                 texel*=vec4(color_controls.z);           //gain
+                texel.rgb*=color_balance;                //per-channel cast correction
                 texel=clamp(texel,vec4(0),vec4(1.0));
                 texel.xyz=RGBToHSL(texel.xyz);
                 texel.y  *= color_controls.a; //saturation

@@ -83,6 +83,9 @@ public:
 	uint16_t horizontalPictureStabilizeMaxShift; // maximum shift in pixels
 	uint16_t gamma; // [0,500]
 	uint16_t gain; // [0,500]
+	uint16_t redBalance; // [0,200], 100 = neutral
+	uint16_t greenBalance; // [0,200], 100 = neutral
+	uint16_t blueBalance; // [0,200], 100 = neutral
 	uint16_t sCurve; // [0,600]
 	uint8_t overlap; // as a percentage of height [0,100]
 	int8_t lift; // [-100,100]
@@ -206,6 +209,9 @@ private slots:
 	void on_gammaSlider_valueChanged(int value);
 	void on_liftSlider_valueChanged(int value);
 	void on_gainSlider_valueChanged(int value);
+	void on_redBalanceSlider_valueChanged(int value);
+	void on_greenBalanceSlider_valueChanged(int value);
+	void on_blueBalanceSlider_valueChanged(int value);
 	void on_lift_resetButton_clicked();
 	void on_gamma_resetButton_clicked();
 	void on_gain_resetButton_clicked();

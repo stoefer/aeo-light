@@ -99,6 +99,9 @@ public:
 	float currstart;
 	float rendermode;
 	float lift,gamma,gain;
+	float red_balance;
+	float green_balance;
+	float blue_balance;
 	float threshold,blur;
 	float stereo;
 	bool thresh;
@@ -187,6 +190,7 @@ private:
 	GLuint pix_bounds_loc;
 	GLuint dminmax_loc;
 	GLuint m_colorcontrol_loc;//test uniform varaiable
+	GLuint m_color_balance_loc;
 	GLuint m_bounds_loc; //location of bounds uniform
     GLuint m_rot_angle; // bind for rotation angle
 	GLuint m_calcontrol_loc;

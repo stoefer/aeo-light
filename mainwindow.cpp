@@ -432,6 +432,9 @@ static QVariantMap SerializeExtractedSoundParams(const ExtractedSound &params)
 			static_cast<uint>(params.horizontalPictureStabilizeMaxShift));
 	map.insert("gamma", static_cast<uint>(params.gamma));
 	map.insert("gain", static_cast<uint>(params.gain));
+	map.insert("redBalance", static_cast<uint>(params.redBalance));
+	map.insert("greenBalance", static_cast<uint>(params.greenBalance));
+	map.insert("blueBalance", static_cast<uint>(params.blueBalance));
 	map.insert("sCurve", static_cast<uint>(params.sCurve));
 	map.insert("overlap", static_cast<uint>(params.overlap));
 	map.insert("lift", static_cast<int>(params.lift));
@@ -471,6 +474,12 @@ static ExtractedSound DeserializeExtractedSoundParams(const QVariantMap &map)
 			map.value("horizontalPictureStabilizeMaxShift", 80).toUInt());
 	params.gamma = static_cast<uint16_t>(map.value("gamma", 100).toUInt());
 	params.gain = static_cast<uint16_t>(map.value("gain", 100).toUInt());
+	params.redBalance = static_cast<uint16_t>(
+			map.value("redBalance", 100).toUInt());
+	params.greenBalance = static_cast<uint16_t>(
+			map.value("greenBalance", 100).toUInt());
+	params.blueBalance = static_cast<uint16_t>(
+			map.value("blueBalance", 100).toUInt());
 	params.sCurve = static_cast<uint16_t>(map.value("sCurve", 0).toUInt());
 	params.overlap = static_cast<uint8_t>(map.value("overlap", 20).toUInt());
 	params.lift = static_cast<int8_t>(map.value("lift", 0).toInt());
@@ -1141,6 +1150,9 @@ ExtractedSound::ExtractedSound() :
 	horizontalPictureStabilizeMaxShift(80),
 	gamma(100),
 	gain (100),
+	redBalance(100),
+	greenBalance(100),
+	blueBalance(100),
 	sCurve(0),
 	overlap(20),
 	lift(0),
@@ -1202,6 +1214,9 @@ bool ExtractedSound::operator ==(const ExtractedSound &ref) const
 
 	if(gamma != ref.gamma) return false;
 	if(gain != ref.gain) return false;
+	if(redBalance != ref.redBalance) return false;
+	if(greenBalance != ref.greenBalance) return false;
+	if(blueBalance != ref.blueBalance) return false;
 	if(lift != ref.lift) return false;
 	if(blur != ref.blur) return false;
 
@@ -2471,6 +2486,9 @@ void MainWindow::SaveDefaultsImage()
 	settings.setValue("lift", ui->liftSlider->value());
 	settings.setValue("gamma", ui->gammaSlider->value());
 	settings.setValue("gain", ui->gainSlider->value());
+	settings.setValue("red-balance", ui->redBalanceSlider->value());
+	settings.setValue("green-balance", ui->greenBalanceSlider->value());
+	settings.setValue("blue-balance", ui->blueBalanceSlider->value());
 	settings.setValue("s-curve", ui->thresholdSlider->value());
 	settings.setValue("s-curve-on", ui->threshBox->isChecked());
 	settings.setValue("blur-sharp", ui->blurSlider->value());
@@ -2587,6 +2605,18 @@ void MainWindow::LoadDefaults()
 	intv = settings.value("gain", 100).toInt();
 	ui->gainSlider->setValue(intv);
 	ui->gainLabel->setText(QString::number(intv/100.f,'f',2));
+
+	intv = settings.value("red-balance", 100).toInt();
+	ui->redBalanceSlider->setValue(intv);
+	ui->redBalanceLabel->setText(QString::number(intv/100.f,'f',2));
+
+	intv = settings.value("green-balance", 100).toInt();
+	ui->greenBalanceSlider->setValue(intv);
+	ui->greenBalanceLabel->setText(QString::number(intv/100.f,'f',2));
+
+	intv = settings.value("blue-balance", 100).toInt();
+	ui->blueBalanceSlider->setValue(intv);
+	ui->blueBalanceLabel->setText(QString::number(intv/100.f,'f',2));
 
 	intv = settings.value("s-curve",300).toInt();
 	ui->thresholdSlider->setValue(intv);
@@ -2800,6 +2830,9 @@ ExtractedSound MainWindow::ExtractionParamsFromGUI()
 
 	params.gamma = ui->gammaSlider->value();
 	params.gain = ui->gainSlider->value();
+	params.redBalance = ui->redBalanceSlider->value();
+	params.greenBalance = ui->greenBalanceSlider->value();
+	params.blueBalance = ui->blueBalanceSlider->value();
 
 	params.useSCurve = ui->threshBox->isChecked();
 	if(params.useSCurve) params.sCurve = ui->thresholdSlider->value();
@@ -2877,6 +2910,9 @@ void MainWindow::ExtractionParametersToGUI(const ExtractedSound &params)
 
 	ui->gammaSlider->setValue(params.gamma);
 	ui->gainSlider->setValue(params.gain);
+	ui->redBalanceSlider->setValue(params.redBalance);
+	ui->greenBalanceSlider->setValue(params.greenBalance);
+	ui->blueBalanceSlider->setValue(params.blueBalance);
 
 	ui->threshBox->setChecked(params.useSCurve);
 	if(params.useSCurve)
@@ -2982,6 +3018,9 @@ void MainWindow::GPU_Params_Update(bool renderyes)
 		frame_window->gamma = ui->gammaSlider->value()/100.0f;
 		frame_window->lift = ui->liftSlider->value()/100.0f;
 		frame_window->gain = ui->gainSlider->value()/100.0f;
+		frame_window->red_balance = ui->redBalanceSlider->value()/100.0f;
+		frame_window->green_balance = ui->greenBalanceSlider->value()/100.0f;
+		frame_window->blue_balance = ui->blueBalanceSlider->value()/100.0f;
 		frame_window->blur = ui->blurSlider->value()/100.0f;
 		frame_window->threshold = ui->thresholdSlider->value()/100.0f;
 		frame_window->thresh = ui->threshBox->checkState();
@@ -3389,6 +3428,9 @@ bool MainWindow::saveproject(QTextStream &out)
 	out<<"Lift = "<<ui->liftSlider->value()<<"\n";
 	out<<"Gamma = "<<ui->gammaSlider->value()<<"\n";
 	out<<"Gain = "<<ui->gainSlider->value()<<"\n";
+	out<<"Red Balance = "<<ui->redBalanceSlider->value()<<"\n";
+	out<<"Green Balance = "<<ui->greenBalanceSlider->value()<<"\n";
+	out<<"Blue Balance = "<<ui->blueBalanceSlider->value()<<"\n";
 	out<<"S-Curve Value = "<<ui->thresholdSlider->value()<<"\n";
 	out<<"S-Curve On = "<<ui->threshBox->checkState()<<"\n";
 	out<<"Blur = "<<ui->blurSlider->value()<<"\n";
@@ -4544,6 +4586,12 @@ bool MainWindow::LoadProjectSettings(QString fn)
 			ui->gammaSlider->setValue(value.toInt());
 		if (key.contains("Gain"))
 			ui->gainSlider->setValue(value.toInt());
+		if (key.contains("Red Balance"))
+			ui->redBalanceSlider->setValue(value.toInt());
+		if (key.contains("Green Balance"))
+			ui->greenBalanceSlider->setValue(value.toInt());
+		if (key.contains("Blue Balance"))
+			ui->blueBalanceSlider->setValue(value.toInt());
 		if (key.contains("S-Curve Value"))
 			ui->thresholdSlider->setValue(value.toInt());
 		if (key.contains("S-Curve On"))
@@ -8984,6 +9032,24 @@ void MainWindow::on_gainSlider_valueChanged(int value)
 	GPU_Params_Update(1);
 }
 
+void MainWindow::on_redBalanceSlider_valueChanged(int value)
+{
+	ui->redBalanceLabel->setText(QString::number(value/100.f,'f',2));
+	GPU_Params_Update(1);
+}
+
+void MainWindow::on_greenBalanceSlider_valueChanged(int value)
+{
+	ui->greenBalanceLabel->setText(QString::number(value/100.f,'f',2));
+	GPU_Params_Update(1);
+}
+
+void MainWindow::on_blueBalanceSlider_valueChanged(int value)
+{
+	ui->blueBalanceLabel->setText(QString::number(value/100.f,'f',2));
+	GPU_Params_Update(1);
+}
+
 void MainWindow::on_thresholdSlider_valueChanged(int value)
 {
 	ui->threshLabel->setText(QString::number(value/100.f,'f',2));
@@ -10800,12 +10866,18 @@ void MainWindow::ResetImageSectionToFactoryDefaults()
 	ui->gainSlider->setValue(100);
 	ui->thresholdSlider->setValue(300);
 	ui->blurSlider->setValue(0);
+	ui->redBalanceSlider->setValue(100);
+	ui->greenBalanceSlider->setValue(100);
+	ui->blueBalanceSlider->setValue(100);
 	ui->threshBox->setChecked(false);
 	ui->negBox->setChecked(false);
 	ui->desatBox->setChecked(false);
 	ui->liftLabel->setText(QString::number(0.0f,'f',2));
 	ui->gammaLabel->setText(QString::number(1.0f,'f',2));
 	ui->gainLabel->setText(QString::number(1.0f,'f',2));
+	ui->redBalanceLabel->setText(QString::number(1.0f,'f',2));
+	ui->greenBalanceLabel->setText(QString::number(1.0f,'f',2));
+	ui->blueBalanceLabel->setText(QString::number(1.0f,'f',2));
 	ui->threshLabel->setText(QString::number(3.0f,'f',2));
 	ui->blurLabel->setText(QString::number(0.0f,'f',2));
 	GPU_Params_Update(1);
@@ -10818,11 +10890,17 @@ void MainWindow::on_imageResetButton_clicked()
 	const int lift = settings.value("lift", 0).toInt();
 	const int gamma = settings.value("gamma", 100).toInt();
 	const int gain = settings.value("gain", 100).toInt();
+	const int redBalance = settings.value("red-balance", 100).toInt();
+	const int greenBalance = settings.value("green-balance", 100).toInt();
+	const int blueBalance = settings.value("blue-balance", 100).toInt();
 	const int sCurve = settings.value("s-curve", 300).toInt();
 	const int blur = settings.value("blur-sharp", 0).toInt();
 	ui->liftSlider->setValue(lift);
 	ui->gammaSlider->setValue(gamma);
 	ui->gainSlider->setValue(gain);
+	ui->redBalanceSlider->setValue(redBalance);
+	ui->greenBalanceSlider->setValue(greenBalance);
+	ui->blueBalanceSlider->setValue(blueBalance);
 	ui->thresholdSlider->setValue(sCurve);
 	ui->blurSlider->setValue(blur);
 	ui->threshBox->setChecked(settings.value("s-curve-on", false).toBool());
@@ -10832,6 +10910,9 @@ void MainWindow::on_imageResetButton_clicked()
 	ui->liftLabel->setText(QString::number(ui->liftSlider->value()/100.f,'f',2));
 	ui->gammaLabel->setText(QString::number(ui->gammaSlider->value()/100.f,'f',2));
 	ui->gainLabel->setText(QString::number(ui->gainSlider->value()/100.f,'f',2));
+	ui->redBalanceLabel->setText(QString::number(ui->redBalanceSlider->value()/100.f,'f',2));
+	ui->greenBalanceLabel->setText(QString::number(ui->greenBalanceSlider->value()/100.f,'f',2));
+	ui->blueBalanceLabel->setText(QString::number(ui->blueBalanceSlider->value()/100.f,'f',2));
 	ui->threshLabel->setText(QString::number(ui->thresholdSlider->value()/100.f,'f',2));
 	ui->blurLabel->setText(QString::number(ui->blurSlider->value()/100.f,'f',2));
 	GPU_Params_Update(1);

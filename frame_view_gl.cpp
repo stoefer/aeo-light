@@ -211,6 +211,9 @@ Frame_Window::Frame_Window(int w,int h)
 	lift=0;
 	gamma=1.0f;
 	gain=1.0f;
+	red_balance = 1.0f;
+	green_balance = 1.0f;
+	blue_balance = 1.0f;
 	threshold = 0.5;
 	blur = 0;
 	stereo = 0;
@@ -312,6 +315,7 @@ Frame_Window::Frame_Window(int w,int h)
 	pix_bounds_loc = 0;
 	dminmax_loc = 0;
 	m_colorcontrol_loc = 0;
+	m_color_balance_loc = 0;
 	m_bounds_loc = 0;
     m_rot_angle = 0;
 	m_calcontrol_loc = 0;
@@ -456,6 +460,7 @@ void Frame_Window::initialize()
 			m_program->uniformLocation("show_auto_detect_line");
 	pix_bounds_loc = m_program->uniformLocation("pix_boundry");
 	m_colorcontrol_loc = m_program->uniformLocation("color_controls");
+	m_color_balance_loc = m_program->uniformLocation("color_balance");
 	m_manipcontrol_loc = m_program->uniformLocation("manip_controls");
 	m_calcontrol_loc = m_program->uniformLocation("cal_controls");
 	m_inputsize_loc = m_program->uniformLocation("inputsize");
@@ -730,6 +735,11 @@ void Frame_Window::update_parameters()
 {
 	m_program->setUniformValue(m_colorcontrol_loc, lift,gamma,gain,
 			float(!desaturate));
+	m_program->setUniformValue(
+			m_color_balance_loc,
+			red_balance,
+			green_balance,
+			blue_balance);
 	m_program->setUniformValue(m_manipcontrol_loc, float(thresh),threshold,
 			blur);
 	m_program->setUniformValue(m_bounds_loc,

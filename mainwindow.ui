@@ -938,7 +938,7 @@
          <x>10</x>
          <y>10</y>
          <width>621</width>
-         <height>193</height>
+         <height>305</height>
         </rect>
        </property>
        <layout class="QGridLayout" name="gridLayout">
@@ -1278,13 +1278,131 @@
           </property>
          </widget>
         </item>
+        <item row="6" column="1">
+         <widget class="QLabel" name="redBalanceTextLabel">
+          <property name="text">
+           <string>R balance</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="6" column="2">
+         <widget class="QLabel" name="redBalanceLabel">
+          <property name="text">
+           <string>1.00</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="6" column="3">
+         <widget class="QSlider" name="redBalanceSlider">
+          <property name="minimum">
+           <number>0</number>
+          </property>
+          <property name="maximum">
+           <number>200</number>
+          </property>
+          <property name="value">
+           <number>100</number>
+          </property>
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+         </widget>
+        </item>
+        <item row="7" column="1">
+         <widget class="QLabel" name="greenBalanceTextLabel">
+          <property name="text">
+           <string>G balance</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="7" column="2">
+         <widget class="QLabel" name="greenBalanceLabel">
+          <property name="text">
+           <string>1.00</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="7" column="3">
+         <widget class="QSlider" name="greenBalanceSlider">
+          <property name="minimum">
+           <number>0</number>
+          </property>
+          <property name="maximum">
+           <number>200</number>
+          </property>
+          <property name="value">
+           <number>100</number>
+          </property>
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+         </widget>
+        </item>
+        <item row="8" column="1">
+         <widget class="QLabel" name="blueBalanceTextLabel">
+          <property name="text">
+           <string>B balance</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="8" column="2">
+         <widget class="QLabel" name="blueBalanceLabel">
+          <property name="text">
+           <string>1.00</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item row="8" column="3">
+         <widget class="QSlider" name="blueBalanceSlider">
+          <property name="minimum">
+           <number>0</number>
+          </property>
+          <property name="maximum">
+           <number>200</number>
+          </property>
+          <property name="value">
+           <number>100</number>
+          </property>
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+         </widget>
+        </item>
+        <item row="9" column="0" colspan="5">
+         <widget class="QLabel" name="colorBalanceTipLabel">
+          <property name="text">
+           <string>Tip: corrigeer rode kleurzweem door R balance te verlagen (bv. 0.85-0.95) en G/B licht te verhogen (bv. 1.03-1.10).</string>
+          </property>
+          <property name="wordWrap">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
        </layout>
       </widget>
       <widget class="QWidget" name="horizontalLayoutWidget">
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>200</y>
+         <y>312</y>
          <width>621</width>
          <height>32</height>
         </rect>
@@ -1356,7 +1474,7 @@
        <property name="geometry">
         <rect>
          <x>189</x>
-         <y>253</y>
+         <y>458</y>
          <width>127</width>
          <height>32</height>
         </rect>
@@ -1369,7 +1487,7 @@
        <property name="geometry">
         <rect>
          <x>322</x>
-         <y>253</y>
+         <y>458</y>
          <width>127</width>
          <height>32</height>
         </rect>
@@ -3927,6 +4045,9 @@ QPushButton:disabled {
   <tabstop>gamma_resetButton</tabstop>
   <tabstop>gainSlider</tabstop>
   <tabstop>gain_resetButton</tabstop>
+  <tabstop>redBalanceSlider</tabstop>
+  <tabstop>greenBalanceSlider</tabstop>
+  <tabstop>blueBalanceSlider</tabstop>
   <tabstop>threshBox</tabstop>
   <tabstop>thresholdSlider</tabstop>
   <tabstop>thresh_resetButton</tabstop>
