@@ -8,13 +8,13 @@ Starten zonder terminal:
 Vereist: faster-whisper, argostranslate, piper-tts, sounddevice, soundfile, numpy.
 Voor UVR: python -m pip install "audio-separator[cpu]"
 """
-import hashlib, json, os, queue, re, shutil, subprocess, sys, threading, time, wave
+import hashlib, json, os, queue, re, shutil, subprocess, sys, tempfile, threading, time, wave
 from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from telecine_media import (
-    MediaStopped, extract_wav, ffmpeg_missing_message, find_ffmpeg, is_video_file, write_mp4,
-    write_subtitled_mp4,
+    MediaStopped, extract_wav, ffmpeg_missing_message, find_ffmpeg, is_video_file, probe_video,
+    timeline_for_audio, write_mp4, write_subtitled_mp4, extract_frame,
 )
 
 APP_TITLE = "TeleCine Audio Translator"
@@ -301,6 +301,54 @@ def translate_chunks(text, source, stop, callback):
 def hhmmss_ms(sec):
     sec=max(0.0,float(sec)); h=int(sec//3600); m=int((sec%3600)//60); ss=sec%60
     return f"{h:02d}:{m:02d}:{ss:06.3f}"
+
+def optional_seconds(raw):
+    """Lege tekst is geen punt. Anders seconden."""
+    text = str(raw or "").strip()
+    if not text:
+        return None
+    return float(text)
+
+def point_seconds(index, fps, duration, kind):
+    """Tijd van een frame. Het eindpunt valt aan het einde van dat frame."""
+    step = float(fps) if fps else 25.0
+    length = max(0.0, float(duration or 0))
+    place = max(0, int(index))
+    value = (place + 1) / step if kind == "end" else place / step
+    if length > 0:
+        value = min(length, value)
+    return round(value, 3)
+
+def assign_range_point(start, end, kind, seconds):
+    """Zet start of einde. Het einde blijft na de start."""
+    seconds = round(float(seconds), 3)
+    if kind == "start":
+        if end is not None and seconds >= float(end):
+            return start, end, "Het startpunt moet voor het eindpunt liggen."
+        return seconds, end, ""
+    if start is not None and seconds <= float(start):
+        return start, end, "Het eindpunt moet na het startpunt liggen."
+    return start, seconds, ""
+
+def limit_segments(segments, start, end):
+    """Houd de zinnen die in het bereik vallen en kap hun tijden daarop af."""
+    if start is None and end is None:
+        return [dict(item) for item in segments]
+    begin = 0.0 if start is None else float(start)
+    finish = None if end is None else float(end)
+    kept = []
+    for item in segments:
+        opening = max(float(item["start"]), begin)
+        closing = float(item["end"])
+        if finish is not None:
+            closing = min(closing, finish)
+        if closing - opening < 0.02:
+            continue
+        copy = dict(item)
+        copy["start"] = opening
+        copy["end"] = closing
+        kept.append(copy)
+    return kept
 
 def spoken_text(segment, key="text"):
     """Eén regel tekst. Regeleinden in het bewerkvenster worden spaties."""
@@ -821,6 +869,192 @@ class TranscriptEditor(tk.Toplevel):
             pass
         callback()
 
+class FilmPreview(tk.Toplevel):
+    """Beeld van de film, met onderaan een schuif per frame.
+
+    Startpunt en eindpunt gebruiken het frame waar de schuif staat. Die tijden
+    blijven de tijd van de film, zodat alleen dat stuk vertaald wordt.
+    """
+
+    def __init__(self, master, source, timeline, range_start, range_end, on_change):
+        super().__init__(master)
+        self.title("Film bekijken")
+        self.source = Path(source)
+        self.timeline = timeline
+        self.range_start = range_start
+        self.range_end = range_end
+        self.on_change = on_change
+        self._photo = None
+        self._job = 0
+        self._results = queue.Queue()
+        self._slide_after = None
+        self.position = tk.StringVar()
+        self.start_text = tk.StringVar()
+        self.end_text = tk.StringVar()
+        self._build()
+        self._refresh_marks()
+        self.slider.set(self._index_for(optional_seconds(range_start.get())))
+        self._show_position()
+        self.protocol("WM_DELETE_WINDOW", self._close)
+        self.bind("<Left>", lambda _event: self._step(-1))
+        self.bind("<Right>", lambda _event: self._step(1))
+        self.after(80, self._poll)
+        self.after(60, lambda: self._load_frame(True))
+        self.transient(master)
+
+    def _build(self):
+        colors = getattr(self.master, "_colors", APPEARANCE_COLORS["Licht"])
+        self.configure(bg=colors["bg"])
+        slider_row = ttk.Frame(self, padding=(12, 0, 12, 12))
+        slider_row.pack(side="bottom", fill="x")
+        ttk.Button(slider_row, text="◀", width=3, command=lambda: self._step(-1)).pack(side="left")
+        frames = max(1, int(self.timeline["frames"]))
+        self.slider = ttk.Scale(slider_row, from_=0, to=max(0, frames - 1), orient="horizontal", command=self._on_slide)
+        self.slider.pack(side="left", fill="x", expand=True, padx=8)
+        ttk.Button(slider_row, text="▶", width=3, command=lambda: self._step(1)).pack(side="left")
+        self.slider.bind("<ButtonRelease-1>", self._on_release)
+        marks = ttk.Frame(self, padding=(12, 4, 12, 4))
+        marks.pack(side="bottom", fill="x")
+        ttk.Button(marks, text="Startpunt", command=self._set_start).pack(side="left")
+        ttk.Label(marks, textvariable=self.start_text, width=16).pack(side="left", padx=(6, 16))
+        ttk.Button(marks, text="Eindpunt", command=self._set_end).pack(side="left")
+        ttk.Label(marks, textvariable=self.end_text, width=16).pack(side="left", padx=(6, 16))
+        ttk.Button(marks, text="Wissen", command=self._clear).pack(side="left")
+        ttk.Label(self, textvariable=self.position).pack(side="bottom", anchor="w", padx=12, pady=(8, 0))
+        self.image_label = tk.Label(
+            self, text="Beeld laden..." if self.timeline.get("has_picture") else "Dit bestand heeft geen beeld. Kies het start- en eindpunt op de tijdlijn.",
+            bg=colors["field"], fg=colors["fg"], wraplength=680, justify="center",
+        )
+        self.image_label.pack(side="top", fill="both", expand=True, padx=12, pady=12)
+        self.geometry("760x640")
+
+    def _index_for(self, seconds):
+        if seconds is None:
+            return 0
+        fps = float(self.timeline["fps"]) or 1.0
+        index = int(round(float(seconds) * fps))
+        return max(0, min(int(self.timeline["frames"]) - 1, index))
+
+    def _current_index(self):
+        return max(0, min(int(self.timeline["frames"]) - 1, int(round(float(self.slider.get())))))
+
+    def _show_position(self):
+        index = self._current_index()
+        fps = float(self.timeline["fps"]) or 1.0
+        when = point_seconds(index, fps, self.timeline["duration"], "start")
+        total = int(self.timeline["frames"])
+        if self.timeline.get("has_picture"):
+            self.position.set(f"Frame {index + 1} van {total}    {hhmmss_ms(when)}")
+        else:
+            self.position.set(f"Tijd {hhmmss_ms(when)}    stap {index + 1} van {total}")
+
+    def _on_slide(self, _value=None):
+        self._show_position()
+        if self._slide_after is not None:
+            self.after_cancel(self._slide_after)
+        self._slide_after = self.after(180, lambda: self._load_frame(False))
+
+    def _on_release(self, _event=None):
+        if self._slide_after is not None:
+            self.after_cancel(self._slide_after)
+            self._slide_after = None
+        self._show_position()
+        self._load_frame(True)
+
+    def _step(self, delta):
+        self.slider.set(self._current_index() + delta)
+        self._on_release()
+        return "break"
+
+    def _set_start(self):
+        self._store("start")
+
+    def _set_end(self):
+        self._store("end")
+
+    def _store(self, kind):
+        index = self._current_index()
+        seconds = point_seconds(index, self.timeline["fps"], self.timeline["duration"], kind)
+        start, end, error = assign_range_point(
+            optional_seconds(self.range_start.get()), optional_seconds(self.range_end.get()), kind, seconds,
+        )
+        if error:
+            messagebox.showerror(APP_TITLE, error, parent=self)
+            return
+        self.range_start.set("" if start is None else f"{start:.3f}")
+        self.range_end.set("" if end is None else f"{end:.3f}")
+        self._refresh_marks()
+        if self.on_change:
+            self.on_change()
+
+    def _clear(self):
+        self.range_start.set("")
+        self.range_end.set("")
+        self._refresh_marks()
+        if self.on_change:
+            self.on_change()
+
+    def _refresh_marks(self):
+        start = optional_seconds(self.range_start.get())
+        end = optional_seconds(self.range_end.get())
+        self.start_text.set("geen" if start is None else hhmmss_ms(start))
+        self.end_text.set("geen" if end is None else hhmmss_ms(end))
+
+    def _load_frame(self, accurate):
+        if not self.timeline.get("has_picture"):
+            return
+        self._job += 1
+        job = self._job
+        seconds = point_seconds(self._current_index(), self.timeline["fps"], self.timeline["duration"], "start")
+        target = Path(tempfile.gettempdir()) / f"telecine-frame-{id(self)}.png"
+
+        def work():
+            try:
+                extract_frame(self.source, seconds, target, accurate=accurate)
+                self._results.put((job, target, ""))
+            except Exception as exc:
+                self._results.put((job, None, str(exc)))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _poll(self):
+        try:
+            while True:
+                job, path, error = self._results.get_nowait()
+                if job != self._job:
+                    continue
+                if error or path is None:
+                    self.image_label.configure(image="", text=error or "Dit frame kon niet worden getoond.")
+                    self._photo = None
+                    continue
+                try:
+                    image = tk.PhotoImage(file=str(path), master=self)
+                    step = max(1, (image.width() + 719) // 720)
+                    if step > 1:
+                        image = image.subsample(step, step)
+                    self._photo = image
+                    self.image_label.configure(image=image, text="")
+                except tk.TclError as exc:
+                    self.image_label.configure(image="", text="Dit frame kon niet worden getoond.\n" + str(exc))
+        except queue.Empty:
+            pass
+        try:
+            self.after(80, self._poll)
+        except tk.TclError:
+            pass
+
+    def _close(self):
+        self._job += 1
+        if self._slide_after is not None:
+            try:
+                self.after_cancel(self._slide_after)
+            except tk.TclError:
+                pass
+        if getattr(self.master, "_film_preview", None) is self:
+            self.master._film_preview = None
+        self.destroy()
+
+
 class App(tk.Tk):
     def __init__(self):
         super().__init__(); self.title(f"{APP_TITLE} {APP_VERSION}"); self.geometry("1180x900"); self.minsize(920,640)
@@ -834,6 +1068,10 @@ class App(tk.Tk):
         self.write_mp4=tk.BooleanVar(value=True)
         self.make_speech=tk.BooleanVar(value=True)
         self.srt_path=tk.StringVar()
+        self.range_start=tk.StringVar()
+        self.range_end=tk.StringVar()
+        self.range_text=tk.StringVar(value="Bereik: de hele film")
+        self._film_preview=None
         self._speech_enabled=True
         self._job_running=False
         self.sync_timing=tk.BooleanVar(value=True); self.edit_transcript=tk.BooleanVar(value=True); self.edit_translation=tk.BooleanVar(value=True); self.max_speed=tk.IntVar(value=15)
@@ -859,6 +1097,7 @@ class App(tk.Tk):
         self.bg_volume.trace_add("write",self._on_volume_change); self.voice_volume.trace_add("write",self._on_volume_change)
         self.voice_choice.trace_add("write",lambda *_:self.refresh_environment_status()); self.use_uvr.trace_add("write",lambda *_:self.refresh_environment_status())
         self.make_speech.trace_add("write",self._sync_speech_controls); self.srt_path.trace_add("write",self._sync_speech_controls)
+        self.range_start.trace_add("write",lambda *_:self._refresh_range_label()); self.range_end.trace_add("write",lambda *_:self._refresh_range_label())
         self.show_route_note(); self.refresh_environment_status()
 
     def _ui_font(self,size,bold=False):
@@ -926,20 +1165,23 @@ class App(tk.Tk):
         ttk.Label(m,text="Bronbestand (WAV of MP4):").grid(row=1,column=0,sticky="w")
         self.source_entry=ttk.Entry(m,textvariable=self.source); self.source_entry.grid(row=1,column=1,sticky="ew",padx=8)
         self.source_button=ttk.Button(m,text="Kiezen...",command=self.choose_source); self.source_button.grid(row=1,column=2)
+        preview_row=ttk.Frame(m); preview_row.grid(row=2,column=0,columnspan=3,sticky="ew",pady=(4,0))
+        self.preview_button=ttk.Button(preview_row,text="Film bekijken",command=self.open_preview); self.preview_button.pack(side="left")
+        ttk.Label(preview_row,textvariable=self.range_text).pack(side="left",padx=12)
         self.mp4_check=ttk.Checkbutton(m,text="Bij een MP4 het beeld behouden en de vertaling als MP4 opslaan",variable=self.write_mp4)
-        self.mp4_check.grid(row=2,column=0,columnspan=3,sticky="w",pady=(4,0))
-        ttk.Label(m,text="Bronondertitels (SRT, optioneel):").grid(row=3,column=0,sticky="w",pady=(6,0))
-        self.srt_entry=ttk.Entry(m,textvariable=self.srt_path); self.srt_entry.grid(row=3,column=1,sticky="ew",padx=8,pady=(6,0))
-        srt_buttons=ttk.Frame(m); srt_buttons.grid(row=3,column=2,pady=(6,0))
+        self.mp4_check.grid(row=3,column=0,columnspan=3,sticky="w",pady=(4,0))
+        ttk.Label(m,text="Bronondertitels (SRT, optioneel):").grid(row=4,column=0,sticky="w",pady=(6,0))
+        self.srt_entry=ttk.Entry(m,textvariable=self.srt_path); self.srt_entry.grid(row=4,column=1,sticky="ew",padx=8,pady=(6,0))
+        srt_buttons=ttk.Frame(m); srt_buttons.grid(row=4,column=2,pady=(6,0))
         self.srt_button=ttk.Button(srt_buttons,text="Kiezen...",command=self.choose_srt); self.srt_button.pack(side="left")
         self.srt_clear=ttk.Button(srt_buttons,text="Wissen",command=self.clear_srt); self.srt_clear.pack(side="left",padx=(6,0))
         self.speech_check=ttk.Checkbutton(m,text="Vlaamse spraak maken",variable=self.make_speech)
-        self.speech_check.grid(row=4,column=0,columnspan=3,sticky="w",pady=(6,0))
-        ttk.Label(m,text="Zonder spraak komen de Nederlandse ondertitels in de MP4. Beeld en geluid blijven.",wraplength=860).grid(row=5,column=0,columnspan=3,sticky="w")
-        ttk.Label(m,text="Uitvoermap:").grid(row=6,column=0,sticky="w",pady=6)
-        self.out_entry=ttk.Entry(m,textvariable=self.outdir); self.out_entry.grid(row=6,column=1,sticky="ew",padx=8)
-        self.out_button=ttk.Button(m,text="Kiezen...",command=self.choose_out); self.out_button.grid(row=6,column=2)
-        opt=ttk.LabelFrame(m,text="Vertaling",padding=8); opt.grid(row=7,column=0,columnspan=3,sticky="ew",pady=(4,6))
+        self.speech_check.grid(row=5,column=0,columnspan=3,sticky="w",pady=(6,0))
+        ttk.Label(m,text="Zonder spraak komen de Nederlandse ondertitels in de MP4. Beeld en geluid blijven.",wraplength=860).grid(row=6,column=0,columnspan=3,sticky="w")
+        ttk.Label(m,text="Uitvoermap:").grid(row=7,column=0,sticky="w",pady=6)
+        self.out_entry=ttk.Entry(m,textvariable=self.outdir); self.out_entry.grid(row=7,column=1,sticky="ew",padx=8)
+        self.out_button=ttk.Button(m,text="Kiezen...",command=self.choose_out); self.out_button.grid(row=7,column=2)
+        opt=ttk.LabelFrame(m,text="Vertaling",padding=8); opt.grid(row=8,column=0,columnspan=3,sticky="ew",pady=(4,6))
         for c in range(3): opt.columnconfigure(c,weight=1)
         ttk.Label(opt,text="Brontaal").grid(row=0,column=0,sticky="w"); ttk.Label(opt,text="Whisper-kwaliteit").grid(row=0,column=1,sticky="w"); ttk.Label(opt,text="Vlaamse stem").grid(row=0,column=2,sticky="w")
         self.lang=ttk.Combobox(opt,textvariable=self.language,values=list(LANGUAGES),state="readonly"); self.lang.grid(row=1,column=0,sticky="ew")
@@ -952,7 +1194,7 @@ class App(tk.Tk):
         self.edit_check.grid(row=3,column=0,columnspan=3,sticky="w",pady=(6,0))
         self.translation_check=ttk.Checkbutton(opt,text="Nederlandse vertaling bewerken voor de spraak (tijden blijven staan)",variable=self.edit_translation)
         self.translation_check.grid(row=4,column=0,columnspan=3,sticky="w",pady=(4,0))
-        u=ttk.LabelFrame(m,text="UVR: volumes en losse sporen",padding=8); u.grid(row=8,column=0,columnspan=3,sticky="ew",pady=6)
+        u=ttk.LabelFrame(m,text="UVR: volumes en losse sporen",padding=8); u.grid(row=9,column=0,columnspan=3,sticky="ew",pady=6)
         u.columnconfigure(1,weight=1)
         self.keep_stems_check=ttk.Checkbutton(u,text="Losse UVR-sporen ook naar de uitvoermap kopiëren",variable=self.keep_stems); self.keep_stems_check.grid(row=0,column=0,columnspan=3,sticky="w",pady=(0,8))
         ttk.Label(u,text="Achtergrondvolume:").grid(row=1,column=0,sticky="w")
@@ -961,7 +1203,7 @@ class App(tk.Tk):
         ttk.Label(u,text="Vlaamse stemvolume:").grid(row=2,column=0,sticky="w")
         self.voice_scale=ttk.Scale(u,from_=0,to=150,variable=self.voice_volume,orient="horizontal"); self.voice_scale.grid(row=2,column=1,sticky="ew",padx=8)
         ttk.Label(u,textvariable=self.voice_volume_text,width=5).grid(row=2,column=2)
-        sy=ttk.LabelFrame(m,text="Synchronisatie met originele timing",padding=8); sy.grid(row=9,column=0,columnspan=3,sticky="ew",pady=6)
+        sy=ttk.LabelFrame(m,text="Synchronisatie met originele timing",padding=8); sy.grid(row=10,column=0,columnspan=3,sticky="ew",pady=6)
         sy.columnconfigure(1,weight=1)
         self.sync_check=ttk.Checkbutton(sy,text="Oorspronkelijke starttijden en stiltes behouden",variable=self.sync_timing); self.sync_check.grid(row=0,column=0,columnspan=3,sticky="w")
         ttk.Label(sy,text="Maximale versnelling van Vlaamse segmenten:").grid(row=1,column=0,sticky="w",pady=(6,0))
@@ -1319,10 +1561,48 @@ class App(tk.Tk):
         f=filedialog.askopenfilename(title="Kies WAV of MP4",filetypes=[("WAV of MP4","*.wav *.mp4 *.m4v"),("WAV-audio","*.wav"),("MP4-video","*.mp4 *.m4v"),("Alle bestanden","*.*")])
         if not f: return
         self.file_levels.clear(); self.level_values.clear(); self.stop_audio()
-        self.source.set(f); self.play_status.set("Nog geen eindresultaat gekozen"); self.inspect_resume(); self.refresh_environment_status()
+        self.source.set(f); self.play_status.set("Nog geen eindresultaat gekozen"); self._close_preview(); self.inspect_resume(); self.refresh_environment_status()
     def choose_out(self):
         f=filedialog.askdirectory(title="Kies uitvoermap")
         if f: self.outdir.set(f)
+    def open_preview(self):
+        raw=self.source.get().strip()
+        path=Path(raw) if raw else None
+        if path is None or not path.is_file():
+            messagebox.showerror(APP_TITLE,"Kies eerst een WAV- of MP4-bestand."); return
+        try:
+            if is_video_file(path):
+                if find_ffmpeg() is None:
+                    messagebox.showerror(APP_TITLE,ffmpeg_missing_message()); return
+                timeline=probe_video(path)
+            else:
+                timeline=timeline_for_audio(read_wav_duration(path))
+        except Exception as exc:
+            messagebox.showerror(APP_TITLE,str(exc)); return
+        current=self._film_preview
+        if current is not None:
+            try:
+                if current.winfo_exists() and current.source==path.resolve():
+                    current.lift(); return
+                current._close()
+            except tk.TclError:
+                self._film_preview=None
+        self._film_preview=FilmPreview(self,path.resolve(),timeline,self.range_start,self.range_end,self._refresh_range_label)
+    def _close_preview(self):
+        current=self._film_preview
+        if current is None: return
+        try:
+            if current.winfo_exists(): current._close()
+        except tk.TclError:
+            self._film_preview=None
+    def _refresh_range_label(self):
+        if not hasattr(self,"range_text"): return
+        start=optional_seconds(self.range_start.get()); end=optional_seconds(self.range_end.get())
+        if start is None and end is None:
+            self.range_text.set("Bereik: de hele film"); return
+        left="begin" if start is None else hhmmss_ms(start)
+        right="einde" if end is None else hhmmss_ms(end)
+        self.range_text.set(f"Bereik: {left}  –  {right}")
     def choose_srt(self):
         f=filedialog.askopenfilename(title="Kies bronondertitels",filetypes=[("SubRip-ondertitels","*.srt"),("Alle bestanden","*.*")])
         if f: self.srt_path.set(f)
@@ -1349,7 +1629,7 @@ class App(tk.Tk):
         s=Path(source).resolve(); sig=f"{s}|{s.stat().st_mtime_ns}|{s.stat().st_size}"; jid=hashlib.sha256(sig.encode()).hexdigest()[:16]; d=JOB_DIR/f"{safe_name(s.stem)}_{jid}"
         return {"folder":d,"state":d/"state.json","transcript":d/"transcript.txt","translation":d/"translation_nl.txt","extracted":d/"bron_audio.wav","vocals":d/"uvr_vocals.wav","background":d/"uvr_background.wav","voice":d/"vlaamse_stem.wav","mixed":d/"vlaams_met_achtergrond.wav","uvr_out":d/"uvr_output","segments":d/"segments.json","translated_segments":d/"segments_nl.json","segment_audio":d/"segment_audio"}
     def default_state(self,s):
-        return {"source":str(Path(s).resolve()),"source_language":LANGUAGES.get(self.language.get(),"fr"),"model":self.whisper.get(),"voice":VOICES[self.voice_choice.get()],"voice_label":self.voice_choice.get(),"use_uvr":bool(self.use_uvr.get()),"keep_stems":bool(self.keep_stems.get()),"write_mp4":bool(self.write_mp4.get()),"make_speech":bool(self.make_speech.get()),"srt_path":self.srt_path.get().strip(),"bg_volume":int(round(float(self.bg_volume.get()))),"voice_volume":int(round(float(self.voice_volume.get()))),"sync_timing":bool(self.sync_timing.get()),"edit_transcript":bool(self.edit_transcript.get()),"edit_translation":bool(self.edit_translation.get()),"max_speed":int(self.max_speed.get()),"completed_steps":0,"elapsed":0.,"status":"nieuw","output_dir":str(Path(self.outdir.get() or BASE_DIR/"Output").resolve()),"output_file":"","output_video":"","subtitle_file":"","last_error":""}
+        return {"source":str(Path(s).resolve()),"source_language":LANGUAGES.get(self.language.get(),"fr"),"model":self.whisper.get(),"voice":VOICES[self.voice_choice.get()],"voice_label":self.voice_choice.get(),"use_uvr":bool(self.use_uvr.get()),"keep_stems":bool(self.keep_stems.get()),"write_mp4":bool(self.write_mp4.get()),"make_speech":bool(self.make_speech.get()),"srt_path":self.srt_path.get().strip(),"range_start":self.range_start.get().strip(),"range_end":self.range_end.get().strip(),"bg_volume":int(round(float(self.bg_volume.get()))),"voice_volume":int(round(float(self.voice_volume.get()))),"sync_timing":bool(self.sync_timing.get()),"edit_transcript":bool(self.edit_transcript.get()),"edit_translation":bool(self.edit_translation.get()),"max_speed":int(self.max_speed.get()),"completed_steps":0,"elapsed":0.,"status":"nieuw","output_dir":str(Path(self.outdir.get() or BASE_DIR/"Output").resolve()),"output_file":"","output_video":"","subtitle_file":"","last_error":""}
     def load(self,p):
         try:return json.loads(p["state"].read_text(encoding="utf-8"))
         except:return None
@@ -1363,6 +1643,12 @@ class App(tk.Tk):
         if is_video_file(s) and find_ffmpeg() is None:
             messagebox.showerror(APP_TITLE,ffmpeg_missing_message()); return None
         if not self._accept_srt(required=not self.make_speech.get()): return None
+        try:
+            start=optional_seconds(self.range_start.get()); end=optional_seconds(self.range_end.get())
+        except ValueError:
+            messagebox.showerror(APP_TITLE,"Het start- of eindpunt is geen geldige tijd."); return None
+        if start is not None and end is not None and end<=start:
+            messagebox.showerror(APP_TITLE,"Het eindpunt moet na het startpunt liggen."); return None
         if not self.make_speech.get(): return s
         voice_name=VOICES.get(self.voice_choice.get())
         if not voice_name:
@@ -1440,6 +1726,8 @@ class App(tk.Tk):
         if "write_mp4" in st: self.write_mp4.set(bool(st.get("write_mp4")))
         self.srt_path.set(st.get("srt_path") or "")
         self.make_speech.set(bool(st.get("make_speech", True)))
+        self.range_start.set("" if st.get("range_start") in (None,"") else f"{float(st.get('range_start')):.3f}")
+        self.range_end.set("" if st.get("range_end") in (None,"") else f"{float(st.get('range_end')):.3f}")
         try:
             self.bg_volume.set(float(st.get("bg_volume",100))); self.voice_volume.set(float(st.get("voice_volume",100)))
             speed=int(st.get("max_speed",15))
@@ -1458,13 +1746,13 @@ class App(tk.Tk):
         self.launch(p,st)
     def launch(self,p,st):
         if self.worker and self.worker.is_alive():return
-        self.stop_event.clear(); self.started=time.monotonic(); self.elapsed_before=float(st.get("elapsed",0)); self.state=st; self.progress=sum(WEIGHTS[:st.get("completed_steps",0)])*100; self.running(True)
+        self._close_preview(); self.stop_event.clear(); self.started=time.monotonic(); self.elapsed_before=float(st.get("elapsed",0)); self.state=st; self.progress=sum(WEIGHTS[:st.get("completed_steps",0)])*100; self.running(True)
         self.worker=threading.Thread(target=self.pipeline,args=(p,st),daemon=True); self.worker.start()
     def running(self,on):
         self._job_running=bool(on)
         self.start.config(state="disabled" if on else "normal"); self.stop.config(state="normal" if on else "disabled")
         if on: self.resume.config(state="disabled")
-        for widget in (self.source_entry,self.out_entry,self.srt_entry,self.source_button,self.out_button,self.srt_button,self.srt_clear,self.uvr_check,self.keep_stems_check,self.sync_check,self.mp4_check,self.speech_check,self.edit_check,self.translation_check,self.bg_scale,self.voice_scale):
+        for widget in (self.source_entry,self.out_entry,self.srt_entry,self.source_button,self.out_button,self.preview_button,self.srt_button,self.srt_clear,self.uvr_check,self.keep_stems_check,self.sync_check,self.mp4_check,self.speech_check,self.edit_check,self.translation_check,self.bg_scale,self.voice_scale):
             widget.config(state="disabled" if on else "normal")
         for widget in (self.lang,self.model,self.voice,self.speed_box):
             widget.config(state="disabled" if on else "readonly")
@@ -1605,7 +1893,7 @@ class App(tk.Tk):
                     srt_file=Path(srt_path)
                     if not srt_file.is_file():
                         raise RuntimeError("Het ondertitelbestand is niet gevonden:\n"+srt_path)
-                    timed=read_srt(srt_file)
+                    timed=self._limit_range(read_srt(srt_file), st)
                     self.check_stop()
                     p["transcript"].write_text(format_timed_text(timed),encoding="utf-8")
                     p["segments"].write_text(json.dumps(timed,ensure_ascii=False,indent=2),encoding="utf-8")
@@ -1617,14 +1905,16 @@ class App(tk.Tk):
                         from faster_whisper import WhisperModel
                     except ImportError as exc:
                         raise RuntimeError("Spraakherkenning ontbreekt. "+install_command_hint()) from exc
-                    model=WhisperModel(st["model"],device="cpu",compute_type="int8"); segs,info=model.transcribe(str(recognition_source),language=st["source_language"],task="transcribe",beam_size=5,vad_filter=True)
+                    heard,offset=self._recognition_clip(p, recognition_source, st)
+                    model=WhisperModel(st["model"],device="cpu",compute_type="int8"); segs,info=model.transcribe(str(heard),language=st["source_language"],task="transcribe",beam_size=5,vad_filter=True)
                     dur=max(float(getattr(info,"duration",0) or 0),.01); parts=[]; timed=[]
                     for seg in segs:
                         self.check_stop(); t=seg.text.strip()
                         if t:
-                            parts.append(t); timed.append({"start":float(seg.start),"end":float(seg.end),"text":t})
+                            parts.append(t); timed.append({"start":float(seg.start)+offset,"end":float(seg.end)+offset,"text":t})
                         self.stage(2,min(.995,float(seg.end)/dur),f"Spraak herkennen: {seg.end:.0f}/{dur:.0f} sec")
-                    text=" ".join(parts).strip()
+                    timed=self._limit_range(timed, st)
+                    text=" ".join(spoken_text(item) for item in timed).strip()
                     if not text:raise RuntimeError("Whisper heeft geen spraak herkend.")
                     p["transcript"].write_text(format_timed_text(timed),encoding="utf-8")
                     p["segments"].write_text(json.dumps(timed,ensure_ascii=False,indent=2),encoding="utf-8"); self.finish(p,st,3); done=3
@@ -1761,7 +2051,23 @@ class App(tk.Tk):
             mark="[OK]" if mode=="completed" or i<done else "[>>]" if i==active and mode=="running" else "[PAUZE -> HIER]" if i==active and mode=="paused" else "[FOUT -> HIER]" if i==active and mode=="error" else "[  ]"
             lines.append(f"{mark:<18} {i+1}. {n}")
         self.steps.config(state="normal"); self.steps.delete("1.0","end"); self.steps.insert("1.0","\n".join(lines)); self.steps.config(state="disabled")
+    def _limit_range(self, timed, st):
+        start=optional_seconds(st.get("range_start")); end=optional_seconds(st.get("range_end"))
+        limited=limit_segments(timed, start, end)
+        if (start is not None or end is not None) and not limited:
+            raise RuntimeError("In het gekozen bereik staan geen zinnen.")
+        return limited
+    def _recognition_clip(self, p, source, st):
+        """Herkend alleen het gekozen stuk. De tijden blijven die van de hele film."""
+        start=optional_seconds(st.get("range_start")); end=optional_seconds(st.get("range_end"))
+        if start is None and end is None:
+            return source, 0.0
+        begin=0.0 if start is None else float(start)
+        clip=p["folder"]/"bereik.wav"
+        extract_wav(source, clip, self.stop_event, lambda proc: setattr(self,"child",proc), None if begin<=0 else begin, end)
+        return clip, begin
     def close(self):
+        self._close_preview()
         self.stop_audio()
         if self.worker and self.worker.is_alive() and not messagebox.askyesno(APP_TITLE,"Er loopt nog een verwerking. Stoppen en sluiten?"):return
         if self.worker and self.worker.is_alive():self.request_stop()

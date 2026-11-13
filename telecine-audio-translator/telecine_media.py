@@ -4,6 +4,7 @@
 Het beeld wordt gekopieerd, niet opnieuw gecomprimeerd. Alleen de audio
 wordt vervangen door de vertaalde mix.
 """
+import json
 import os
 import shutil
 import subprocess
@@ -138,18 +139,146 @@ def require_ffmpeg():
     return ffmpeg
 
 
-def extract_wav(video, wav_out, stop=None, child_setter=None):
+def parse_frame_rate(text):
+    """Zet 24000/1001 of 25 om naar beelden per seconde."""
+    raw = str(text or "").strip()
+    if not raw or raw in {"0/0", "N/A"}:
+        return 0.0
+    if "/" in raw:
+        num, den = raw.split("/", 1)
+        try:
+            den_f = float(den)
+        except ValueError:
+            return 0.0
+        if den_f == 0:
+            return 0.0
+        return float(num) / den_f
+    try:
+        return float(raw)
+    except ValueError:
+        return 0.0
+
+
+def timeline_from_probe(payload):
+    """Duur, beelden per seconde en aantal frames uit de JSON van ffprobe."""
+    streams = payload.get("streams") or []
+    stream = streams[0] if streams else {}
+    info = payload.get("format") or {}
+    rate = parse_frame_rate(stream.get("avg_frame_rate")) or parse_frame_rate(stream.get("r_frame_rate"))
+    fps = rate if rate > 1 else 25.0
+    duration = _positive_float(stream.get("duration")) or _positive_float(info.get("duration"))
+    frames = _positive_int(stream.get("nb_frames"))
+    if frames <= 0 and duration > 0:
+        frames = max(1, int(round(duration * fps)))
+    if frames <= 0:
+        frames = 1
+    if duration <= 0:
+        duration = frames / fps
+    return {"duration": duration, "fps": fps, "frames": frames, "has_picture": True}
+
+
+def timeline_for_audio(duration):
+    """Tijdlijn zonder beeld: tien stappen per seconde."""
+    seconds = max(0.0, float(duration or 0))
+    fps = 10.0
+    frames = max(1, int(round(seconds * fps)) or 1)
+    return {"duration": max(seconds, (frames - 1) / fps), "fps": fps, "frames": frames, "has_picture": False}
+
+
+def _positive_float(value):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return number if number > 0 else 0.0
+
+
+def _positive_int(value):
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return 0
+    return number if number > 0 else 0
+
+
+def find_ffprobe():
+    """ffprobe staat gewoonlijk naast ffmpeg."""
+    ffmpeg = find_ffmpeg()
+    if ffmpeg:
+        path = Path(ffmpeg)
+        sibling = path.with_name("ffprobe.exe" if path.suffix.lower() == ".exe" else "ffprobe")
+        if sibling.is_file():
+            return str(sibling)
+    return shutil.which("ffprobe")
+
+
+def probe_video(path):
+    """Lees duur en aantal frames van het eerste videospoor."""
+    ffprobe = find_ffprobe()
+    if not ffprobe:
+        raise RuntimeError("FFprobe hoort bij FFmpeg en is niet gevonden. Daarmee wordt het aantal frames bepaald.")
+    cmd = [
+        ffprobe, "-v", "error",
+        "-select_streams", "v:0",
+        "-show_entries", "stream=avg_frame_rate,r_frame_rate,duration,nb_frames:format=duration",
+        "-of", "json",
+        str(path),
+    ]
+    try:
+        completed = subprocess.run(cmd, check=False, capture_output=True, text=True)
+    except OSError as exc:
+        raise RuntimeError("De film kon niet worden gelezen.\n" + str(exc)) from exc
+    if completed.returncode != 0:
+        raise RuntimeError("De film kon niet worden gelezen.\n" + (completed.stderr or completed.stdout or "").strip())
+    try:
+        payload = json.loads(completed.stdout or "{}")
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("De filmgegevens zijn onleesbaar.") from exc
+    if not payload.get("streams"):
+        raise RuntimeError("Deze film heeft geen beeld.")
+    return timeline_from_probe(payload)
+
+
+def extract_frame_command(ffmpeg, video, seconds, png, accurate=False):
+    """Eén frame. accurate zoekt het echte beeld, anders de dichtstbijzijnde snelle sprong."""
+    stamp = f"{max(0.0, float(seconds)):.3f}"
+    if accurate:
+        return [ffmpeg, "-hide_banner", "-y", "-i", str(video), "-ss", stamp, "-frames:v", "1", str(png)]
+    return [ffmpeg, "-hide_banner", "-y", "-ss", stamp, "-i", str(video), "-frames:v", "1", str(png)]
+
+
+def extract_frame(video, seconds, png_out, accurate=False, stop=None):
+    """Schrijf één frame als PNG."""
+    ffmpeg = require_ffmpeg()
+    target = Path(png_out)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    run_tool(extract_frame_command(ffmpeg, video, seconds, target, accurate), stop)
+    if not target.is_file() or target.stat().st_size < 16:
+        raise RuntimeError("Dit frame kon niet uit de film gelezen worden.")
+    return target
+
+
+def extract_wav_command(ffmpeg, video, target, start=None, end=None):
+    """Audio naar PCM. start en end zijn seconden op de bron."""
+    cmd = [ffmpeg, "-hide_banner", "-y"]
+    begin = None
+    if start is not None and float(start) > 0:
+        begin = float(start)
+        cmd += ["-ss", f"{begin:.3f}"]
+    cmd += ["-i", str(video)]
+    if end is not None:
+        origin = 0.0 if begin is None else begin
+        cmd += ["-t", f"{max(0.01, float(end) - origin):.3f}"]
+    cmd += ["-vn", "-map", "0:a:0", "-c:a", "pcm_s16le", str(target)]
+    return cmd
+
+
+def extract_wav(video, wav_out, stop=None, child_setter=None, start=None, end=None):
     """Haal het eerste audiospoor uit een video en schrijf PCM-WAV."""
     ffmpeg = require_ffmpeg()
     target = Path(wav_out)
     target.parent.mkdir(parents=True, exist_ok=True)
-    cmd = [
-        ffmpeg, "-hide_banner", "-y",
-        "-i", str(video),
-        "-vn", "-map", "0:a:0",
-        "-c:a", "pcm_s16le",
-        str(target),
-    ]
+    cmd = extract_wav_command(ffmpeg, video, target, start, end)
     try:
         run_tool(cmd, stop, child_setter)
     except MediaStopped:
