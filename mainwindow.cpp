@@ -1890,7 +1890,7 @@ void MainWindow::UpdateAdaptiveUiScale()
 
 	const LayoutProfileTuning tuning =
 			(profile == RES_PROFILE_HD) ? LayoutProfileTuning{
-					64, 96, 620, -1, 30, 68, 4, 2, 250, 300, 2, 3, 12, 8, 8, 7, 8, 8, 56, 1040, 14
+					116, 220, 720, -1, 30, 68, 4, 2, 320, 390, 3, 4, 16, 12, 11, 10, 11, 10, 96, 1240, 18
 			} :
 			(profile == RES_PROFILE_UHD) ? LayoutProfileTuning{
 					96, 172, 700, 1, 38, 90, 5, 8, 300, 350, 2, 3, 14, 10, 10, 9, 10, 10, 74, 1160, 18
@@ -1973,10 +1973,11 @@ void MainWindow::UpdateAdaptiveUiScale()
 	if(ui->audioTrackGridLayout)
 	{
 		ui->audioTrackGridLayout->setVerticalSpacing(tuning.audioTrackGridSpacing);
-		ui->audioTrackGridLayout->setRowMinimumHeight(0, 20);
-		ui->audioTrackGridLayout->setRowMinimumHeight(1, 30);
-		ui->audioTrackGridLayout->setRowMinimumHeight(2, 30);
-		ui->audioTrackGridLayout->setRowMinimumHeight(3, 24);
+		ui->audioTrackGridLayout->setContentsMargins(8, 10, 8, 10);
+		ui->audioTrackGridLayout->setRowMinimumHeight(0, 24);
+		ui->audioTrackGridLayout->setRowMinimumHeight(1, 36);
+		ui->audioTrackGridLayout->setRowMinimumHeight(2, 36);
+		ui->audioTrackGridLayout->setRowMinimumHeight(3, 28);
 	}
 	if(ui->verticalLayout_2)
 		ui->verticalLayout_2->setSpacing(tuning.pairedControlSpacing);
@@ -1987,9 +1988,15 @@ void MainWindow::UpdateAdaptiveUiScale()
 	if(ui->verticalLayout_6)
 		ui->verticalLayout_6->setSpacing(tuning.pairedControlSpacing);
 	if(ui->framePitchGridLayout)
+	{
 		ui->framePitchGridLayout->setVerticalSpacing(tuning.framePitchGridSpacing);
+		ui->framePitchGridLayout->setContentsMargins(8, 10, 8, 10);
+	}
 	if(ui->videoGridLayout)
+	{
 		ui->videoGridLayout->setVerticalSpacing(tuning.videoGridSpacing);
+		ui->videoGridLayout->setContentsMargins(8, 10, 8, 10);
+	}
 
 	int tabHeightShift = 0;
 	if(ui->tabWidget && uiScaleBaseGeometry.contains(ui->tabWidget))
