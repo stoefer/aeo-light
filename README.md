@@ -1,8 +1,13 @@
-# AEO-Light 3.1.58 (fork release)
+# AEO-Light 3.1.59 (fork release)
 
-Deze 3.1.58 patchrelease maakt het linker-lijn zoekgebied duidelijker zichtbaar en maakt “Set as Default” explicieter met directe feedback.
+Deze 3.1.59 patchrelease fixt de Windows release-build voor de linker-zoekzone update, zodat de GitHub release opnieuw correct gepubliceerd wordt.
 
-## Nieuw in 3.1.58
+## Nieuw in 3.1.59
+- Buildfix voor Windows release pipeline:
+  - compilefout opgelost (`std::max(int, unsigned int)`) in de nieuwe linker-zoekzone code.
+  - gevolg: release-workflow kan opnieuw succesvol bouwen en publiceren.
+
+## Eerder toegevoegd in 3.1.58
 - **Linker lijn zoekgebied** toont nu ook de effectieve zoekbreedte (`w`) naast de px-waarde.
 - In de preview wordt de linker zoekzone nu subtiel visueel aangeduid, met zichtbare begin/eindgrenzen.
 - **Set as Default** geeft nu directe bevestiging:
@@ -363,28 +368,28 @@ Deze 3.1.58 patchrelease maakt het linker-lijn zoekgebied duidelijker zichtbaar 
 4. Als SmartScreen waarschuwt: klik **Meer informatie** → **Toch uitvoeren**.
 
 ## Ultra-korte package checklist (5 punten)
-- [ ] Release-tag = `v3.1.58`.
+- [ ] Release-tag = `v3.1.59`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` staat op de release.
 - [ ] ZIP uitgepakt naar een lokale map.
-- [ ] `AEO-Light.exe` start en toont versie **3.1.58**.
+- [ ] `AEO-Light.exe` start en toont versie **3.1.59**.
 - [ ] Korte **Test Run** slaagt en maakt output aan.
 
-## Package checklist (v3.1.58, Windows x64)
-- [ ] Release-tag is `v3.1.58`.
+## Package checklist (v3.1.59, Windows x64)
+- [ ] Release-tag is `v3.1.59`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` is aanwezig op de releasepagina.
 - [ ] ZIP uitgepakt naar een lokale map (niet rechtstreeks uit de ZIP starten).
 - [ ] In de uitgepakte map staan minimaal:
   - `AEO-Light.exe`
   - `LICENSE.txt`
   - `ffmpeg.exe`
-- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.58**.
+- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.59**.
 - [ ] Snelle rooktest:
   - bron laden
   - korte **Test Run** uitvoeren
   - outputbestand wordt aangemaakt
 - [ ] (Optioneel) checksumcontrole van download:
   - `certutil -hashfile AEO-Light-Windows-x64.zip SHA256`
-  - verwacht: waarde op de `v3.1.58` releasepagina
+  - verwacht: waarde op de `v3.1.59` releasepagina
 
 ## Snelle start (aanbevolen)
 - Container: **MP4**

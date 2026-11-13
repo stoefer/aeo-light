@@ -3181,7 +3181,8 @@ void MainWindow::GPU_Params_Update(bool renderyes)
 		frame_window->pixbounds[1] =
 				ui->rightPixSpinBox->value()/float(this->scan.inFile.Width());
 		{
-			const int imageW = std::max(1, this->scan.inFile.Width());
+			const int imageW = std::max(
+					1, static_cast<int>(this->scan.inFile.Width()));
 			int left = std::max(
 					0, std::min(imageW - 1, ui->leftPixSpinBox->value()));
 			int right = std::max(
@@ -5345,7 +5346,7 @@ QString MainWindow::BuildLeftPixSearchLabelText() const
 				.arg(configuredRadius)
 				.arg(configuredRadius * 2 + 1);
 
-	const int width = std::max(1, scan.inFile.Width());
+	const int width = std::max(1, static_cast<int>(scan.inFile.Width()));
 	int left = std::max(0, std::min(width - 1, ui->leftPixSpinBox->value()));
 	int right = std::max(0, std::min(width - 1, ui->rightPixSpinBox->value()));
 	if(right < left) std::swap(left, right);
