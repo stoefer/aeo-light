@@ -1,8 +1,12 @@
-# AEO-Light 3.1.52 (fork release)
+# AEO-Light 3.1.53 (fork release)
 
-Deze 3.1.52 patchrelease bevat een extra hardening van de bronherkenning met gedetailleerdere foutdiagnose bij mislukte source-load.
+Deze 3.1.53 patchrelease fixt het resterende single-frame laadprobleem voor bepaalde JPG/PNG bronbestanden.
 
-## Nieuw in 3.1.52
+## Nieuw in 3.1.53
+- Extra single-frame fallback: JPG/PNG worden bij 1-frame bron nu geladen via het exacte originele bronpad (zonder afhankelijkheid van afgeleid sequence-pattern).
+- Dit voorkomt “File not found” door pattern-opbouw bij specifieke bestandsnamen of padstructuren.
+
+## Eerder toegevoegd in 3.1.52
 - Source sequence-detectie herschreven met Qt-bestandslisting voor robuustere verwerking van scanner-JPG reeksen.
 - Verbeterde UTF-8 padafhandeling voor JPG/PNG source-open.
 - Veiliger opbouw van interne source-pattern strings (`name/path/fnbuf`), inclusief escape van `%` in bestandsnamen.
@@ -315,28 +319,28 @@ Deze 3.1.52 patchrelease bevat een extra hardening van de bronherkenning met ged
 4. Als SmartScreen waarschuwt: klik **Meer informatie** → **Toch uitvoeren**.
 
 ## Ultra-korte package checklist (5 punten)
-- [ ] Release-tag = `v3.1.52`.
+- [ ] Release-tag = `v3.1.53`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` staat op de release.
 - [ ] ZIP uitgepakt naar een lokale map.
-- [ ] `AEO-Light.exe` start en toont versie **3.1.52**.
+- [ ] `AEO-Light.exe` start en toont versie **3.1.53**.
 - [ ] Korte **Test Run** slaagt en maakt output aan.
 
-## Package checklist (v3.1.52, Windows x64)
-- [ ] Release-tag is `v3.1.52`.
+## Package checklist (v3.1.53, Windows x64)
+- [ ] Release-tag is `v3.1.53`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` is aanwezig op de releasepagina.
 - [ ] ZIP uitgepakt naar een lokale map (niet rechtstreeks uit de ZIP starten).
 - [ ] In de uitgepakte map staan minimaal:
   - `AEO-Light.exe`
   - `LICENSE.txt`
   - `ffmpeg.exe`
-- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.52**.
+- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.53**.
 - [ ] Snelle rooktest:
   - bron laden
   - korte **Test Run** uitvoeren
   - outputbestand wordt aangemaakt
 - [ ] (Optioneel) checksumcontrole van download:
   - `certutil -hashfile AEO-Light-Windows-x64.zip SHA256`
-  - verwacht: waarde op de `v3.1.52` releasepagina
+  - verwacht: waarde op de `v3.1.53` releasepagina
 
 ## Snelle start (aanbevolen)
 - Container: **MP4**
