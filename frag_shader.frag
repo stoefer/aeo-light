@@ -25,6 +25,7 @@ uniform vec4 color_controls; //lift, gamma, gain,sat;
 uniform vec3 manip_controls; //thresh,threshold amount,  blur
 uniform vec4 overlap; //   y_search Area ,y_ offset,  bottom,  top;
 uniform vec2 video_crop; // top and bottom crop margins for video frame guides
+uniform float horizontal_stabilize_shift; // normalized X shift for horizontal stabilization
 uniform vec4 cal_controls;
 //out int ucol;
 
@@ -252,7 +253,10 @@ vTexRotated = vTexRotated*rotMatrix;
 
 vTexRotated = vTexRotated +vec2(0.5,0.5);
 
-        texel = texture2D(frame_tex, vTexRotated);
+        vec2 shiftedRotated = vec2(
+                clamp(vTexRotated.x + horizontal_stabilize_shift, 0.0, 1.0),
+                vTexRotated.y);
+        texel = texture2D(frame_tex, shiftedRotated);
         if(cal_controls.y==1.0)
         {
             grabberm =  vec2(4.0,4.0);
@@ -269,8 +273,9 @@ vTexRotated = vTexRotated +vec2(0.5,0.5);
             {
 
 
-                grabber = vTexRotated + (ioffset[k]*grabberm);
+                grabber = shiftedRotated + (ioffset[k]*grabberm);
                 grabber.y= max(0.0,min(grabber.y,1.0));
+                grabber.x= max(0.0,min(grabber.x,1.0));
 
 
 

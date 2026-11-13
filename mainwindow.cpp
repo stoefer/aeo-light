@@ -352,6 +352,11 @@ static QVariantMap SerializeExtractedSoundParams(const ExtractedSound &params)
 	map.insert("videoFrameCrop1", static_cast<uint>(params.videoFrameCrop[1]));
 	map.insert("videoStableCrop", params.videoStableCrop);
 	map.insert("videoDriftSensitivity", static_cast<uint>(params.videoDriftSensitivity));
+	map.insert("horizontalPictureStabilize", params.horizontalPictureStabilize);
+	map.insert("horizontalPictureStabilizeStrength",
+			static_cast<uint>(params.horizontalPictureStabilizeStrength));
+	map.insert("horizontalPictureStabilizeMaxShift",
+			static_cast<uint>(params.horizontalPictureStabilizeMaxShift));
 	map.insert("gamma", static_cast<uint>(params.gamma));
 	map.insert("gain", static_cast<uint>(params.gain));
 	map.insert("sCurve", static_cast<uint>(params.sCurve));
@@ -385,6 +390,12 @@ static ExtractedSound DeserializeExtractedSoundParams(const QVariantMap &map)
 	params.videoStableCrop = map.value("videoStableCrop", true).toBool();
 	params.videoDriftSensitivity = static_cast<uint16_t>(
 			map.value("videoDriftSensitivity", 100).toUInt());
+	params.horizontalPictureStabilize = map.value(
+			"horizontalPictureStabilize", false).toBool();
+	params.horizontalPictureStabilizeStrength = static_cast<uint16_t>(
+			map.value("horizontalPictureStabilizeStrength", 100).toUInt());
+	params.horizontalPictureStabilizeMaxShift = static_cast<uint16_t>(
+			map.value("horizontalPictureStabilizeMaxShift", 80).toUInt());
 	params.gamma = static_cast<uint16_t>(map.value("gamma", 100).toUInt());
 	params.gain = static_cast<uint16_t>(map.value("gain", 100).toUInt());
 	params.sCurve = static_cast<uint16_t>(map.value("sCurve", 0).toUInt());
@@ -1048,6 +1059,9 @@ ExtractedSound::ExtractedSound() :
 	frameOut(0),
 	videoStableCrop(true),
 	videoDriftSensitivity(100),
+	horizontalPictureStabilize(false),
+	horizontalPictureStabilizeStrength(100),
+	horizontalPictureStabilizeMaxShift(80),
 	gamma(100),
 	gain (100),
 	sCurve(0),
@@ -1094,6 +1108,9 @@ bool ExtractedSound::operator ==(const ExtractedSound &ref) const
 	if(videoFrameCrop[1] != ref.videoFrameCrop[1]) return false;
 	if(videoStableCrop != ref.videoStableCrop) return false;
 	if(videoDriftSensitivity != ref.videoDriftSensitivity) return false;
+	if(horizontalPictureStabilize != ref.horizontalPictureStabilize) return false;
+	if(horizontalPictureStabilizeStrength != ref.horizontalPictureStabilizeStrength) return false;
+	if(horizontalPictureStabilizeMaxShift != ref.horizontalPictureStabilizeMaxShift) return false;
 	if(overlap != ref.overlap) return false;
 
 	if(useBounds != ref.useBounds) return false;
@@ -1323,6 +1340,14 @@ MainWindow::MainWindow(QWidget *parent) :
 	videoAudioOffsetCorrectionEnabled = false;
 	videoUseStableFrameCrop = true;
 	videoDriftSensitivityFactor = 1.0f;
+	horizontalPictureStabilizationEnabled = false;
+	horizontalPictureStabilizationStrengthFactor = 1.0f;
+	horizontalPictureStabilizationMaxShiftPixels = 80;
+	horizontalPictureStabilizationSmoothFactor = 0.75f;
+	horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
+	horizontalPictureStabilizationReferenceCenterX = 0.0f;
+	horizontalPictureStabilizationReferenceReady = false;
+	horizontalPictureStabilizationFrameBuffer = NULL;
 	videoFlipHorizontal = false;
 	videoFlipVertical = false;
 	videoRotationDegrees = 0;
@@ -1516,11 +1541,17 @@ MainWindow::MainWindow(QWidget *parent) :
 		ui->menuFile->addAction(resetLayoutAction);
 	}
 	UpdateVideoStabilizationControls();
+	UpdateHorizontalPictureStabilizationControls();
 }
 
 MainWindow::~MainWindow()
 {
 	DeleteTempSoundFile();
+	if(horizontalPictureStabilizationFrameBuffer)
+	{
+		delete [] horizontalPictureStabilizationFrameBuffer;
+		horizontalPictureStabilizationFrameBuffer = NULL;
+	}
 	delete ui;
 }
 
@@ -2342,6 +2373,12 @@ void MainWindow::SaveDefaultsSoundtrack()
 	settings.setValue("videoframe/bottom", ui->videoFrameBottomSlider->value()/1000.0);
 	settings.setValue("video/stable-crop", ui->videoStableCropCheckBox->isChecked());
 	settings.setValue("video/drift-sensitivity", ui->videoDriftSensitivitySlider->value());
+	settings.setValue("video/horizontal-picture-stabilize",
+			ui->horizontalPictureStabilizationCheckBox->isChecked());
+	settings.setValue("video/horizontal-picture-stabilize-strength",
+			ui->horizontalPictureStabilizationStrengthSlider->value());
+	settings.setValue("video/horizontal-picture-stabilize-max-shift",
+			ui->horizontalPictureStabilizationMaxShiftSpinBox->value());
 	settings.setValue("overlap/radius", ui->overlapSlider->value());
 	settings.setValue("overlap/lock", ui->HeightCalculateBtn->isChecked());
 	settings.setValue("isstereo", ui->monostereo_PD->currentIndex());
@@ -2440,7 +2477,14 @@ void MainWindow::LoadDefaults()
 			settings.value("video/stable-crop", true).toBool());
 	intv = settings.value("video/drift-sensitivity", 100).toInt();
 	ui->videoDriftSensitivitySlider->setValue(intv);
+	ui->horizontalPictureStabilizationCheckBox->setChecked(
+			settings.value("video/horizontal-picture-stabilize", false).toBool());
+	ui->horizontalPictureStabilizationStrengthSlider->setValue(
+			settings.value("video/horizontal-picture-stabilize-strength", 100).toInt());
+	ui->horizontalPictureStabilizationMaxShiftSpinBox->setValue(
+			settings.value("video/horizontal-picture-stabilize-max-shift", 80).toInt());
 	UpdateVideoStabilizationControls();
+	UpdateHorizontalPictureStabilizationControls();
 
 	intv = settings.value("overlap/radius",5).toInt();
 	ui->overlapSlider->setValue(intv);
@@ -2666,6 +2710,12 @@ ExtractedSound MainWindow::ExtractionParamsFromGUI()
 	params.videoFrameCrop[1] = ui->videoFrameBottomSlider->value();
 	params.videoStableCrop = ui->videoStableCropCheckBox->isChecked();
 	params.videoDriftSensitivity = ui->videoDriftSensitivitySlider->value();
+	params.horizontalPictureStabilize =
+			ui->horizontalPictureStabilizationCheckBox->isChecked();
+	params.horizontalPictureStabilizeStrength =
+			ui->horizontalPictureStabilizationStrengthSlider->value();
+	params.horizontalPictureStabilizeMaxShift =
+			ui->horizontalPictureStabilizationMaxShiftSpinBox->value();
 
 	params.frameIn = ui->frameInSpinBox->value();
 	params.frameOut = ui->frameOutSpinBox->value();
@@ -2733,6 +2783,13 @@ void MainWindow::ExtractionParametersToGUI(const ExtractedSound &params)
 	ui->videoStableCropCheckBox->setChecked(params.videoStableCrop);
 	ui->videoDriftSensitivitySlider->setValue(params.videoDriftSensitivity);
 	UpdateVideoStabilizationControls();
+	ui->horizontalPictureStabilizationCheckBox->setChecked(
+			params.horizontalPictureStabilize);
+	ui->horizontalPictureStabilizationStrengthSlider->setValue(
+			params.horizontalPictureStabilizeStrength);
+	ui->horizontalPictureStabilizationMaxShiftSpinBox->setValue(
+			params.horizontalPictureStabilizeMaxShift);
+	UpdateHorizontalPictureStabilizationControls();
 
 	ui->maxFrequencyLabel->setText(
 				QString("%1").arg(float(this->MaxFrequency())/1000.0));
@@ -2922,6 +2979,8 @@ bool MainWindow::Load_Frame_Texture(int frame_num)
 	traceCurrentOperation = "Retrieving scan image";
 	currentFrameTexture = this->scan.inFile.GetFrameImage(
 			this->scan.inFile.FirstFrame()+frame_num, currentFrameTexture);
+	traceCurrentOperation = "Applying horizontal picture-strip stabilization";
+	ApplyHorizontalPictureStabilizationForFrame(frame_num);
 	traceCurrentOperation = "Loading scan into texture";
 	frame_window->load_frame_texture(currentFrameTexture);
 
@@ -3239,6 +3298,12 @@ bool MainWindow::saveproject(QTextStream &out)
 	out<<"Video Frame Bottom = "<<ui->videoFrameBottomSlider->value()<<"\n";
 	out<<"Video Stable Crop = "<<ui->videoStableCropCheckBox->isChecked()<<"\n";
 	out<<"Video Drift Sensitivity = "<<ui->videoDriftSensitivitySlider->value()<<"\n";
+	out<<"Horizontal Picture Stabilization = "
+			<<ui->horizontalPictureStabilizationCheckBox->isChecked()<<"\n";
+	out<<"Horizontal Picture Stabilization Strength = "
+			<<ui->horizontalPictureStabilizationStrengthSlider->value()<<"\n";
+	out<<"Horizontal Picture Stabilization Max Shift = "
+			<<ui->horizontalPictureStabilizationMaxShiftSpinBox->value()<<"\n";
 	out<<"Overlap Search Size = "<<ui->overlapSlider->value()<<"\n";
 	out<<"Frame Translation = "<< TRANSSLIDER_VALUE <<"\n";
 
@@ -4385,6 +4450,12 @@ bool MainWindow::LoadProjectSettings(QString fn)
 			ui->videoStableCropCheckBox->setChecked(value.toInt());
 		if (key.contains("Video Drift Sensitivity"))
 			ui->videoDriftSensitivitySlider->setValue(value.toInt());
+		if (key.contains("Horizontal Picture Stabilization Max Shift"))
+			ui->horizontalPictureStabilizationMaxShiftSpinBox->setValue(value.toInt());
+		else if (key.contains("Horizontal Picture Stabilization Strength"))
+			ui->horizontalPictureStabilizationStrengthSlider->setValue(value.toInt());
+		else if (key.contains("Horizontal Picture Stabilization"))
+			ui->horizontalPictureStabilizationCheckBox->setChecked(value.toInt());
 		if (key.contains("Overlap Search Size"))
 			ui->overlapSlider->setValue(value.toInt());
 		if (key.contains("Lift"))
@@ -4493,6 +4564,7 @@ bool MainWindow::LoadProjectSettings(QString fn)
 	NormalizeVideoCropControls(true);
 	UpdateVideoCropLabels();
 	UpdateVideoStabilizationControls();
+	UpdateHorizontalPictureStabilizationControls();
 	outputConflictMode = ClampRangeInt(
 			ui->outputConflictModeComboBox->currentIndex(), 0, 1);
 	outputOpenFolderAfterExport = ui->outputOpenFolderCheckBox->isChecked();
@@ -4628,22 +4700,30 @@ void MainWindow::on_queueDeletePresetButton_clicked()
 void MainWindow::on_leftPixSlider_sliderMoved(int position)
 {
 	ui->leftPixSpinBox->setValue(position);
+	horizontalPictureStabilizationReferenceReady = false;
+	horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
 }
 
 void MainWindow::on_rightPixSlider_sliderMoved(int position)
 {
 	ui->rightPixSpinBox->setValue(position);
+	horizontalPictureStabilizationReferenceReady = false;
+	horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
 }
 
 void MainWindow::on_leftPixSpinBox_valueChanged(int arg1)
 {
 	ui->leftPixSlider->setValue(arg1);
+	horizontalPictureStabilizationReferenceReady = false;
+	horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
 	GPU_Params_Update(1);
 }
 
 void MainWindow::on_rightPixSpinBox_valueChanged(int arg1)
 {
 	ui->rightPixSlider->setValue(arg1);
+	horizontalPictureStabilizationReferenceReady = false;
+	horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
 	GPU_Params_Update(1);
 }
 
@@ -4726,6 +4806,29 @@ void MainWindow::on_videoDriftSensitivitySlider_valueChanged(int value)
 {
 	videoDriftSensitivityFactor = std::max(0.1f, value / 100.0f);
 	UpdateVideoStabilizationControls();
+}
+
+void MainWindow::on_horizontalPictureStabilizationCheckBox_clicked(bool checked)
+{
+	Q_UNUSED(checked);
+	horizontalPictureStabilizationReferenceReady = false;
+	horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
+	UpdateHorizontalPictureStabilizationControls();
+	GPU_Params_Update(1);
+}
+
+void MainWindow::on_horizontalPictureStabilizationStrengthSlider_valueChanged(int value)
+{
+	Q_UNUSED(value);
+	UpdateHorizontalPictureStabilizationControls();
+	GPU_Params_Update(1);
+}
+
+void MainWindow::on_horizontalPictureStabilizationMaxShiftSpinBox_valueChanged(int arg1)
+{
+	Q_UNUSED(arg1);
+	UpdateHorizontalPictureStabilizationControls();
+	GPU_Params_Update(1);
 }
 
 void MainWindow::on_overlapSlider_valueChanged(int value)
@@ -4836,6 +4939,157 @@ void MainWindow::UpdateVideoStabilizationControls()
 	const bool adaptiveMode = !videoUseStableFrameCrop;
 	ui->videoDriftSensitivitySlider->setEnabled(adaptiveMode);
 	ui->videoDriftSensitivityLabel->setEnabled(adaptiveMode);
+}
+
+void MainWindow::UpdateHorizontalPictureStabilizationControls()
+{
+	int strengthValue = ui->horizontalPictureStabilizationStrengthSlider->value();
+	strengthValue = std::max(
+			ui->horizontalPictureStabilizationStrengthSlider->minimum(),
+			std::min(ui->horizontalPictureStabilizationStrengthSlider->maximum(),
+					strengthValue));
+	horizontalPictureStabilizationStrengthFactor =
+			std::max(0.0f, strengthValue / 100.0f);
+	horizontalPictureStabilizationMaxShiftPixels = std::max(
+			0, ui->horizontalPictureStabilizationMaxShiftSpinBox->value());
+	horizontalPictureStabilizationEnabled =
+			ui->horizontalPictureStabilizationCheckBox->isChecked();
+	const bool pixTrackEnabled = ui->OverlapPixCheckBox->isChecked();
+	const bool stabilizationActive =
+			horizontalPictureStabilizationEnabled && pixTrackEnabled;
+
+	ui->horizontalPictureStabilizationStrengthLabel->setText(
+			QString("%1x").arg(
+					horizontalPictureStabilizationStrengthFactor, 0, 'f', 2));
+
+	ui->horizontalPictureStabilizationCheckBox->setEnabled(pixTrackEnabled);
+	ui->horizontalPictureStabilizationStrengthSlider->setEnabled(
+			stabilizationActive);
+	ui->horizontalPictureStabilizationStrengthLabel->setEnabled(
+			stabilizationActive);
+	ui->horizontalPictureStabilizationMaxShiftSpinBox->setEnabled(
+			stabilizationActive);
+
+	if(!stabilizationActive)
+	{
+		horizontalPictureStabilizationReferenceReady = false;
+		horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
+		if(frame_window)
+			frame_window->horizontal_stabilize_shift = 0.0f;
+	}
+}
+
+bool MainWindow::EstimatePictureStripCenterX(long absoluteFrameNumber, float &centerX)
+{
+	if(!scan.inFile.IsReady()) return false;
+	if(!ui->OverlapPixCheckBox->isChecked()) return false;
+
+	const int width = static_cast<int>(scan.inFile.Width());
+	const int height = static_cast<int>(scan.inFile.Height());
+	if(width <= 4 || height <= 4) return false;
+
+	int left = std::max(0, std::min(width - 1, ui->leftPixSpinBox->value()));
+	int right = std::max(0, std::min(width - 1, ui->rightPixSpinBox->value()));
+	if(right < left) std::swap(left, right);
+	if(right - left < 8) return false;
+
+	int top = int((ui->videoFrameTopSlider->value() / 1000.0) * height);
+	int bottom = int((1.0 - ui->videoFrameBottomSlider->value() / 1000.0) * height) - 1;
+	top = std::max(0, std::min(height - 1, top));
+	bottom = std::max(0, std::min(height - 1, bottom));
+	if(bottom - top < 16)
+	{
+		top = std::max(0, height / 6);
+		bottom = std::min(height - 1, height * 5 / 6);
+	}
+	if(bottom <= top) return false;
+
+	horizontalPictureStabilizationFrameBuffer = scan.inFile.GetFrame(
+			absoluteFrameNumber, horizontalPictureStabilizationFrameBuffer);
+	if(!horizontalPictureStabilizationFrameBuffer)
+		return false;
+
+	const int searchRadius = std::max(8, std::min(120, (right - left) / 3));
+	auto detectEdge = [&](int anchor) -> int
+	{
+		int start = std::max(left + 1, anchor - searchRadius);
+		int end = std::min(right - 1, anchor + searchRadius);
+		if(end <= start) return anchor;
+
+		double bestScore = -1.0;
+		int bestX = anchor;
+		for(int x = start; x <= end; ++x)
+		{
+			double score = 0.0;
+			for(int y = top; y <= bottom; y += 2)
+			{
+				const long idx = long(y) * width + x;
+				const long idxPrev = idx - 1;
+				score += std::fabs(
+						horizontalPictureStabilizationFrameBuffer[idx] -
+						horizontalPictureStabilizationFrameBuffer[idxPrev]);
+			}
+			if(score > bestScore)
+			{
+				bestScore = score;
+				bestX = x;
+			}
+		}
+		return bestX;
+	};
+
+	const int leftEdge = detectEdge(left);
+	const int rightEdge = detectEdge(right);
+	if(rightEdge <= leftEdge)
+		return false;
+
+	centerX = 0.5f * (leftEdge + rightEdge);
+	return true;
+}
+
+void MainWindow::ApplyHorizontalPictureStabilizationForFrame(int frameNum)
+{
+	if(!frame_window) return;
+	if(!horizontalPictureStabilizationEnabled)
+	{
+		frame_window->horizontal_stabilize_shift = 0.0f;
+		return;
+	}
+	if(!ui->OverlapPixCheckBox->isChecked())
+	{
+		frame_window->horizontal_stabilize_shift = 0.0f;
+		return;
+	}
+
+	const long absoluteFrameNumber = scan.inFile.FirstFrame() + frameNum;
+	float centerX = 0.0f;
+	if(!EstimatePictureStripCenterX(absoluteFrameNumber, centerX))
+	{
+		frame_window->horizontal_stabilize_shift = 0.0f;
+		return;
+	}
+
+	if(!horizontalPictureStabilizationReferenceReady)
+	{
+		horizontalPictureStabilizationReferenceCenterX = centerX;
+		horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
+		horizontalPictureStabilizationReferenceReady = true;
+	}
+
+	float targetShiftPixels =
+			(horizontalPictureStabilizationReferenceCenterX - centerX) *
+			horizontalPictureStabilizationStrengthFactor;
+	const float maxShift = std::max(0, horizontalPictureStabilizationMaxShiftPixels);
+	targetShiftPixels = std::max(-maxShift, std::min(maxShift, targetShiftPixels));
+
+	horizontalPictureStabilizationCurrentShiftPixels =
+			horizontalPictureStabilizationCurrentShiftPixels *
+			horizontalPictureStabilizationSmoothFactor +
+			targetShiftPixels * (1.0f - horizontalPictureStabilizationSmoothFactor);
+
+	const float width = std::max(1.0f, float(scan.inFile.Width()));
+	frame_window->horizontal_stabilize_shift =
+			horizontalPictureStabilizationCurrentShiftPixels / width;
 }
 
 void MainWindow::UpdateExtractOutputControls()
@@ -8652,11 +8906,17 @@ void MainWindow::on_FramePitchendSlider_sliderMoved(int position)
 
 void MainWindow::on_leftPixSlider_valueChanged(int value)
 {
+	Q_UNUSED(value);
+	horizontalPictureStabilizationReferenceReady = false;
+	horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
 	GPU_Params_Update(1);
 }
 
 void MainWindow::on_rightPixSlider_valueChanged(int value)
 {
+	Q_UNUSED(value);
+	horizontalPictureStabilizationReferenceReady = false;
+	horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
 	GPU_Params_Update(1);
 }
 
@@ -10352,6 +10612,10 @@ void MainWindow::ResetSoundtrackSectionToFactoryDefaults()
 	ui->videoStableCropCheckBox->setChecked(true);
 	ui->videoDriftSensitivitySlider->setValue(100);
 	UpdateVideoStabilizationControls();
+	ui->horizontalPictureStabilizationCheckBox->setChecked(false);
+	ui->horizontalPictureStabilizationStrengthSlider->setValue(100);
+	ui->horizontalPictureStabilizationMaxShiftSpinBox->setValue(80);
+	UpdateHorizontalPictureStabilizationControls();
 
 	ui->overlapSlider->setValue(5);
 	ui->overlap_label->setText(QString::number(ui->overlapSlider->value()/100.f,'f',2));
@@ -10409,6 +10673,13 @@ void MainWindow::on_soundtrackResetButton_clicked()
 	ui->videoDriftSensitivitySlider->setValue(
 			settings.value("video/drift-sensitivity", 100).toInt());
 	UpdateVideoStabilizationControls();
+	ui->horizontalPictureStabilizationCheckBox->setChecked(
+			settings.value("video/horizontal-picture-stabilize", false).toBool());
+	ui->horizontalPictureStabilizationStrengthSlider->setValue(
+			settings.value("video/horizontal-picture-stabilize-strength", 100).toInt());
+	ui->horizontalPictureStabilizationMaxShiftSpinBox->setValue(
+			settings.value("video/horizontal-picture-stabilize-max-shift", 80).toInt());
+	UpdateHorizontalPictureStabilizationControls();
 
 	ui->overlapSlider->setValue(settings.value("overlap/radius", 5).toInt());
 	ui->overlap_label->setText(QString::number(ui->overlapSlider->value()/100.f,'f',2));
@@ -10595,6 +10866,10 @@ void MainWindow::on_OverlapPixCheckBox_clicked(bool checked)
 	ui->rightPixSpinBox->setEnabled(checked);
 	ui->leftPixSlider->setEnabled(checked);
 	ui->rightPixSlider->setEnabled(checked);
+
+	horizontalPictureStabilizationReferenceReady = false;
+	horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
+	UpdateHorizontalPictureStabilizationControls();
 }
 
 void MainWindow::on_degreeSpinBox_valueChanged(double arg1)

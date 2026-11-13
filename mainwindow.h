@@ -78,6 +78,9 @@ public:
 	uint16_t videoFrameCrop[2]; // top, bottom crop fractions for video export
 	bool videoStableCrop; // use fixed crop instead of overlap-driven drift
 	uint16_t videoDriftSensitivity; // percentage, 100 = neutral
+	bool horizontalPictureStabilize; // picture-strip based X stabilization
+	uint16_t horizontalPictureStabilizeStrength; // percentage, 100 = neutral
+	uint16_t horizontalPictureStabilizeMaxShift; // maximum shift in pixels
 	uint16_t gamma; // [0,500]
 	uint16_t gain; // [0,500]
 	uint16_t sCurve; // [0,600]
@@ -217,6 +220,9 @@ private slots:
 	void on_framepitchstartSlider_valueChanged(int value);
 	void on_videoStableCropCheckBox_clicked(bool checked);
 	void on_videoDriftSensitivitySlider_valueChanged(int value);
+	void on_horizontalPictureStabilizationCheckBox_clicked(bool checked);
+	void on_horizontalPictureStabilizationStrengthSlider_valueChanged(int value);
+	void on_horizontalPictureStabilizationMaxShiftSpinBox_valueChanged(int arg1);
 	void on_videoFrameTopSlider_valueChanged(int value);
 	void on_videoFrameBottomSlider_valueChanged(int value);
 	void on_testRunExportButton_clicked();
@@ -399,6 +405,14 @@ private:
 	bool videoAudioOffsetCorrectionEnabled;
 	bool videoUseStableFrameCrop;
 	float videoDriftSensitivityFactor;
+	bool horizontalPictureStabilizationEnabled;
+	float horizontalPictureStabilizationStrengthFactor;
+	int horizontalPictureStabilizationMaxShiftPixels;
+	float horizontalPictureStabilizationSmoothFactor;
+	float horizontalPictureStabilizationCurrentShiftPixels;
+	float horizontalPictureStabilizationReferenceCenterX;
+	bool horizontalPictureStabilizationReferenceReady;
+	double *horizontalPictureStabilizationFrameBuffer;
 	bool videoFlipHorizontal;
 	bool videoFlipVertical;
 	int videoRotationDegrees;
@@ -434,6 +448,9 @@ private:
 	void ResetExtractSectionToFactoryDefaults();
 	void UpdateVideoCropLabels();
 	void UpdateVideoStabilizationControls();
+	void UpdateHorizontalPictureStabilizationControls();
+	void ApplyHorizontalPictureStabilizationForFrame(int frameNum);
+	bool EstimatePictureStripCenterX(long absoluteFrameNumber, float &centerX);
 	void UpdateExtractOutputControls();
 	void UpdateHelpTextVisibility(bool visible, bool persistSetting);
 	void InstallInlineHelpIcons();

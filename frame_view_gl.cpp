@@ -258,6 +258,7 @@ Frame_Window::Frame_Window(int w,int h)
 	bounds[0] = bounds[1] = bounds[2] = bounds[3] = 0;
 	overlap[0] = overlap[1] = overlap[2] = overlap[3] = 0;
 	video_crop[0] = video_crop[1] = 0.1f;
+	horizontal_stabilize_shift = 0.0f;
 
 	height_avg = new float[50];
 	h_avg = 0;
@@ -317,6 +318,7 @@ Frame_Window::Frame_Window(int w,int h)
 	m_overlapshow_loc = 0;
 	m_show_auto_detect_line_loc = 0;
 	m_video_crop_loc = 0;
+	m_horizontal_stabilize_shift_loc = 0;
 	frame_texture = 0;
 	adj_frame_fbo = 0;
 	adj_frame_texture = 0;
@@ -472,6 +474,8 @@ void Frame_Window::initialize()
 	m_rendermode_loc = m_program->uniformLocation("render_mode");
 	m_overlap_loc = m_program->uniformLocation("overlap");
 	m_video_crop_loc = m_program->uniformLocation("video_crop");
+	m_horizontal_stabilize_shift_loc =
+			m_program->uniformLocation("horizontal_stabilize_shift");
 	gen_tex_bufs(); //call for all textures and buffers to be created
 	overlap[0]=0;
 	overlap[1]=0;
@@ -736,6 +740,9 @@ void Frame_Window::update_parameters()
 			overlap[0],overlap[1],overlap[2],overlap[3]);
 	m_program->setUniformValue(m_video_crop_loc,
 			video_crop[0], video_crop[1]);
+	m_program->setUniformValue(
+			m_horizontal_stabilize_shift_loc,
+			horizontal_stabilize_shift);
 	m_program->setUniformValue(m_show_loc, float(trackonly));
 	m_program->setUniformValue(stereo_loc, stereo);
 	m_program->setUniformValue(m_neg_loc, float(negative));
