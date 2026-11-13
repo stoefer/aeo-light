@@ -51,6 +51,7 @@ extern "C"
 #endif
 
 #include <vector>
+#include <QMap>
 #include "wav.h"
 #include "videoencoder.h"
 
@@ -148,6 +149,7 @@ private:
 	wav *synth = NULL;
 	QString generatedFrameDir;
 	QString explicitFramePath;
+	QMap<long, QString> resolvedFramePathByNumber;
 
 	std::string inputName;
 

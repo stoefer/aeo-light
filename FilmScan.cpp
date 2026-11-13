@@ -546,6 +546,7 @@ void FilmScan::Reset()
 		generatedFrameDir.clear();
 	}
 	explicitFramePath.clear();
+	resolvedFramePathByNumber.clear();
 
 	inputName.clear();
 }
@@ -829,6 +830,8 @@ bool FilmScan::SourceIdentifyImageSet(const std::string filename)
 		this->firstFrame = 1;
 		this->numFrames = 1;
 		this->explicitFramePath = sourceInfo.absoluteFilePath();
+		this->resolvedFramePathByNumber.clear();
+		this->resolvedFramePathByNumber.insert(1, sourceInfo.absoluteFilePath());
 		return true;
 	};
 
@@ -852,6 +855,7 @@ bool FilmScan::SourceIdentifyImageSet(const std::string filename)
 	const int numDigits = digits.size();
 	std::vector<long> frames;
 	frames.reserve(1024);
+	QMap<long, QString> discoveredFramePaths;
 
 	QDir dir(dirPath);
 	const QFileInfoList entries = dir.entryInfoList(
@@ -882,7 +886,10 @@ bool FilmScan::SourceIdentifyImageSet(const std::string filename)
 		bool okFrame = false;
 		const long frameNum = entryDigits.toLong(&okFrame);
 		if(okFrame)
+		{
 			frames.push_back(frameNum);
+			discoveredFramePaths.insert(frameNum, entry.absoluteFilePath());
+		}
 	}
 
 	if(frames.empty())
@@ -911,6 +918,14 @@ bool FilmScan::SourceIdentifyImageSet(const std::string filename)
 	assignPathNameAndBuffer(dirPath, patternName, 16);
 	this->explicitFramePath = (this->numFrames == 1) ?
 			sourceInfo.absoluteFilePath() : QString();
+	this->resolvedFramePathByNumber.clear();
+	for(long idx = firstIdx; idx <= lastIdx; ++idx)
+	{
+		const long frameValue = frames[idx];
+		if(discoveredFramePaths.contains(frameValue))
+			this->resolvedFramePathByNumber.insert(
+					frameValue, discoveredFramePaths.value(frameValue));
+	}
 	return true;
 }
 
@@ -1345,6 +1360,7 @@ FilmScan::~FilmScan()
 		this->generatedFrameDir.clear();
 	}
 	this->explicitFramePath.clear();
+	this->resolvedFramePathByNumber.clear();
 	#ifdef USELIBAV
 	if(this->vid) delete this->vid;
 	#endif
@@ -1371,7 +1387,13 @@ double* FilmScan::GetFrame(long frameNum, double *buf) const
 		buf = ReadFrameTIFF(fnbuf, buf);
 		break;
 	case SOURCE_JPEG:
-		if(!this->explicitFramePath.isEmpty() && this->numFrames == 1)
+		if(this->resolvedFramePathByNumber.contains(frameNum))
+		{
+			const QByteArray resolvedUtf8 =
+					this->resolvedFramePathByNumber.value(frameNum).toUtf8();
+			buf = ReadFrameJPG(resolvedUtf8.constData(), buf);
+		}
+		else if(!this->explicitFramePath.isEmpty() && this->numFrames == 1)
 		{
 			const QByteArray explicitUtf8 = this->explicitFramePath.toUtf8();
 			buf = ReadFrameJPG(explicitUtf8.constData(), buf);
@@ -1383,7 +1405,13 @@ double* FilmScan::GetFrame(long frameNum, double *buf) const
 		}
 		break;
 	case SOURCE_PNG:
-		if(!this->explicitFramePath.isEmpty() && this->numFrames == 1)
+		if(this->resolvedFramePathByNumber.contains(frameNum))
+		{
+			const QByteArray resolvedUtf8 =
+					this->resolvedFramePathByNumber.value(frameNum).toUtf8();
+			buf = ReadFramePNG(resolvedUtf8.constData(), buf);
+		}
+		else if(!this->explicitFramePath.isEmpty() && this->numFrames == 1)
 		{
 			const QByteArray explicitUtf8 = this->explicitFramePath.toUtf8();
 			buf = ReadFramePNG(explicitUtf8.constData(), buf);
@@ -1461,7 +1489,15 @@ FrameTexture* FilmScan::GetFrameImage(long frameNum, FrameTexture *frame) const
 				frame->format, frame->nComponents);
 		break;
 	case SOURCE_JPEG:
-		if(!this->explicitFramePath.isEmpty() && this->numFrames == 1)
+		if(this->resolvedFramePathByNumber.contains(frameNum))
+		{
+			const QByteArray resolvedUtf8 =
+					this->resolvedFramePathByNumber.value(frameNum).toUtf8();
+			frame->buf = ReadFrameJPG_ImageData(resolvedUtf8.constData(), frame->buf,
+					frame->width, frame->height, frame->isNonNativeEndianess,
+					frame->format, frame->nComponents);
+		}
+		else if(!this->explicitFramePath.isEmpty() && this->numFrames == 1)
 		{
 			const QByteArray explicitUtf8 = this->explicitFramePath.toUtf8();
 			frame->buf = ReadFrameJPG_ImageData(explicitUtf8.constData(), frame->buf,
@@ -1477,7 +1513,15 @@ FrameTexture* FilmScan::GetFrameImage(long frameNum, FrameTexture *frame) const
 		}
 		break;
 	case SOURCE_PNG:
-		if(!this->explicitFramePath.isEmpty() && this->numFrames == 1)
+		if(this->resolvedFramePathByNumber.contains(frameNum))
+		{
+			const QByteArray resolvedUtf8 =
+					this->resolvedFramePathByNumber.value(frameNum).toUtf8();
+			frame->buf = ReadFramePNG_ImageData(resolvedUtf8.constData(), frame->buf,
+					frame->width, frame->height, frame->isNonNativeEndianess,
+					frame->format, frame->nComponents);
+		}
+		else if(!this->explicitFramePath.isEmpty() && this->numFrames == 1)
 		{
 			const QByteArray explicitUtf8 = this->explicitFramePath.toUtf8();
 			frame->buf = ReadFramePNG_ImageData(explicitUtf8.constData(), frame->buf,
