@@ -51,9 +51,11 @@ Op Linux start je `./start.sh` in een terminal, zodat de melding zichtbaar blijf
 ## Tijdens het gebruik
 
 - Bron: een WAV-bestand of een MP4. Bij een MP4 blijft het beeld staan en komt de vertaling in een nieuwe MP4, als het vinkje **Bij een MP4 het beeld behouden** aanstaat. Daarvoor is [FFmpeg](https://ffmpeg.org/download.html) nodig. Zet `ffmpeg.exe` in PATH of in de programmamap. De WAV-mix wordt er ook nog bij geschreven.
-- Resultaat: de map `Output` (knop **UITVOERMAP OPENEN**). Daar staan de Vlaamse WAV, de tekstbestanden en de ondertitels `..._vertaling_nl.srt` en `..._transcript_<taal>.srt`.
+- **Bronondertitels (SRT)** is optioneel. Staat daar een bestand, dan wordt de spraakherkenning overgeslagen. De tijden uit dat bestand blijven staan en worden vertaald naar het Nederlands.
+- **Vlaamse spraak maken** staat standaard aan. Zet het uit om alleen de Nederlandse ondertitels te gebruiken. Bij een MP4 komen die dan in de film: het beeld en het oorspronkelijke geluid blijven, de ondertitel is een extra spoor. Bij een WAV blijft het resultaat het ondertitelbestand.
+- Resultaat: de map `Output` (knop **UITVOERMAP OPENEN**). Daar staan, als de spraak aanstaat, de Vlaamse WAV, de tekstbestanden en de ondertitels `..._vertaling_nl.srt` en `..._transcript_<taal>.srt`. Zonder spraak komt bij een MP4 ook `..._met_ondertitels.mp4`.
 - **Transcriptie bewerken voor de vertaling** staat standaard aan. Na de spraakherkenning verschijnt een venster met elke zin en haar begin- en eindtijd. Pas de zinsbouw aan en kies **Vertaling starten**.
-- **Nederlandse vertaling bewerken voor de spraak** staat ook standaard aan. Na de vertaling kun je het Nederlands corrigeren. De bronzin staat erboven. Kies daarna **Spraak starten**. De tijden blijven die van de herkenning, zodat de Nederlandse ondertitel en de Vlaamse stem op dezelfde plaats vallen.
+- **Nederlandse vertaling bewerken voor de spraak** staat ook standaard aan. Na de vertaling kun je het Nederlands corrigeren. De bronzin staat erboven. Kies daarna **Spraak starten**, of **Ondertitels plaatsen** als de spraak uitstaat. De tijden blijven die van de bron, zodat de ondertitel en, als die aanstaat, de Vlaamse stem op dezelfde plaats vallen.
 - Een leeg vak wordt niet uitgesproken en schuift de andere zinnen niet op. **Samenvoegen met volgende** maakt van twee opeenvolgende stukken één zin, van de eerste begintijd tot de tweede eindtijd. Zet een vinkje uit als die stap automatisch mag doorlopen.
 - Bij het starten opent het venster meteen zo hoog dat de instellingen leesbaar zijn. Past dat niet op het scherm, dan gebruikt het de vrije hoogte en schuift de rest.
 - **Weergave** staat rechtsboven in de instellingen. Kies **Licht** of **Donker**. Die keuze blijft bij de volgende start.

@@ -206,3 +206,67 @@ def write_mp4(video, wav, mp4_out, stop=None, child_setter=None):
         raise RuntimeError("De vertaalde MP4 is leeg.")
     partial.replace(target)
     return target
+
+
+def subtitle_mux_command(ffmpeg, video, srt, partial, with_audio=True):
+    """FFmpeg-opdracht: beeld kopiëren, geluid laten staan, Nederlandse ondertitel toevoegen."""
+    cmd = [
+        ffmpeg, "-hide_banner", "-y",
+        "-i", str(video),
+        "-i", str(srt),
+        "-map", "0:v:0",
+    ]
+    if with_audio:
+        cmd += ["-map", "0:a:0"]
+    cmd += ["-map", "1:0", "-c:v", "copy"]
+    if with_audio:
+        cmd += ["-c:a", "copy"]
+    cmd += [
+        "-c:s", "mov_text",
+        "-metadata:s:s:0", "language=nld",
+        "-disposition:s:0", "default",
+        "-movflags", "+faststart",
+        str(partial),
+    ]
+    return cmd
+
+
+def write_subtitled_mp4(video, srt, mp4_out, stop=None, child_setter=None):
+    """Schrijf een MP4 met het oorspronkelijke beeld, het oorspronkelijke geluid en de ondertitel.
+
+    Het beeld wordt niet opnieuw gecomprimeerd. De Nederlandse ondertitel staat
+    als standaardspoor in de film.
+    """
+    ffmpeg = require_ffmpeg()
+    target = Path(mp4_out)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    partial = target.with_name(target.stem + ".part.mp4")
+    partial.unlink(missing_ok=True)
+
+    def _run(with_audio):
+        partial.unlink(missing_ok=True)
+        run_tool(subtitle_mux_command(ffmpeg, video, srt, partial, with_audio), stop, child_setter)
+
+    try:
+        try:
+            _run(True)
+        except RuntimeError as exc:
+            low = str(exc).lower()
+            if "matches no streams" in low or "does not contain any stream" in low:
+                _run(False)
+            else:
+                raise
+    except MediaStopped:
+        partial.unlink(missing_ok=True)
+        raise
+    except RuntimeError as exc:
+        partial.unlink(missing_ok=True)
+        low = str(exc).lower()
+        if "matches no streams" in low or "does not contain any stream" in low:
+            raise RuntimeError("Deze MP4 heeft geen videobeeld om te behouden.") from exc
+        raise RuntimeError("De ondertitels konden niet in de MP4 gezet worden.\n" + str(exc)) from exc
+    if not partial.is_file() or partial.stat().st_size < 32:
+        partial.unlink(missing_ok=True)
+        raise RuntimeError("De MP4 met ondertitels is leeg.")
+    partial.replace(target)
+    return target

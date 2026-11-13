@@ -14,6 +14,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from telecine_media import (
     MediaStopped, extract_wav, ffmpeg_missing_message, find_ffmpeg, is_video_file, write_mp4,
+    write_subtitled_mp4,
 )
 
 APP_TITLE = "TeleCine Audio Translator"
@@ -384,6 +385,41 @@ def write_srt(segments, path, text_key="text"):
         number += 1
     Path(path).write_text("\n".join(cues) + ("\n" if cues else ""), encoding="utf-8")
 
+_SRT_CLOCK = re.compile(r"^(?P<h>\d{1,3}):(?P<m>\d{2}):(?P<s>\d{2})[,.](?P<ms>\d{1,3})$")
+
+def srt_clock(token):
+    """Zet een SRT-tijd om naar seconden. Zowel 00:00:01,250 als 00:00:01.250."""
+    match = _SRT_CLOCK.match(token.strip().split()[0])
+    if not match:
+        raise ValueError("Onbekende tijdcode in het ondertitelbestand: " + token.strip())
+    millis = int(match.group("ms")) * (10 ** (3 - len(match.group("ms"))))
+    return int(match.group("h")) * 3600 + int(match.group("m")) * 60 + int(match.group("s")) + millis / 1000.0
+
+def read_srt(path):
+    """Lees een SRT-bestand als segmenten met start, einde en tekst.
+
+    Lege cues vallen weg. Meerdere regels van één cue worden één zin.
+    """
+    raw = Path(path).read_text(encoding="utf-8-sig")
+    segments = []
+    for block in re.split(r"\r?\n\s*\r?\n", raw.strip()):
+        lines = [line.strip() for line in block.splitlines() if line.strip()]
+        time_at = next((i for i, line in enumerate(lines) if "-->" in line), None)
+        if time_at is None:
+            continue
+        left, right = lines[time_at].split("-->", 1)
+        start = srt_clock(left)
+        end = srt_clock(right)
+        text = spoken_text({"text": " ".join(lines[time_at + 1 :])})
+        if not text:
+            continue
+        if end <= start:
+            end = start + 0.001
+        segments.append({"start": start, "end": end, "text": text})
+    if not segments:
+        raise ValueError("Het ondertitelbestand bevat geen zinnen met een tijdcode.")
+    return segments
+
 def translate_segments(segments, source, stop, callback):
     import argostranslate.translate as tr
     out = []
@@ -489,12 +525,13 @@ class TranscriptEditor(tk.Toplevel):
     de begintijd van het eerste stuk en de eindtijd van het tweede.
     """
 
-    def __init__(self, master, segments, on_confirm, on_cancel, audio_path=None, field="text"):
+    def __init__(self, master, segments, on_confirm, on_cancel, audio_path=None, field="text", continue_label=None):
         super().__init__(master)
         if field not in ("text", "translation"):
             raise ValueError("Onbekend tekstveld.")
         self.field = field
         self.editing_translation = field == "translation"
+        self.continue_label = continue_label or None
         self.title("Nederlandse vertaling bewerken" if self.editing_translation else "Transcriptie bewerken")
         self.on_confirm = on_confirm
         self.on_cancel = on_cancel
@@ -515,7 +552,7 @@ class TranscriptEditor(tk.Toplevel):
     def _build(self):
         bar = ttk.Frame(self, padding=(12, 8))
         bar.pack(side="bottom", fill="x")
-        continue_label = "Spraak starten" if self.editing_translation else "Vertaling starten"
+        continue_label = self.continue_label or ("Spraak starten" if self.editing_translation else "Vertaling starten")
         restore_label = "Oorspronkelijke vertaling" if self.editing_translation else "Oorspronkelijke herkenning"
         self.continue_button = ttk.Button(bar, text=continue_label, command=self._confirm)
         self.continue_button.pack(side="left", padx=(0, 6))
@@ -525,7 +562,15 @@ class TranscriptEditor(tk.Toplevel):
         ttk.Button(bar, text=restore_label, command=self._restore).pack(side="left", padx=6)
         self.count_var = tk.StringVar()
         ttk.Label(self, textvariable=self.count_var).pack(side="bottom", anchor="w", padx=12, pady=(0, 4))
-        if self.editing_translation:
+        if self.editing_translation and self.continue_label == "Ondertitels plaatsen":
+            intro = (
+                "Pas de Nederlandse zin aan. De bronzin erboven blijft staan, net als de tijden. "
+                "Deze tekst komt als ondertitel in de film, op dezelfde plaats. "
+                "Een leeg vak valt weg en schuift de andere zinnen niet op. "
+                "Samenvoegen neemt de begintijd van deze zin en de eindtijd van de volgende. "
+                "Ctrl+Enter plaatst de ondertitels."
+            )
+        elif self.editing_translation:
             intro = (
                 "Pas de Nederlandse zin aan. De bronzin erboven blijft staan, net als de tijden. "
                 "De ondertitel en de Vlaamse stem gebruiken deze tekst op dezelfde plaats. "
@@ -787,6 +832,10 @@ class App(tk.Tk):
         self.voice_choice=tk.StringVar(value=DEFAULT_VOICE_LABEL)
         self.use_uvr=tk.BooleanVar(value=True); self.keep_stems=tk.BooleanVar(value=True)
         self.write_mp4=tk.BooleanVar(value=True)
+        self.make_speech=tk.BooleanVar(value=True)
+        self.srt_path=tk.StringVar()
+        self._speech_enabled=True
+        self._job_running=False
         self.sync_timing=tk.BooleanVar(value=True); self.edit_transcript=tk.BooleanVar(value=True); self.edit_translation=tk.BooleanVar(value=True); self.max_speed=tk.IntVar(value=15)
         self.bg_volume=tk.DoubleVar(value=100); self.voice_volume=tk.DoubleVar(value=100)
         self.bg_volume_text=tk.StringVar(value="100%"); self.voice_volume_text=tk.StringVar(value="100%")
@@ -809,6 +858,7 @@ class App(tk.Tk):
         self.build(); self.apply_appearance(); self._place_on_screen(); self.after(200,self._place_on_screen); self.after(100,self.process_queue); self.after(500,self.clock); self.protocol("WM_DELETE_WINDOW",self.close)
         self.bg_volume.trace_add("write",self._on_volume_change); self.voice_volume.trace_add("write",self._on_volume_change)
         self.voice_choice.trace_add("write",lambda *_:self.refresh_environment_status()); self.use_uvr.trace_add("write",lambda *_:self.refresh_environment_status())
+        self.make_speech.trace_add("write",self._sync_speech_controls); self.srt_path.trace_add("write",self._sync_speech_controls)
         self.show_route_note(); self.refresh_environment_status()
 
     def _ui_font(self,size,bold=False):
@@ -878,10 +928,18 @@ class App(tk.Tk):
         self.source_button=ttk.Button(m,text="Kiezen...",command=self.choose_source); self.source_button.grid(row=1,column=2)
         self.mp4_check=ttk.Checkbutton(m,text="Bij een MP4 het beeld behouden en de vertaling als MP4 opslaan",variable=self.write_mp4)
         self.mp4_check.grid(row=2,column=0,columnspan=3,sticky="w",pady=(4,0))
-        ttk.Label(m,text="Uitvoermap:").grid(row=3,column=0,sticky="w",pady=6)
-        self.out_entry=ttk.Entry(m,textvariable=self.outdir); self.out_entry.grid(row=3,column=1,sticky="ew",padx=8)
-        self.out_button=ttk.Button(m,text="Kiezen...",command=self.choose_out); self.out_button.grid(row=3,column=2)
-        opt=ttk.LabelFrame(m,text="Vertaling",padding=8); opt.grid(row=4,column=0,columnspan=3,sticky="ew",pady=(4,6))
+        ttk.Label(m,text="Bronondertitels (SRT, optioneel):").grid(row=3,column=0,sticky="w",pady=(6,0))
+        self.srt_entry=ttk.Entry(m,textvariable=self.srt_path); self.srt_entry.grid(row=3,column=1,sticky="ew",padx=8,pady=(6,0))
+        srt_buttons=ttk.Frame(m); srt_buttons.grid(row=3,column=2,pady=(6,0))
+        self.srt_button=ttk.Button(srt_buttons,text="Kiezen...",command=self.choose_srt); self.srt_button.pack(side="left")
+        self.srt_clear=ttk.Button(srt_buttons,text="Wissen",command=self.clear_srt); self.srt_clear.pack(side="left",padx=(6,0))
+        self.speech_check=ttk.Checkbutton(m,text="Vlaamse spraak maken",variable=self.make_speech)
+        self.speech_check.grid(row=4,column=0,columnspan=3,sticky="w",pady=(6,0))
+        ttk.Label(m,text="Zonder spraak komen de Nederlandse ondertitels in de MP4. Beeld en geluid blijven.",wraplength=860).grid(row=5,column=0,columnspan=3,sticky="w")
+        ttk.Label(m,text="Uitvoermap:").grid(row=6,column=0,sticky="w",pady=6)
+        self.out_entry=ttk.Entry(m,textvariable=self.outdir); self.out_entry.grid(row=6,column=1,sticky="ew",padx=8)
+        self.out_button=ttk.Button(m,text="Kiezen...",command=self.choose_out); self.out_button.grid(row=6,column=2)
+        opt=ttk.LabelFrame(m,text="Vertaling",padding=8); opt.grid(row=7,column=0,columnspan=3,sticky="ew",pady=(4,6))
         for c in range(3): opt.columnconfigure(c,weight=1)
         ttk.Label(opt,text="Brontaal").grid(row=0,column=0,sticky="w"); ttk.Label(opt,text="Whisper-kwaliteit").grid(row=0,column=1,sticky="w"); ttk.Label(opt,text="Vlaamse stem").grid(row=0,column=2,sticky="w")
         self.lang=ttk.Combobox(opt,textvariable=self.language,values=list(LANGUAGES),state="readonly"); self.lang.grid(row=1,column=0,sticky="ew")
@@ -894,7 +952,7 @@ class App(tk.Tk):
         self.edit_check.grid(row=3,column=0,columnspan=3,sticky="w",pady=(6,0))
         self.translation_check=ttk.Checkbutton(opt,text="Nederlandse vertaling bewerken voor de spraak (tijden blijven staan)",variable=self.edit_translation)
         self.translation_check.grid(row=4,column=0,columnspan=3,sticky="w",pady=(4,0))
-        u=ttk.LabelFrame(m,text="UVR: volumes en losse sporen",padding=8); u.grid(row=5,column=0,columnspan=3,sticky="ew",pady=6)
+        u=ttk.LabelFrame(m,text="UVR: volumes en losse sporen",padding=8); u.grid(row=8,column=0,columnspan=3,sticky="ew",pady=6)
         u.columnconfigure(1,weight=1)
         self.keep_stems_check=ttk.Checkbutton(u,text="Losse UVR-sporen ook naar de uitvoermap kopiëren",variable=self.keep_stems); self.keep_stems_check.grid(row=0,column=0,columnspan=3,sticky="w",pady=(0,8))
         ttk.Label(u,text="Achtergrondvolume:").grid(row=1,column=0,sticky="w")
@@ -903,7 +961,7 @@ class App(tk.Tk):
         ttk.Label(u,text="Vlaamse stemvolume:").grid(row=2,column=0,sticky="w")
         self.voice_scale=ttk.Scale(u,from_=0,to=150,variable=self.voice_volume,orient="horizontal"); self.voice_scale.grid(row=2,column=1,sticky="ew",padx=8)
         ttk.Label(u,textvariable=self.voice_volume_text,width=5).grid(row=2,column=2)
-        sy=ttk.LabelFrame(m,text="Synchronisatie met originele timing",padding=8); sy.grid(row=6,column=0,columnspan=3,sticky="ew",pady=6)
+        sy=ttk.LabelFrame(m,text="Synchronisatie met originele timing",padding=8); sy.grid(row=9,column=0,columnspan=3,sticky="ew",pady=6)
         sy.columnconfigure(1,weight=1)
         self.sync_check=ttk.Checkbutton(sy,text="Oorspronkelijke starttijden en stiltes behouden",variable=self.sync_timing); self.sync_check.grid(row=0,column=0,columnspan=3,sticky="w")
         ttk.Label(sy,text="Maximale versnelling van Vlaamse segmenten:").grid(row=1,column=0,sticky="w",pady=(6,0))
@@ -1081,26 +1139,36 @@ class App(tk.Tk):
         if self.worker and self.worker.is_alive(): return
         self._env_gen+=1; gen=self._env_gen
         voice_label=self.voice_choice.get(); use_uvr=bool(self.use_uvr.get()); source_name=self.source.get()
+        make_speech=bool(self.make_speech.get()); srt_path=self.srt_path.get().strip()
         def work():
-            try: notes=self._environment_notes(voice_label,use_uvr,source_name)
+            try: notes=self._environment_notes(voice_label,use_uvr,source_name,make_speech,srt_path)
             except Exception as exc: notes=[f"Controle van de installatie mislukt: {exc}"]
             self.q.put(("env",gen,notes))
         threading.Thread(target=work,daemon=True).start()
 
-    def _environment_notes(self,voice_label,use_uvr,source_name=""):
+    def _environment_notes(self,voice_label,use_uvr,source_name="",make_speech=True,srt_path=""):
         notes=[]
-        if source_name and is_video_file(source_name) and find_ffmpeg() is None:
+        if srt_path:
+            notes.append("Spraakherkenning wordt overgeslagen. De zinnen komen uit het SRT-bestand.")
+        video=bool(source_name) and is_video_file(source_name)
+        if video and find_ffmpeg() is None:
             notes.append("FFmpeg ontbreekt. Dat is nodig om een MP4 te lezen en terug te schrijven.")
-        voice_name=VOICES.get(voice_label)
-        if not voice_name:
-            notes.append("Kies een Vlaamse stem.")
+        if not make_speech:
+            if video:
+                notes.append("Vlaamse spraak staat uit. De Nederlandse ondertitels komen in de film en het geluid blijft.")
+            else:
+                notes.append("Vlaamse spraak staat uit. Het resultaat is een Nederlands ondertitelbestand.")
         else:
-            missing=[name for name in (f"{voice_name}.onnx",f"{voice_name}.onnx.json") if not (VOICE_DIR/name).exists()]
-            if missing: notes.append("Stem ontbreekt ("+", ".join(missing)+"). "+install_command_hint())
-        if find_espeak_data() is None:
-            notes.append("eSpeak NG is niet gevonden. Installeer het voor de Vlaamse uitspraak." if os.name=="nt" else "eSpeak NG ontbreekt. Installeer het met: sudo apt install espeak-ng")
-        if use_uvr and not self.separator_exe():
-            notes.append("Stemscheiding (UVR) is niet geïnstalleerd. Vink die optie uit, of "+install_command_hint()[:1].lower()+install_command_hint()[1:])
+            voice_name=VOICES.get(voice_label)
+            if not voice_name:
+                notes.append("Kies een Vlaamse stem.")
+            else:
+                missing=[name for name in (f"{voice_name}.onnx",f"{voice_name}.onnx.json") if not (VOICE_DIR/name).exists()]
+                if missing: notes.append("Stem ontbreekt ("+", ".join(missing)+"). "+install_command_hint())
+            if find_espeak_data() is None:
+                notes.append("eSpeak NG is niet gevonden. Installeer het voor de Vlaamse uitspraak." if os.name=="nt" else "eSpeak NG ontbreekt. Installeer het met: sudo apt install espeak-ng")
+            if use_uvr and not self.separator_exe():
+                notes.append("Stemscheiding (UVR) is niet geïnstalleerd. Vink die optie uit, of "+install_command_hint()[:1].lower()+install_command_hint()[1:])
         try:
             from telecine_setup import argos_can_translate, installed_translation_pairs
             pairs=installed_translation_pairs()
@@ -1255,6 +1323,23 @@ class App(tk.Tk):
     def choose_out(self):
         f=filedialog.askdirectory(title="Kies uitvoermap")
         if f: self.outdir.set(f)
+    def choose_srt(self):
+        f=filedialog.askopenfilename(title="Kies bronondertitels",filetypes=[("SubRip-ondertitels","*.srt"),("Alle bestanden","*.*")])
+        if f: self.srt_path.set(f)
+    def clear_srt(self):
+        self.srt_path.set("")
+    def _sync_speech_controls(self,*_):
+        """Zonder spraak of met een SRT vallen de stappen weg die dan niet lopen."""
+        if not hasattr(self,"model"): return
+        if getattr(self,"_job_running",False): return
+        speech=bool(self.make_speech.get())
+        has_srt=bool(self.srt_path.get().strip())
+        self.model.config(state="readonly" if speech and not has_srt else "disabled")
+        for widget in (self.voice,self.speed_box):
+            widget.config(state="readonly" if speech else "disabled")
+        for widget in (self.uvr_check,self.keep_stems_check,self.sync_check,self.bg_scale,self.voice_scale):
+            widget.config(state="normal" if speech else "disabled")
+        self.refresh_environment_status()
     def open_out(self):
         try:
             open_folder(self.outdir.get() or BASE_DIR/"Output")
@@ -1264,7 +1349,7 @@ class App(tk.Tk):
         s=Path(source).resolve(); sig=f"{s}|{s.stat().st_mtime_ns}|{s.stat().st_size}"; jid=hashlib.sha256(sig.encode()).hexdigest()[:16]; d=JOB_DIR/f"{safe_name(s.stem)}_{jid}"
         return {"folder":d,"state":d/"state.json","transcript":d/"transcript.txt","translation":d/"translation_nl.txt","extracted":d/"bron_audio.wav","vocals":d/"uvr_vocals.wav","background":d/"uvr_background.wav","voice":d/"vlaamse_stem.wav","mixed":d/"vlaams_met_achtergrond.wav","uvr_out":d/"uvr_output","segments":d/"segments.json","translated_segments":d/"segments_nl.json","segment_audio":d/"segment_audio"}
     def default_state(self,s):
-        return {"source":str(Path(s).resolve()),"source_language":LANGUAGES.get(self.language.get(),"fr"),"model":self.whisper.get(),"voice":VOICES[self.voice_choice.get()],"voice_label":self.voice_choice.get(),"use_uvr":bool(self.use_uvr.get()),"keep_stems":bool(self.keep_stems.get()),"write_mp4":bool(self.write_mp4.get()),"bg_volume":int(round(float(self.bg_volume.get()))),"voice_volume":int(round(float(self.voice_volume.get()))),"sync_timing":bool(self.sync_timing.get()),"edit_transcript":bool(self.edit_transcript.get()),"edit_translation":bool(self.edit_translation.get()),"max_speed":int(self.max_speed.get()),"completed_steps":0,"elapsed":0.,"status":"nieuw","output_dir":str(Path(self.outdir.get() or BASE_DIR/"Output").resolve()),"output_file":"","output_video":"","subtitle_file":"","last_error":""}
+        return {"source":str(Path(s).resolve()),"source_language":LANGUAGES.get(self.language.get(),"fr"),"model":self.whisper.get(),"voice":VOICES[self.voice_choice.get()],"voice_label":self.voice_choice.get(),"use_uvr":bool(self.use_uvr.get()),"keep_stems":bool(self.keep_stems.get()),"write_mp4":bool(self.write_mp4.get()),"make_speech":bool(self.make_speech.get()),"srt_path":self.srt_path.get().strip(),"bg_volume":int(round(float(self.bg_volume.get()))),"voice_volume":int(round(float(self.voice_volume.get()))),"sync_timing":bool(self.sync_timing.get()),"edit_transcript":bool(self.edit_transcript.get()),"edit_translation":bool(self.edit_translation.get()),"max_speed":int(self.max_speed.get()),"completed_steps":0,"elapsed":0.,"status":"nieuw","output_dir":str(Path(self.outdir.get() or BASE_DIR/"Output").resolve()),"output_file":"","output_video":"","subtitle_file":"","last_error":""}
     def load(self,p):
         try:return json.loads(p["state"].read_text(encoding="utf-8"))
         except:return None
@@ -1277,6 +1362,8 @@ class App(tk.Tk):
             messagebox.showerror(APP_TITLE,"Kies een WAV- of MP4-bestand."); return None
         if is_video_file(s) and find_ffmpeg() is None:
             messagebox.showerror(APP_TITLE,ffmpeg_missing_message()); return None
+        if not self._accept_srt(required=not self.make_speech.get()): return None
+        if not self.make_speech.get(): return s
         voice_name=VOICES.get(self.voice_choice.get())
         if not voice_name:
             messagebox.showerror(APP_TITLE,"Kies eerst een geldige Vlaamse stem."); return None
@@ -1288,6 +1375,20 @@ class App(tk.Tk):
         if self.use_uvr.get() and not self.separator_exe():
             messagebox.showerror(APP_TITLE,"Stemscheiding (UVR) is niet geïnstalleerd.\n\nVink \"Stem met UVR scheiden\" uit, of:\n"+install_command_hint()); return None
         return s
+    def _accept_srt(self, required):
+        raw=self.srt_path.get().strip()
+        if not raw:
+            if required:
+                messagebox.showerror(APP_TITLE,"Kies een SRT-bestand, of zet Vlaamse spraak aan.")
+            return not required
+        path=Path(raw)
+        if not path.is_file() or path.suffix.lower()!=".srt":
+            messagebox.showerror(APP_TITLE,"Kies een bestaand .srt-bestand."); return False
+        try:
+            read_srt(path)
+        except (OSError, UnicodeError, ValueError) as exc:
+            messagebox.showerror(APP_TITLE,"Het ondertitelbestand kan niet gelezen worden.\n"+str(exc)); return False
+        return True
     def separator_exe(self):
         options=[Path(sys.executable).parent/"audio-separator.exe",Path(sys.executable).parent/"audio-separator",shutil.which("audio-separator")]
         return next((str(x) for x in options if x and Path(x).exists()),None)
@@ -1312,6 +1413,10 @@ class App(tk.Tk):
             self.resume.config(state="disabled"); self.resume_text.set("Deze bron is al volledig verwerkt"); self.set_progress(100); self.show_steps(len(STEPS),"completed")
             if st.get("output_file") and Path(st["output_file"]).is_file():
                 self.play_status.set("Eerdere eindmix gevonden. Je kunt die hieronder afspelen.")
+            elif st.get("output_video") and Path(st["output_video"]).is_file():
+                self.play_status.set("Eerdere film met ondertitels gevonden.")
+            elif st.get("subtitle_file") and Path(st["subtitle_file"]).is_file():
+                self.play_status.set("Eerdere Nederlandse ondertitels gevonden.")
             else:
                 self.play_status.set("De taak is voltooid, maar de eindmix is niet gevonden.")
         else:
@@ -1333,6 +1438,8 @@ class App(tk.Tk):
         if voice_label in VOICES: self.voice_choice.set(voice_label)
         self.use_uvr.set(bool(st.get("use_uvr",False))); self.keep_stems.set(bool(st.get("keep_stems",True))); self.sync_timing.set(bool(st.get("sync_timing",True))); self.edit_transcript.set(bool(st.get("edit_transcript",False))); self.edit_translation.set(bool(st.get("edit_translation",False)))
         if "write_mp4" in st: self.write_mp4.set(bool(st.get("write_mp4")))
+        self.srt_path.set(st.get("srt_path") or "")
+        self.make_speech.set(bool(st.get("make_speech", True)))
         try:
             self.bg_volume.set(float(st.get("bg_volume",100))); self.voice_volume.set(float(st.get("voice_volume",100)))
             speed=int(st.get("max_speed",15))
@@ -1354,12 +1461,14 @@ class App(tk.Tk):
         self.stop_event.clear(); self.started=time.monotonic(); self.elapsed_before=float(st.get("elapsed",0)); self.state=st; self.progress=sum(WEIGHTS[:st.get("completed_steps",0)])*100; self.running(True)
         self.worker=threading.Thread(target=self.pipeline,args=(p,st),daemon=True); self.worker.start()
     def running(self,on):
+        self._job_running=bool(on)
         self.start.config(state="disabled" if on else "normal"); self.stop.config(state="normal" if on else "disabled")
         if on: self.resume.config(state="disabled")
-        for widget in (self.source_entry,self.out_entry,self.source_button,self.out_button,self.uvr_check,self.keep_stems_check,self.sync_check,self.mp4_check,self.edit_check,self.translation_check,self.bg_scale,self.voice_scale):
+        for widget in (self.source_entry,self.out_entry,self.srt_entry,self.source_button,self.out_button,self.srt_button,self.srt_clear,self.uvr_check,self.keep_stems_check,self.sync_check,self.mp4_check,self.speech_check,self.edit_check,self.translation_check,self.bg_scale,self.voice_scale):
             widget.config(state="disabled" if on else "normal")
         for widget in (self.lang,self.model,self.voice,self.speed_box):
             widget.config(state="disabled" if on else "readonly")
+        if not on: self._sync_speech_controls()
     def _stop_child(self):
         proc=self.child
         if not proc or proc.poll() is not None: return
@@ -1385,13 +1494,13 @@ class App(tk.Tk):
         self._refresh_hint()
     def stage(self,i,f,msg):
         f=max(0,min(1,float(f))); val=(sum(WEIGHTS[:i])+WEIGHTS[i]*f)*100; self.progress=val; self.q.put(("progress",val,i,msg))
-    def _wait_for_edit(self, payload, audio_path, kind, step, message):
+    def _wait_for_edit(self, payload, audio_path, kind, step, message, continue_label=""):
         """Wacht op het bewerkvenster. De tijden in payload blijven de herkende tijden."""
         self.edit_ready.clear()
         self._edit_result=None
         self.stage(step,0,message)
         audio="" if audio_path is None else str(audio_path)
-        self.q.put((kind,payload,audio))
+        self.q.put((kind,payload,audio,continue_label or ""))
         while not self.edit_ready.wait(0.2):
             if self.stop_event.is_set():
                 raise StoppedByUser
@@ -1407,8 +1516,9 @@ class App(tk.Tk):
         payload=[]
         for item in segments:
             payload.append({"start":float(item["start"]),"end":float(item["end"]),"text":spoken_text(item,"text"),"translation":spoken_text(item,"translation")})
-        return self._wait_for_edit(payload, audio_path, "edit_translation", 4, f"Bewerk de {len(payload)} Nederlandse zinnen. De tijden blijven staan.")
-    def _open_transcript_editor(self, segments, audio_path, field="text"):
+        label="Ondertitels plaatsen" if not getattr(self,"_speech_enabled",True) else ""
+        return self._wait_for_edit(payload, audio_path, "edit_translation", 4, f"Bewerk de {len(payload)} Nederlandse zinnen. De tijden blijven staan.", label)
+    def _open_transcript_editor(self, segments, audio_path, field="text", continue_label=None):
         if self.stop_event.is_set() or not (self.worker and self.worker.is_alive()):
             self._edit_result=None
             self.edit_ready.set()
@@ -1425,7 +1535,7 @@ class App(tk.Tk):
             self.stop_event.set()
             self.edit_ready.set()
         try:
-            self._transcript_editor=TranscriptEditor(self, segments, confirm, cancel, audio_path or None, field)
+            self._transcript_editor=TranscriptEditor(self, segments, confirm, cancel, audio_path or None, field, continue_label or None)
         except Exception as exc:
             self._transcript_editor=None
             self._edit_result=None
@@ -1452,14 +1562,17 @@ class App(tk.Tk):
     def pipeline(self,p,st):
         try:
             p["folder"].mkdir(parents=True,exist_ok=True); source=Path(st["source"]); done=int(st.get("completed_steps",0))
-            audio=self.work_audio(p,st)
+            make_speech=bool(st.get("make_speech",True)); self._speech_enabled=make_speech
+            srt_path=(st.get("srt_path") or "").strip()
+            use_uvr=bool(st.get("use_uvr",False)) and make_speech
+            audio=self.work_audio(p,st) if (make_speech or not srt_path) else None
             if done<1:
                 self.stage(0,.2,"Bestand en installatie controleren..."); self.check_stop()
                 if not source.exists():raise FileNotFoundError(source)
-                self.queue_measure("input",audio)
+                if audio is not None: self.queue_measure("input",audio)
                 self.finish(p,st,1); done=1
             if done<2:
-                if not st.get("use_uvr",False):
+                if not use_uvr:
                     self.stage(1,1,"UVR overgeslagen."); self.finish(p,st,2); done=2
                 else:
                     exe=self.separator_exe()
@@ -1485,24 +1598,36 @@ class App(tk.Tk):
                     files=list(p["uvr_out"].glob("*.wav")); vocals=next((f for f in files if "vocal" in f.name.lower()),None); instr=next((f for f in files if any(x in f.name.lower() for x in ("instrumental","no_vocal","karaoke"))),None)
                     if not vocals or not instr: raise RuntimeError("UVR-uitvoer bevat niet zowel Vocals als Instrumental: "+", ".join(f.name for f in files))
                     shutil.copy2(vocals,p["vocals"]); shutil.copy2(instr,p["background"]); self.queue_measure("background",p["background"],"background_raw"); self.stage(1,1,"UVR-scheiding voltooid."); self.finish(p,st,2); done=2
-            recognition_source=p["vocals"] if st.get("use_uvr") else audio
+            recognition_source=p["vocals"] if use_uvr else audio
             if done<3:
-                self.stage(2,0,"Whisper-model laden...")
-                try:
-                    from faster_whisper import WhisperModel
-                except ImportError as exc:
-                    raise RuntimeError("Spraakherkenning ontbreekt. "+install_command_hint()) from exc
-                model=WhisperModel(st["model"],device="cpu",compute_type="int8"); segs,info=model.transcribe(str(recognition_source),language=st["source_language"],task="transcribe",beam_size=5,vad_filter=True)
-                dur=max(float(getattr(info,"duration",0) or 0),.01); parts=[]; timed=[]
-                for seg in segs:
-                    self.check_stop(); t=seg.text.strip()
-                    if t:
-                        parts.append(t); timed.append({"start":float(seg.start),"end":float(seg.end),"text":t})
-                    self.stage(2,min(.995,float(seg.end)/dur),f"Spraak herkennen: {seg.end:.0f}/{dur:.0f} sec")
-                text=" ".join(parts).strip()
-                if not text:raise RuntimeError("Whisper heeft geen spraak herkend.")
-                p["transcript"].write_text(format_timed_text(timed),encoding="utf-8")
-                p["segments"].write_text(json.dumps(timed,ensure_ascii=False,indent=2),encoding="utf-8"); self.finish(p,st,3); done=3
+                if srt_path:
+                    self.stage(2,0,"Ondertitels inlezen...")
+                    srt_file=Path(srt_path)
+                    if not srt_file.is_file():
+                        raise RuntimeError("Het ondertitelbestand is niet gevonden:\n"+srt_path)
+                    timed=read_srt(srt_file)
+                    self.check_stop()
+                    p["transcript"].write_text(format_timed_text(timed),encoding="utf-8")
+                    p["segments"].write_text(json.dumps(timed,ensure_ascii=False,indent=2),encoding="utf-8")
+                    self.stage(2,1,f"{len(timed)} ondertitels ingelezen.")
+                    self.finish(p,st,3); done=3
+                else:
+                    self.stage(2,0,"Whisper-model laden...")
+                    try:
+                        from faster_whisper import WhisperModel
+                    except ImportError as exc:
+                        raise RuntimeError("Spraakherkenning ontbreekt. "+install_command_hint()) from exc
+                    model=WhisperModel(st["model"],device="cpu",compute_type="int8"); segs,info=model.transcribe(str(recognition_source),language=st["source_language"],task="transcribe",beam_size=5,vad_filter=True)
+                    dur=max(float(getattr(info,"duration",0) or 0),.01); parts=[]; timed=[]
+                    for seg in segs:
+                        self.check_stop(); t=seg.text.strip()
+                        if t:
+                            parts.append(t); timed.append({"start":float(seg.start),"end":float(seg.end),"text":t})
+                        self.stage(2,min(.995,float(seg.end)/dur),f"Spraak herkennen: {seg.end:.0f}/{dur:.0f} sec")
+                    text=" ".join(parts).strip()
+                    if not text:raise RuntimeError("Whisper heeft geen spraak herkend.")
+                    p["transcript"].write_text(format_timed_text(timed),encoding="utf-8")
+                    p["segments"].write_text(json.dumps(timed,ensure_ascii=False,indent=2),encoding="utf-8"); self.finish(p,st,3); done=3
             if done<4:
                 timed=json.loads(p["segments"].read_text(encoding="utf-8"))
                 if st.get("edit_transcript"):
@@ -1528,40 +1653,52 @@ class App(tk.Tk):
                     p["translation"].write_text(format_timed_text(translated,"translation"),encoding="utf-8")
                     st["translation_edited"]=True
                     self.save(p,st)
-                self.stage(4,.01,"Gesynchroniseerde Vlaamse segmenten genereren..."); p["voice"].unlink(missing_ok=True)
-                translated=json.loads(p["translated_segments"].read_text(encoding="utf-8"))
-                if st.get("sync_timing",True):
-                    src_duration=read_wav_duration(audio)
-                    warnings=build_synchronized_voice(translated,p["voice"],p["segment_audio"],st["voice"],int(st.get("max_speed",15)),src_duration,self.stop_event,lambda f:self.stage(4,f,"Vlaamse segmenten op tijdcode plaatsen..."),lambda proc:setattr(self,"child",proc))
-                    st["timing_warnings"]=warnings
+                if not make_speech:
+                    self.stage(4,1,"Vlaamse spraak overgeslagen."); self.finish(p,st,5); done=5
                 else:
-                    full=" ".join(spoken_text(x,"translation") for x in translated if spoken_text(x,"translation"))
-                    run_piper(full,p["voice"],st["voice"],self.stop_event,lambda proc:setattr(self,"child",proc))
-                self.queue_measure("voice",p["voice"],"voice_raw"); self.finish(p,st,5); done=5
+                    self.stage(4,.01,"Gesynchroniseerde Vlaamse segmenten genereren..."); p["voice"].unlink(missing_ok=True)
+                    translated=json.loads(p["translated_segments"].read_text(encoding="utf-8"))
+                    if st.get("sync_timing",True):
+                        src_duration=read_wav_duration(audio)
+                        warnings=build_synchronized_voice(translated,p["voice"],p["segment_audio"],st["voice"],int(st.get("max_speed",15)),src_duration,self.stop_event,lambda f:self.stage(4,f,"Vlaamse segmenten op tijdcode plaatsen..."),lambda proc:setattr(self,"child",proc))
+                        st["timing_warnings"]=warnings
+                    else:
+                        full=" ".join(spoken_text(x,"translation") for x in translated if spoken_text(x,"translation"))
+                        run_piper(full,p["voice"],st["voice"],self.stop_event,lambda proc:setattr(self,"child",proc))
+                    self.queue_measure("voice",p["voice"],"voice_raw"); self.finish(p,st,5); done=5
             if done<6:
-                if st.get("use_uvr"):
-                    self.stage(5,.1,"Vlaamse stem met originele achtergrond mengen..."); mix_wavs(p["background"],p["voice"],p["mixed"],st.get("bg_volume",100)/100,st.get("voice_volume",100)/100)
-                else: shutil.copy2(p["voice"],p["mixed"])
-                self.queue_measure("output",p["mixed"])
-                self.finish(p,st,6); done=6
+                if not make_speech:
+                    self.stage(5,1,"Mix overgeslagen."); self.finish(p,st,6); done=6
+                else:
+                    if use_uvr:
+                        self.stage(5,.1,"Vlaamse stem met originele achtergrond mengen..."); mix_wavs(p["background"],p["voice"],p["mixed"],st.get("bg_volume",100)/100,st.get("voice_volume",100)/100)
+                    else: shutil.copy2(p["voice"],p["mixed"])
+                    self.queue_measure("output",p["mixed"])
+                    self.finish(p,st,6); done=6
             if done<7:
                 self.stage(6,.2,"Resultaten opslaan..."); out=Path(st["output_dir"]); out.mkdir(parents=True,exist_ok=True); stem=safe_name(source.stem)
-                final=out/f"{stem}_Vlaams_met_achtergrond.wav" if st.get("use_uvr") else out/f"{stem}_Vlaams.wav"; shutil.copy2(p["mixed"],final)
                 shutil.copy2(p["transcript"],out/f"{stem}_transcript_{st['source_language']}.txt"); shutil.copy2(p["translation"],out/f"{stem}_vertaling_nl.txt")
                 source_segments=json.loads(p["segments"].read_text(encoding="utf-8")); translated_segments=json.loads(p["translated_segments"].read_text(encoding="utf-8"))
                 source_srt=out/f"{stem}_transcript_{st['source_language']}.srt"; dutch_srt=out/f"{stem}_vertaling_nl.srt"
                 write_srt(source_segments,source_srt,"text"); write_srt(translated_segments,dutch_srt,"translation")
-                st["subtitle_file"]=str(dutch_srt)
-                if st.get("use_uvr") and st.get("keep_stems"):
-                    shutil.copy2(p["vocals"],out/f"{stem}_UVR_stem.wav"); shutil.copy2(p["background"],out/f"{stem}_UVR_achtergrond.wav")
-                st["output_file"]=str(final); st["output_video"]=""
-                if is_video_file(source) and st.get("write_mp4",True):
-                    self.stage(6,.65,"Vertaalde audio in de MP4 schrijven...")
-                    final_mp4=out/f"{stem}_Vlaams_met_achtergrond.mp4" if st.get("use_uvr") else out/f"{stem}_Vlaams.mp4"
-                    write_mp4(source,final,final_mp4,self.stop_event,lambda proc:setattr(self,"child",proc))
+                st["subtitle_file"]=str(dutch_srt); st["output_file"]=""; st["output_video"]=""
+                if make_speech:
+                    final=out/f"{stem}_Vlaams_met_achtergrond.wav" if use_uvr else out/f"{stem}_Vlaams.wav"; shutil.copy2(p["mixed"],final)
+                    if use_uvr and st.get("keep_stems"):
+                        shutil.copy2(p["vocals"],out/f"{stem}_UVR_stem.wav"); shutil.copy2(p["background"],out/f"{stem}_UVR_achtergrond.wav")
+                    st["output_file"]=str(final)
+                    if is_video_file(source) and st.get("write_mp4",True):
+                        self.stage(6,.65,"Vertaalde audio in de MP4 schrijven...")
+                        final_mp4=out/f"{stem}_Vlaams_met_achtergrond.mp4" if use_uvr else out/f"{stem}_Vlaams.mp4"
+                        write_mp4(source,final,final_mp4,self.stop_event,lambda proc:setattr(self,"child",proc))
+                        st["output_video"]=str(final_mp4)
+                elif is_video_file(source) and st.get("write_mp4",True):
+                    self.stage(6,.65,"Nederlandse ondertitels in de film plaatsen...")
+                    final_mp4=out/f"{stem}_met_ondertitels.mp4"
+                    write_subtitled_mp4(source,dutch_srt,final_mp4,self.stop_event,lambda proc:setattr(self,"child",proc))
                     st["output_video"]=str(final_mp4)
                 self.finish(p,st,7)
-            shown=st.get("output_video") or st.get("output_file")
+            shown=st.get("output_video") or st.get("output_file") or "Nederlandse ondertitels opgeslagen."
             if st.get("output_video") and st.get("output_file"):
                 shown=st["output_video"]+"\n\nWAV-mix:\n"+st["output_file"]
             st["status"]="voltooid"; st["elapsed"]=self.elapsed_now(); self.save(p,st); self.q.put(("completed",shown,st.get("subtitle_file","")))
@@ -1596,14 +1733,16 @@ class App(tk.Tk):
                     self.hint.set("Niveau niet gemeten: "+x[2])
                     if hasattr(self,"hint_label"): self.hint_label.configure(fg="#8a3b00")
                 elif kind in ("edit_transcript","edit_translation"):
-                    _,segments,audio=x
-                    self._open_transcript_editor(segments,audio,"translation" if kind=="edit_translation" else "text")
+                    _,segments,audio,*rest=x
+                    label=rest[0] if rest else ""
+                    self._open_transcript_editor(segments,audio,"translation" if kind=="edit_translation" else "text",label or None)
                 elif kind=="progress":
                     _,v,i,msg=x; self.set_progress(v); self.status.set(msg); self.step.set(f"Stap {i+1} van {len(STEPS)}: {STEPS[i]}"); self.show_steps(i,"running")
                 elif kind=="stopped":
                     n=x[1]; self.running(False); self.resume.config(state="normal"); self.status.set("Gestopt door gebruiker"); self.resume_text.set(f"Hervatten vanaf stap {n+1}: {STEPS[min(n,len(STEPS)-1)]}"); self.show_steps(min(n,len(STEPS)-1),"paused")
                 elif kind=="completed":
-                    self.stop_audio(); self.play_status.set("Eindmix gereed voor live afspelen")
+                    self.stop_audio()
+                    self.play_status.set("Eindmix gereed voor live afspelen" if (self.state or {}).get("output_file") else "Ondertitels gereed")
                     done_note=translation_route_note((self.state or {}).get("source_language",""))
                     self.set_progress(100); self.running(False); self.resume.config(state="disabled"); self.status.set("Klaar! "+done_note if done_note else "Klaar!"); self.remaining.set("00:00:00"); srt=x[2] if len(x)>2 and x[2] else ""
                     self.show_steps(len(STEPS),"completed"); messagebox.showinfo(APP_TITLE,"Verwerking voltooid.\n\n"+x[1]+(("\n\nNederlandse ondertitels:\n"+srt) if srt else "")+(("\n\n"+done_note) if done_note else "")+("\n\nLet op: enkele segmenten waren langer dan hun tijdvak en kunnen overlappen." if self.state and self.state.get("timing_warnings") else ""))
