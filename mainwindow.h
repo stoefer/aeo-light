@@ -54,6 +54,7 @@ class MainWindow;
 }
 class QLabel;
 class QPushButton;
+class QGroupBox;
 
 #define FPS_NTSC 0
 #define FPS_24 1
@@ -396,6 +397,7 @@ private:
 	QPointer<QWidget> previewContainerWidget;
 	QPointer<QLabel> previewBetaBadgeLabel;
 	QPointer<QLabel> layoutProfileStatusLabel;
+	QPointer<QGroupBox> extractViewOptionsGroupBox;
 	QTextStream log;
 	QTimer *sessionAutosaveTimer = NULL;
 	bool sessionRecoveryPending = false;
@@ -523,6 +525,7 @@ private:
 	QString BuildOutputNameFromTemplate(const QString &ext) const;
 	void CaptureUiScaleBaseGeometry();
 	void UpdateAdaptiveUiScale();
+	void PositionExtractTabAuxSections();
 	void RestoreUiWindowSettings();
 	void SaveUiWindowSettings() const;
 	QString SerializeCurrentSettings();

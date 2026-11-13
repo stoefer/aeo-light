@@ -1395,6 +1395,30 @@ MainWindow::MainWindow(QWidget *parent) :
 			ResetExtractSectionToFactoryDefaults();
 		});
 	}
+	if(ui->tab_3 && ui->horizontalLayout_3 && ui->viewOptionsLayout)
+	{
+		// Move View options from the global bottom strip into Extract A/V.
+		QLayoutItem *viewItem = ui->horizontalLayout_3->takeAt(0);
+		delete viewItem;
+		QLayoutItem *leadingSpacer = ui->horizontalLayout_3->itemAt(0);
+		if(leadingSpacer && leadingSpacer->spacerItem())
+			delete ui->horizontalLayout_3->takeAt(0);
+
+		extractViewOptionsGroupBox = new QGroupBox(tr("View options"), ui->tab_3);
+		extractViewOptionsGroupBox->setObjectName("extractViewOptionsGroupBox");
+		QVBoxLayout *extractViewOptionsLayout = new QVBoxLayout(extractViewOptionsGroupBox);
+		extractViewOptionsLayout->setContentsMargins(8, 8, 8, 8);
+		extractViewOptionsLayout->setSpacing(4);
+		extractViewOptionsLayout->addLayout(ui->viewOptionsLayout);
+		if(ui->label_3)
+			ui->label_3->setVisible(false);
+	}
+	if(ui->tab_3 && ui->gridLayoutWidget_3)
+	{
+		// Move sample buttons + Auto Load Settings into Extract A/V tab.
+		ui->gridLayoutWidget_3->setParent(ui->tab_3);
+	}
+	PositionExtractTabAuxSections();
 	//ui->soundtrackSettingGrid->setRowStretch(0,1);
 	frame_window = NULL;
 	paramCopyLock = false;
@@ -1792,6 +1816,44 @@ void MainWindow::CaptureUiScaleBaseGeometry()
 	uiScaleGeometryCaptured = true;
 }
 
+void MainWindow::PositionExtractTabAuxSections()
+{
+	if(!ui || !ui->tab_3) return;
+	const int margin = 10;
+	const int gap = 8;
+	const int tabWidth = std::max(280, ui->tab_3->width() - (2 * margin));
+	const int tabHeight = std::max(200, ui->tab_3->height());
+	int nextY = margin;
+	if(ui->extractOutputGroupBox)
+		nextY = ui->extractOutputGroupBox->geometry().bottom() + gap + 1;
+
+	if(extractViewOptionsGroupBox)
+	{
+		const int viewHeight = std::max(
+				116, extractViewOptionsGroupBox->sizeHint().height() + 4);
+		extractViewOptionsGroupBox->setGeometry(
+				margin,
+				nextY,
+				tabWidth,
+				viewHeight);
+		nextY += viewHeight + gap;
+	}
+
+	if(ui->gridLayoutWidget_3)
+	{
+		const int sampleHeight = std::max(
+				120, ui->gridLayoutWidget_3->sizeHint().height() + 2);
+		int sampleY = nextY;
+		if((sampleY + sampleHeight + margin) > tabHeight)
+			sampleY = std::max(nextY, tabHeight - sampleHeight - margin);
+		ui->gridLayoutWidget_3->setGeometry(
+				margin,
+				sampleY,
+				tabWidth,
+				sampleHeight);
+	}
+}
+
 void MainWindow::UpdateAdaptiveUiScale()
 {
 	QWidget *cw = this->centralWidget();
@@ -1890,12 +1952,12 @@ void MainWindow::UpdateAdaptiveUiScale()
 
 	const LayoutProfileTuning tuning =
 			(profile == RES_PROFILE_HD) ? LayoutProfileTuning{
-					116, 220, 720, -1, 30, 68, 4, 2, 320, 390, 3, 4, 16, 12, 11, 10, 11, 10, 96, 1240, 18
+					116, 220, 900, -1, 30, 68, 4, 2, 320, 390, 3, 4, 16, 12, 11, 10, 11, 10, 96, 1240, 18
 			} :
 			(profile == RES_PROFILE_UHD) ? LayoutProfileTuning{
-					96, 172, 700, 1, 38, 90, 5, 8, 300, 350, 2, 3, 14, 10, 10, 9, 10, 10, 74, 1160, 18
+					96, 172, 940, 1, 38, 90, 5, 8, 300, 350, 2, 3, 14, 10, 10, 9, 10, 10, 74, 1160, 18
 			} : LayoutProfileTuning{
-					78, 128, 650, 0, 34, 80, 4, 6, 270, 320, 2, 3, 13, 9, 9, 8, 9, 9, 64, 1100, 16
+					78, 128, 880, 0, 34, 80, 4, 6, 270, 320, 2, 3, 13, 9, 9, 8, 9, 9, 64, 1100, 16
 			};
 
 	if(ui->tabWidget && uiScaleBaseGeometry.contains(ui->tabWidget))
@@ -2068,7 +2130,12 @@ void MainWindow::UpdateAdaptiveUiScale()
 		ui->horizontalLayoutWidget_2->setGeometry(viewRect);
 	}
 
-	if(ui->gridLayoutWidget_3 &&
+	const bool samplePanelInMainFlow = (
+			ui->gridLayoutWidget_3 &&
+			ui->gridLayoutWidget_3->parentWidget() == cw);
+
+	if(samplePanelInMainFlow &&
+			ui->gridLayoutWidget_3 &&
 			uiScaleBaseGeometry.contains(ui->gridLayoutWidget_3))
 	{
 		QRect sampleRect = uiScaleBaseGeometry.value(ui->gridLayoutWidget_3);
@@ -2088,15 +2155,20 @@ void MainWindow::UpdateAdaptiveUiScale()
 	{
 		QRect contentRect = uiScaleBaseGeometry.value(ui->scrollAreaWidgetContents);
 		int targetContentHeight = contentRect.height() + tuning.contentHeightDelta;
-		if(ui->gridLayoutWidget_3)
+		if(samplePanelInMainFlow && ui->gridLayoutWidget_3)
 			targetContentHeight = std::max(
 					targetContentHeight,
 					ui->gridLayoutWidget_3->geometry().bottom() + (tuning.panelGap + 10));
+		else if(ui->horizontalLayoutWidget_2)
+			targetContentHeight = std::max(
+					targetContentHeight,
+					ui->horizontalLayoutWidget_2->geometry().bottom() + 120);
 		targetContentHeight = std::max(tuning.contentMinHeight, targetContentHeight);
 		contentRect.setHeight(targetContentHeight);
 		ui->scrollAreaWidgetContents->setGeometry(contentRect);
 		ui->scrollAreaWidgetContents->setMinimumHeight(targetContentHeight);
 	}
+	PositionExtractTabAuxSections();
 
 	const QString resolvedProfileKey =
 			(profile == RES_PROFILE_HD) ? "hd" :
