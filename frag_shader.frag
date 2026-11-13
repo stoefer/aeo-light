@@ -26,6 +26,7 @@ uniform vec3 color_balance; // per-channel gain for cast correction (R,G,B)
 uniform vec3 manip_controls; //thresh,threshold amount,  blur
 uniform vec4 overlap; //   y_search Area ,y_ offset,  bottom,  top;
 uniform vec2 video_crop; // top and bottom crop margins for video frame guides
+uniform vec2 left_pix_search_bounds; // start/end x of left yellow-line search zone
 uniform float horizontal_stabilize_shift; // normalized X shift for horizontal stabilization
 uniform float vertical_stabilize_shift; // normalized Y shift for vertical stabilization
 uniform vec4 cal_controls;
@@ -639,6 +640,18 @@ vTexRotated = vTexRotated +vec2(0.5,0.5);
         if (show_mode==0.0)
         {
             float trackwidth = bounds.y-bounds.x;
+            float left_search_start = clamp(left_pix_search_bounds.x, 0.0, 1.0);
+            float left_search_end = clamp(left_pix_search_bounds.y, 0.0, 1.0);
+            if (left_search_end > left_search_start)
+            {
+                if (vTexCoord.x >= left_search_start &&
+                        vTexCoord.x <= left_search_end)
+                    texel = mix(texel, vec4(0.10, 0.42, 0.95, 0.0), 0.30);
+                if (abs(vTexCoord.x - left_search_start) < 0.0015)
+                    texel = vec4(0.20, 0.72, 1.0, 0.0);
+                if (abs(vTexCoord.x - left_search_end) < 0.0015)
+                    texel = vec4(0.20, 0.72, 1.0, 0.0);
+            }
             if (abs(vTexCoord.x - bounds.x )   <0.002)  //left sound line boundry
                 texel=vec4(1,0,1,0);
             if (abs(vTexCoord.x - bounds.y )   <0.002)  //right sound line boundry

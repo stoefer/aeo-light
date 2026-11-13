@@ -53,6 +53,7 @@ namespace Ui {
 class MainWindow;
 }
 class QLabel;
+class QPushButton;
 
 #define FPS_NTSC 0
 #define FPS_24 1
@@ -472,6 +473,12 @@ private:
 	void ResetSoundtrackSectionToFactoryDefaults();
 	void ResetImageSectionToFactoryDefaults();
 	void ResetExtractSectionToFactoryDefaults();
+	QString BuildLeftPixSearchLabelText() const;
+	void RefreshLeftPixSearchLabel();
+	void ShowDefaultsSavedFeedback(
+			QPushButton *button,
+			const QString &savedText,
+			const QString &statusMessage);
 	void UpdateVideoCropLabels();
 	void UpdateVideoStabilizationControls();
 	void UpdateHorizontalPictureStabilizationControls();

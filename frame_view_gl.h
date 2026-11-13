@@ -132,6 +132,7 @@ public:
 	GLfloat bounds[4]; // boundry of track area 4 elements x1,x2,y1,y2
 	GLfloat overlap[4]; // used to compute overlap and hold translation numbers:   y1_start, y_size,  translate_Y,window,Y;
 	GLfloat video_crop[2]; // top and bottom crop margins used for video export preview guides
+	GLfloat left_pix_search_bounds[2]; // normalized start/end X of left-line search window
 	GLfloat horizontal_stabilize_shift; // normalized X shift applied to picture
 	GLfloat vertical_stabilize_shift; // normalized Y shift applied to picture
 
@@ -198,6 +199,7 @@ private:
 	GLuint m_overlapshow_loc;
 	GLuint m_show_auto_detect_line_loc;
 	GLuint m_video_crop_loc;
+	GLuint m_left_pix_search_bounds_loc;
 	GLuint m_horizontal_stabilize_shift_loc;
 	GLuint m_vertical_stabilize_shift_loc;
 	GLuint frame_texture; //image frame texture used as input

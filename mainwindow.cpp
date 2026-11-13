@@ -2548,6 +2548,32 @@ void MainWindow::PositionPreviewWindowBesideMainWindow()
 	applyingWindowLayout = false;
 }
 
+void MainWindow::ShowDefaultsSavedFeedback(
+		QPushButton *button,
+		const QString &savedText,
+		const QString &statusMessage)
+{
+	if(ui && ui->statusBar && !statusMessage.trimmed().isEmpty())
+		ui->statusBar->showMessage(statusMessage, 3500);
+	if(!button) return;
+
+	const QString originalText = button->text();
+	const QString originalStyle = button->styleSheet();
+	button->setText(savedText);
+	button->setStyleSheet(
+			"QPushButton {"
+			" background-color: #dff5df;"
+			" border: 1px solid #7fbd7f;"
+			" font-weight: 600;"
+			"}");
+	QTimer::singleShot(1400, button, [button, originalText, originalStyle]()
+	{
+		if(!button) return;
+		button->setText(originalText);
+		button->setStyleSheet(originalStyle);
+	});
+}
+
 void MainWindow::SaveDefaultsSoundtrack()
 {
 	QSettings settings;
@@ -2589,6 +2615,7 @@ void MainWindow::SaveDefaultsSoundtrack()
 	settings.setValue("overlap/lock", ui->HeightCalculateBtn->isChecked());
 	settings.setValue("isstereo", ui->monostereo_PD->currentIndex());
 	settings.endGroup();
+	settings.sync();
 }
 
 void MainWindow::SaveDefaultsImage()
@@ -2608,6 +2635,7 @@ void MainWindow::SaveDefaultsImage()
 	settings.setValue("negative", ui->negBox->isChecked());
 	settings.setValue("desaturate",ui->desatBox->isChecked());
 	settings.endGroup();
+	settings.sync();
 }
 
 void MainWindow::SaveDefaultsAudio()
@@ -2634,6 +2662,7 @@ void MainWindow::SaveDefaultsAudio()
 	settings.setValue("video-flip-v", ui->outputFlipVerticalCheckBox->isChecked());
 	settings.setValue("video-rotation-index", ui->outputRotationComboBox->currentIndex());
 	settings.endGroup();
+	settings.sync();
 }
 
 void MainWindow::LoadDefaults()
@@ -3151,6 +3180,25 @@ void MainWindow::GPU_Params_Update(bool renderyes)
 				ui->leftPixSpinBox->value()/float(this->scan.inFile.Width());
 		frame_window->pixbounds[1] =
 				ui->rightPixSpinBox->value()/float(this->scan.inFile.Width());
+		{
+			const int imageW = std::max(1, this->scan.inFile.Width());
+			int left = std::max(
+					0, std::min(imageW - 1, ui->leftPixSpinBox->value()));
+			int right = std::max(
+					0, std::min(imageW - 1, ui->rightPixSpinBox->value()));
+			if(right < left) std::swap(left, right);
+			const int configuredRadius = std::max(
+					4, ui->leftPixSearchSlider->value());
+			const int leftSearchRadius = std::min(
+					std::max(4, configuredRadius),
+					std::max(4, right - left - 2));
+			const int searchStart = std::max(left + 1, left - leftSearchRadius);
+			const int searchEnd = std::min(right - 1, left + leftSearchRadius);
+			frame_window->left_pix_search_bounds[0] =
+					searchStart / float(imageW);
+			frame_window->left_pix_search_bounds[1] =
+					searchEnd / float(imageW);
+		}
 
 		frame_window->overlap[0] = TRANSSLIDER_VALUE/10000.0f;
 		frame_window->overlap[1] = ui->overlapSlider->value()/100.0f;
@@ -4998,6 +5046,7 @@ void MainWindow::on_queueDeletePresetButton_clicked()
 void MainWindow::on_leftPixSlider_sliderMoved(int position)
 {
 	ui->leftPixSpinBox->setValue(position);
+	RefreshLeftPixSearchLabel();
 	horizontalPictureStabilizationReferenceReady = false;
 	horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
 	verticalPerforationReferenceReady = false;
@@ -5007,6 +5056,7 @@ void MainWindow::on_leftPixSlider_sliderMoved(int position)
 void MainWindow::on_rightPixSlider_sliderMoved(int position)
 {
 	ui->rightPixSpinBox->setValue(position);
+	RefreshLeftPixSearchLabel();
 	horizontalPictureStabilizationReferenceReady = false;
 	horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
 	verticalPerforationReferenceReady = false;
@@ -5016,6 +5066,7 @@ void MainWindow::on_rightPixSlider_sliderMoved(int position)
 void MainWindow::on_leftPixSpinBox_valueChanged(int arg1)
 {
 	ui->leftPixSlider->setValue(arg1);
+	RefreshLeftPixSearchLabel();
 	horizontalPictureStabilizationReferenceReady = false;
 	horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
 	verticalPerforationReferenceReady = false;
@@ -5026,6 +5077,7 @@ void MainWindow::on_leftPixSpinBox_valueChanged(int arg1)
 void MainWindow::on_rightPixSpinBox_valueChanged(int arg1)
 {
 	ui->rightPixSlider->setValue(arg1);
+	RefreshLeftPixSearchLabel();
 	horizontalPictureStabilizationReferenceReady = false;
 	horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
 	verticalPerforationReferenceReady = false;
@@ -5285,6 +5337,35 @@ void MainWindow::UpdateVideoStabilizationControls()
 	ui->videoDriftSensitivityLabel->setEnabled(adaptiveMode);
 }
 
+QString MainWindow::BuildLeftPixSearchLabelText() const
+{
+	const int configuredRadius = std::max(4, ui->leftPixSearchSlider->value());
+	if(!scan.inFile.IsReady())
+		return QString("%1 px (w~%2)")
+				.arg(configuredRadius)
+				.arg(configuredRadius * 2 + 1);
+
+	const int width = std::max(1, scan.inFile.Width());
+	int left = std::max(0, std::min(width - 1, ui->leftPixSpinBox->value()));
+	int right = std::max(0, std::min(width - 1, ui->rightPixSpinBox->value()));
+	if(right < left) std::swap(left, right);
+	const int maxRadius = std::max(4, right - left - 2);
+	const int activeRadius = std::min(std::max(4, configuredRadius), maxRadius);
+	const int searchStart = std::max(left + 1, left - activeRadius);
+	const int searchEnd = std::min(right - 1, left + activeRadius);
+	const int zoneWidth = std::max(0, searchEnd - searchStart + 1);
+	return QString("%1 px (w:%2)")
+			.arg(activeRadius)
+			.arg(zoneWidth);
+}
+
+void MainWindow::RefreshLeftPixSearchLabel()
+{
+	ui->leftPixSearchValueLabel->setText(BuildLeftPixSearchLabelText());
+	ui->leftPixSearchValueLabel->setToolTip(
+			tr("Linker lijn zoekradius in px; w = effectieve zoekbreedte in px."));
+}
+
 void MainWindow::UpdateHorizontalPictureStabilizationControls()
 {
 	int strengthValue = ui->horizontalPictureStabilizationStrengthSlider->value();
@@ -5315,8 +5396,7 @@ void MainWindow::UpdateHorizontalPictureStabilizationControls()
 			perforationAwareStabilizationEnabled && pixTrackEnabled;
 	const bool verticalActive =
 			perforationControlsActive && verticalPerforationLockEnabled;
-	ui->leftPixSearchValueLabel->setText(
-			QString("%1 px").arg(std::max(4, ui->leftPixSearchSlider->value())));
+	RefreshLeftPixSearchLabel();
 
 	ui->horizontalPictureStabilizationStrengthLabel->setText(
 			QString("%1x").arg(
@@ -9459,8 +9539,8 @@ void MainWindow::on_rightPixSlider_valueChanged(int value)
 
 void MainWindow::on_leftPixSearchSlider_valueChanged(int value)
 {
-	ui->leftPixSearchValueLabel->setText(
-			QString("%1 px").arg(std::max(4, value)));
+	Q_UNUSED(value);
+	RefreshLeftPixSearchLabel();
 	horizontalPictureStabilizationReferenceReady = false;
 	horizontalPictureStabilizationCurrentShiftPixels = 0.0f;
 	verticalPerforationReferenceReady = false;
@@ -11127,7 +11207,19 @@ void MainWindow::on_queueExtractButton_clicked()
 
 void MainWindow::on_soundtrackDefaultsButton_clicked()
 {
+	if(!scan.inFile.IsReady())
+	{
+		QMessageBox::information(
+				this,
+				tr("Geen bron geladen"),
+				tr("Open eerst een bronbestand om A/V-track defaults op te slaan."));
+		return;
+	}
 	SaveDefaultsSoundtrack();
+	ShowDefaultsSavedFeedback(
+			ui->soundtrackDefaultsButton,
+			tr("Saved"),
+			tr("Set as Default: A/V-track instellingen opgeslagen."));
 }
 
 void MainWindow::ResetSoundtrackSectionToFactoryDefaults()
@@ -11261,6 +11353,10 @@ void MainWindow::on_soundtrackResetButton_clicked()
 void MainWindow::on_imageDefaultsButton_clicked()
 {
 	SaveDefaultsImage();
+	ShowDefaultsSavedFeedback(
+			ui->imageDefaultsButton,
+			tr("Saved"),
+			tr("Set as Default: Image Processing instellingen opgeslagen."));
 }
 
 void MainWindow::ResetImageSectionToFactoryDefaults()
@@ -11325,6 +11421,10 @@ void MainWindow::on_imageResetButton_clicked()
 void MainWindow::on_extractDefaultsButton_clicked()
 {
 	SaveDefaultsAudio();
+	ShowDefaultsSavedFeedback(
+			ui->extractDefaultsButton,
+			tr("Saved"),
+			tr("Set as Default: Extract A/V instellingen opgeslagen."));
 }
 
 void MainWindow::ResetExtractSectionToFactoryDefaults()
