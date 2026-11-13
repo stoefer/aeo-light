@@ -14,7 +14,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from telecine_media import (
     MediaStopped, extract_wav, ffmpeg_missing_message, find_ffmpeg, is_video_file, probe_video,
-    timeline_for_audio, write_mp4, write_subtitled_mp4, extract_frame,
+    timeline_for_audio, write_subtitled_mp4, extract_frame,
 )
 
 APP_TITLE = "TeleCine Audio Translator"
@@ -888,6 +888,7 @@ class FilmPreview(tk.Toplevel):
         self._job = 0
         self._results = queue.Queue()
         self._slide_after = None
+        self._after_ids = []
         self.position = tk.StringVar()
         self.start_text = tk.StringVar()
         self.end_text = tk.StringVar()
@@ -898,9 +899,14 @@ class FilmPreview(tk.Toplevel):
         self.protocol("WM_DELETE_WINDOW", self._close)
         self.bind("<Left>", lambda _event: self._step(-1))
         self.bind("<Right>", lambda _event: self._step(1))
-        self.after(80, self._poll)
-        self.after(60, lambda: self._load_frame(True))
+        self._later(80, self._poll)
+        self._later(60, lambda: self._load_frame(True))
         self.transient(master)
+
+    def _later(self, delay, callback):
+        token = self.after(delay, callback)
+        self._after_ids.append(token)
+        return token
 
     def _build(self):
         colors = getattr(self.master, "_colors", APPEARANCE_COLORS["Licht"])
@@ -952,7 +958,7 @@ class FilmPreview(tk.Toplevel):
         self._show_position()
         if self._slide_after is not None:
             self.after_cancel(self._slide_after)
-        self._slide_after = self.after(180, lambda: self._load_frame(False))
+        self._slide_after = self._later(180, lambda: self._load_frame(False))
 
     def _on_release(self, _event=None):
         if self._slide_after is not None:
@@ -1039,17 +1045,19 @@ class FilmPreview(tk.Toplevel):
         except queue.Empty:
             pass
         try:
-            self.after(80, self._poll)
+            self._later(80, self._poll)
         except tk.TclError:
             pass
 
     def _close(self):
         self._job += 1
-        if self._slide_after is not None:
+        for token in list(self._after_ids):
             try:
-                self.after_cancel(self._slide_after)
+                self.after_cancel(token)
             except tk.TclError:
                 pass
+        self._after_ids.clear()
+        self._slide_after = None
         if getattr(self.master, "_film_preview", None) is self:
             self.master._film_preview = None
         self.destroy()
@@ -1070,6 +1078,10 @@ class App(tk.Tk):
         self.srt_path=tk.StringVar()
         self.range_start=tk.StringVar()
         self.range_end=tk.StringVar()
+        self.subtitle_gray=tk.IntVar(value=40)
+        self.subtitle_transparency=tk.IntVar(value=15)
+        self.subtitle_gray_text=tk.StringVar(value="40")
+        self.subtitle_transparency_text=tk.StringVar(value="15%")
         self.range_text=tk.StringVar(value="Bereik: de hele film")
         self._film_preview=None
         self._speech_enabled=True
@@ -1098,6 +1110,7 @@ class App(tk.Tk):
         self.voice_choice.trace_add("write",lambda *_:self.refresh_environment_status()); self.use_uvr.trace_add("write",lambda *_:self.refresh_environment_status())
         self.make_speech.trace_add("write",self._sync_speech_controls); self.srt_path.trace_add("write",self._sync_speech_controls)
         self.range_start.trace_add("write",lambda *_:self._refresh_range_label()); self.range_end.trace_add("write",lambda *_:self._refresh_range_label())
+        self.subtitle_gray.trace_add("write",self._show_subtitle_style); self.subtitle_transparency.trace_add("write",self._show_subtitle_style)
         self.show_route_note(); self.refresh_environment_status()
 
     def _ui_font(self,size,bold=False):
@@ -1177,7 +1190,7 @@ class App(tk.Tk):
         self.srt_clear=ttk.Button(srt_buttons,text="Wissen",command=self.clear_srt); self.srt_clear.pack(side="left",padx=(6,0))
         self.speech_check=ttk.Checkbutton(m,text="Vlaamse spraak maken",variable=self.make_speech)
         self.speech_check.grid(row=5,column=0,columnspan=3,sticky="w",pady=(6,0))
-        ttk.Label(m,text="Zonder spraak komen de Nederlandse ondertitels in de MP4. Beeld en geluid blijven.",wraplength=860).grid(row=6,column=0,columnspan=3,sticky="w")
+        ttk.Label(m,text="Zonder spraak blijft het geluid. De Nederlandse tekst komt op een grijze balk die de oude ondertitel bedekt.",wraplength=860).grid(row=6,column=0,columnspan=3,sticky="w")
         ttk.Label(m,text="Uitvoermap:").grid(row=7,column=0,sticky="w",pady=6)
         self.out_entry=ttk.Entry(m,textvariable=self.outdir); self.out_entry.grid(row=7,column=1,sticky="ew",padx=8)
         self.out_button=ttk.Button(m,text="Kiezen...",command=self.choose_out); self.out_button.grid(row=7,column=2)
@@ -1194,6 +1207,15 @@ class App(tk.Tk):
         self.edit_check.grid(row=3,column=0,columnspan=3,sticky="w",pady=(6,0))
         self.translation_check=ttk.Checkbutton(opt,text="Nederlandse vertaling bewerken voor de spraak (tijden blijven staan)",variable=self.edit_translation)
         self.translation_check.grid(row=4,column=0,columnspan=3,sticky="w",pady=(4,0))
+        ttk.Label(opt,text="Grijze balk").grid(row=5,column=0,sticky="w",pady=(8,0))
+        self.gray_scale=ttk.Scale(opt,from_=0,to=255,variable=self.subtitle_gray,orient="horizontal")
+        self.gray_scale.grid(row=5,column=1,sticky="ew",padx=8,pady=(8,0))
+        ttk.Label(opt,textvariable=self.subtitle_gray_text,width=6).grid(row=5,column=2,sticky="w",pady=(8,0))
+        ttk.Label(opt,text="Transparantie").grid(row=6,column=0,sticky="w",pady=(4,0))
+        self.transparency_scale=ttk.Scale(opt,from_=0,to=100,variable=self.subtitle_transparency,orient="horizontal")
+        self.transparency_scale.grid(row=6,column=1,sticky="ew",padx=8,pady=(4,0))
+        ttk.Label(opt,textvariable=self.subtitle_transparency_text,width=6).grid(row=6,column=2,sticky="w",pady=(4,0))
+        ttk.Label(opt,text="0 is zwart en dicht. 255 is wit. 0% dekt de oude ondertitel, 100% is doorzichtig.",wraplength=820).grid(row=7,column=0,columnspan=3,sticky="w",pady=(4,0))
         u=ttk.LabelFrame(m,text="UVR: volumes en losse sporen",padding=8); u.grid(row=9,column=0,columnspan=3,sticky="ew",pady=6)
         u.columnconfigure(1,weight=1)
         self.keep_stems_check=ttk.Checkbutton(u,text="Losse UVR-sporen ook naar de uitvoermap kopiëren",variable=self.keep_stems); self.keep_stems_check.grid(row=0,column=0,columnspan=3,sticky="w",pady=(0,8))
@@ -1629,7 +1651,7 @@ class App(tk.Tk):
         s=Path(source).resolve(); sig=f"{s}|{s.stat().st_mtime_ns}|{s.stat().st_size}"; jid=hashlib.sha256(sig.encode()).hexdigest()[:16]; d=JOB_DIR/f"{safe_name(s.stem)}_{jid}"
         return {"folder":d,"state":d/"state.json","transcript":d/"transcript.txt","translation":d/"translation_nl.txt","extracted":d/"bron_audio.wav","vocals":d/"uvr_vocals.wav","background":d/"uvr_background.wav","voice":d/"vlaamse_stem.wav","mixed":d/"vlaams_met_achtergrond.wav","uvr_out":d/"uvr_output","segments":d/"segments.json","translated_segments":d/"segments_nl.json","segment_audio":d/"segment_audio"}
     def default_state(self,s):
-        return {"source":str(Path(s).resolve()),"source_language":LANGUAGES.get(self.language.get(),"fr"),"model":self.whisper.get(),"voice":VOICES[self.voice_choice.get()],"voice_label":self.voice_choice.get(),"use_uvr":bool(self.use_uvr.get()),"keep_stems":bool(self.keep_stems.get()),"write_mp4":bool(self.write_mp4.get()),"make_speech":bool(self.make_speech.get()),"srt_path":self.srt_path.get().strip(),"range_start":self.range_start.get().strip(),"range_end":self.range_end.get().strip(),"bg_volume":int(round(float(self.bg_volume.get()))),"voice_volume":int(round(float(self.voice_volume.get()))),"sync_timing":bool(self.sync_timing.get()),"edit_transcript":bool(self.edit_transcript.get()),"edit_translation":bool(self.edit_translation.get()),"max_speed":int(self.max_speed.get()),"completed_steps":0,"elapsed":0.,"status":"nieuw","output_dir":str(Path(self.outdir.get() or BASE_DIR/"Output").resolve()),"output_file":"","output_video":"","subtitle_file":"","last_error":""}
+        return {"source":str(Path(s).resolve()),"source_language":LANGUAGES.get(self.language.get(),"fr"),"model":self.whisper.get(),"voice":VOICES[self.voice_choice.get()],"voice_label":self.voice_choice.get(),"use_uvr":bool(self.use_uvr.get()),"keep_stems":bool(self.keep_stems.get()),"write_mp4":bool(self.write_mp4.get()),"make_speech":bool(self.make_speech.get()),"srt_path":self.srt_path.get().strip(),"range_start":self.range_start.get().strip(),"range_end":self.range_end.get().strip(),"subtitle_gray":max(0,min(255,int(round(float(self.subtitle_gray.get()))))),"subtitle_transparency":max(0,min(100,int(round(float(self.subtitle_transparency.get()))))),"bg_volume":int(round(float(self.bg_volume.get()))),"voice_volume":int(round(float(self.voice_volume.get()))),"sync_timing":bool(self.sync_timing.get()),"edit_transcript":bool(self.edit_transcript.get()),"edit_translation":bool(self.edit_translation.get()),"max_speed":int(self.max_speed.get()),"completed_steps":0,"elapsed":0.,"status":"nieuw","output_dir":str(Path(self.outdir.get() or BASE_DIR/"Output").resolve()),"output_file":"","output_video":"","subtitle_file":"","last_error":""}
     def load(self,p):
         try:return json.loads(p["state"].read_text(encoding="utf-8"))
         except:return None
@@ -1728,6 +1750,8 @@ class App(tk.Tk):
         self.make_speech.set(bool(st.get("make_speech", True)))
         self.range_start.set("" if st.get("range_start") in (None,"") else f"{float(st.get('range_start')):.3f}")
         self.range_end.set("" if st.get("range_end") in (None,"") else f"{float(st.get('range_end')):.3f}")
+        if "subtitle_gray" in st: self.subtitle_gray.set(max(0,min(255,int(st.get("subtitle_gray")))))
+        if "subtitle_transparency" in st: self.subtitle_transparency.set(max(0,min(100,int(st.get("subtitle_transparency")))))
         try:
             self.bg_volume.set(float(st.get("bg_volume",100))); self.voice_volume.set(float(st.get("voice_volume",100)))
             speed=int(st.get("max_speed",15))
@@ -1752,7 +1776,7 @@ class App(tk.Tk):
         self._job_running=bool(on)
         self.start.config(state="disabled" if on else "normal"); self.stop.config(state="normal" if on else "disabled")
         if on: self.resume.config(state="disabled")
-        for widget in (self.source_entry,self.out_entry,self.srt_entry,self.source_button,self.out_button,self.preview_button,self.srt_button,self.srt_clear,self.uvr_check,self.keep_stems_check,self.sync_check,self.mp4_check,self.speech_check,self.edit_check,self.translation_check,self.bg_scale,self.voice_scale):
+        for widget in (self.source_entry,self.out_entry,self.srt_entry,self.source_button,self.out_button,self.preview_button,self.srt_button,self.srt_clear,self.uvr_check,self.keep_stems_check,self.sync_check,self.mp4_check,self.speech_check,self.edit_check,self.translation_check,self.bg_scale,self.voice_scale,self.gray_scale,self.transparency_scale):
             widget.config(state="disabled" if on else "normal")
         for widget in (self.lang,self.model,self.voice,self.speed_box):
             widget.config(state="disabled" if on else "readonly")
@@ -1978,14 +2002,14 @@ class App(tk.Tk):
                         shutil.copy2(p["vocals"],out/f"{stem}_UVR_stem.wav"); shutil.copy2(p["background"],out/f"{stem}_UVR_achtergrond.wav")
                     st["output_file"]=str(final)
                     if is_video_file(source) and st.get("write_mp4",True):
-                        self.stage(6,.65,"Vertaalde audio in de MP4 schrijven...")
+                        self.stage(6,.65,"Vertaalde audio en grijze ondertitelbalk in de MP4 schrijven...")
                         final_mp4=out/f"{stem}_Vlaams_met_achtergrond.mp4" if use_uvr else out/f"{stem}_Vlaams.mp4"
-                        write_mp4(source,final,final_mp4,self.stop_event,lambda proc:setattr(self,"child",proc))
+                        self._write_subtitle_film(source,final_mp4,translated_segments,st,wav=final)
                         st["output_video"]=str(final_mp4)
                 elif is_video_file(source) and st.get("write_mp4",True):
-                    self.stage(6,.65,"Nederlandse ondertitels in de film plaatsen...")
+                    self.stage(6,.65,"Nederlandse ondertitels met grijze balk in de film plaatsen...")
                     final_mp4=out/f"{stem}_met_ondertitels.mp4"
-                    write_subtitled_mp4(source,dutch_srt,final_mp4,self.stop_event,lambda proc:setattr(self,"child",proc))
+                    self._write_subtitle_film(source,final_mp4,translated_segments,st)
                     st["output_video"]=str(final_mp4)
                 self.finish(p,st,7)
             shown=st.get("output_video") or st.get("output_file") or "Nederlandse ondertitels opgeslagen."
@@ -2051,6 +2075,19 @@ class App(tk.Tk):
             mark="[OK]" if mode=="completed" or i<done else "[>>]" if i==active and mode=="running" else "[PAUZE -> HIER]" if i==active and mode=="paused" else "[FOUT -> HIER]" if i==active and mode=="error" else "[  ]"
             lines.append(f"{mark:<18} {i+1}. {n}")
         self.steps.config(state="normal"); self.steps.delete("1.0","end"); self.steps.insert("1.0","\n".join(lines)); self.steps.config(state="disabled")
+    def _show_subtitle_style(self,*_):
+        if not hasattr(self,"subtitle_gray_text"): return
+        try:
+            gray=max(0,min(255,int(round(float(self.subtitle_gray.get())))))
+            transparency=max(0,min(100,int(round(float(self.subtitle_transparency.get())))))
+        except (TypeError,ValueError,tk.TclError):
+            return
+        self.subtitle_gray_text.set(str(gray))
+        self.subtitle_transparency_text.set(f"{transparency}%")
+    def _write_subtitle_film(self, source, mp4_out, segments, st, wav=None):
+        gray=max(0,min(255,int(round(float(st.get("subtitle_gray",40))))))
+        transparency=max(0,min(100,int(round(float(st.get("subtitle_transparency",15))))))
+        write_subtitled_mp4(source,mp4_out,segments,gray,transparency,wav,"translation",self.stop_event,lambda proc:setattr(self,"child",proc))
     def _limit_range(self, timed, st):
         start=optional_seconds(st.get("range_start")); end=optional_seconds(st.get("range_end"))
         limited=limit_segments(timed, start, end)

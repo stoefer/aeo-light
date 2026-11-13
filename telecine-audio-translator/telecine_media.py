@@ -174,7 +174,9 @@ def timeline_from_probe(payload):
         frames = 1
     if duration <= 0:
         duration = frames / fps
-    return {"duration": duration, "fps": fps, "frames": frames, "has_picture": True}
+    width = _positive_int(stream.get("width")) or 1920
+    height = _positive_int(stream.get("height")) or 1080
+    return {"duration": duration, "fps": fps, "frames": frames, "width": width, "height": height, "has_picture": True}
 
 
 def timeline_for_audio(duration):
@@ -220,7 +222,7 @@ def probe_video(path):
     cmd = [
         ffprobe, "-v", "error",
         "-select_streams", "v:0",
-        "-show_entries", "stream=avg_frame_rate,r_frame_rate,duration,nb_frames:format=duration",
+        "-show_entries", "stream=avg_frame_rate,r_frame_rate,duration,nb_frames,width,height:format=duration",
         "-of", "json",
         str(path),
     ]
@@ -360,40 +362,137 @@ def subtitle_mux_command(ffmpeg, video, srt, partial, with_audio=True):
     return cmd
 
 
-def write_subtitled_mp4(video, srt, mp4_out, stop=None, child_setter=None):
-    """Schrijf een MP4 met het oorspronkelijke beeld, het oorspronkelijke geluid en de ondertitel.
+def ass_colour(gray, transparency):
+    """ASS-kleur &HAABBGGRR. 0% transparantie is dekkend, 100% is onzichtbaar."""
+    level = max(0, min(255, int(round(float(gray)))))
+    ratio = max(0.0, min(100.0, float(transparency))) / 100.0
+    alpha = max(0, min(255, int(round(ratio * 255))))
+    return f"&H{alpha:02X}{level:02X}{level:02X}{level:02X}"
 
-    Het beeld wordt niet opnieuw gecomprimeerd. De Nederlandse ondertitel staat
-    als standaardspoor in de film.
+
+def ass_time(sec):
+    """ASS-tijd H:MM:SS.cs."""
+    total = int(round(max(0.0, float(sec)) * 100))
+    hours, rem = divmod(total, 360_000)
+    minutes, rem = divmod(rem, 6_000)
+    seconds, cs = divmod(rem, 100)
+    return f"{hours}:{minutes:02d}:{seconds:02d}.{cs:02d}"
+
+
+def write_subtitle_box(segments, path, gray=40, transparency=15, width=1920, height=1080, text_key="text"):
+    """ASS-ondertitel met een grijze balk achter de tekst.
+
+    BorderStyle 3 tekent een vlak. Dat vlak bedekt ondertitels die al in het beeld staan.
+    """
+    width = max(16, int(width))
+    height = max(16, int(height))
+    size = max(18, int(round(height / 22)))
+    pad = max(8, int(round(size / 5)))
+    margin = max(24, int(round(height / 16)))
+    box = ass_colour(gray, transparency)
+    lines = [
+        "[Script Info]",
+        "ScriptType: v4.00+",
+        f"PlayResX: {width}",
+        f"PlayResY: {height}",
+        "WrapStyle: 0",
+        "ScaledBorderAndShadow: yes",
+        "",
+        "[V4+ Styles]",
+        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
+        f"Style: Dutch,Arial,{size},&H00FFFFFF,&H00FFFFFF,{box},{box},0,0,0,0,100,100,0,0,3,{pad},0,2,{margin},{margin},{margin},1",
+        "",
+        "[Events]",
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+    ]
+    for item in segments:
+        text = " ".join(str((item or {}).get(text_key) or "").split())
+        if not text:
+            continue
+        start = float(item["start"])
+        end = float(item["end"])
+        if end <= start:
+            end = start + 0.001
+        safe = text.replace("\\", "\\\\").replace("{", "\\{").replace("}", "\\}")
+        lines.append(f"Dialogue: 0,{ass_time(start)},{ass_time(end)},Dutch,,0,0,0,,{safe}")
+    target = Path(path)
+    target.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return target
+
+
+def escape_filter_path(path):
+    """Maak een pad bruikbaar in een FFmpeg-filter."""
+    text = Path(path).resolve().as_posix()
+    return "".join("\\" + char if char in "\\:'[],;" else char for char in text)
+
+
+def burn_subtitle_command(ffmpeg, video, ass, partial, wav=None, with_audio=True):
+    """Teken de balk op het beeld. Het geluid wordt gekopieerd, of vervangen door wav."""
+    escaped = escape_filter_path(ass)
+    cmd = [ffmpeg, "-hide_banner", "-y", "-i", str(video)]
+    if wav:
+        cmd += ["-i", str(wav)]
+    cmd += ["-filter_complex", f"[0:v:0]subtitles=filename='{escaped}'[v]", "-map", "[v]"]
+    if wav:
+        cmd += ["-map", "1:a:0", "-c:a", "aac", "-b:a", "192k"]
+    elif with_audio:
+        cmd += ["-map", "0:a:0", "-c:a", "copy"]
+    cmd += [
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p",
+        "-movflags", "+faststart",
+        str(partial),
+    ]
+    return cmd
+
+
+def write_subtitled_mp4(video, mp4_out, segments, gray=40, transparency=15, wav=None, text_key="text", stop=None, child_setter=None):
+    """Schrijf een MP4 met de Nederlandse tekst op een grijze balk.
+
+    Het beeld wordt opnieuw geschreven, anders kan de balk de oude ondertitel
+    niet bedekken. Zonder wav blijft het oorspronkelijke geluid staan.
     """
     ffmpeg = require_ffmpeg()
     target = Path(mp4_out)
     target.parent.mkdir(parents=True, exist_ok=True)
     partial = target.with_name(target.stem + ".part.mp4")
+    ass = target.with_name(target.stem + ".ondertitel.ass")
+    width, height = 1920, 1080
+    try:
+        info = probe_video(video)
+        width = int(info.get("width") or width)
+        height = int(info.get("height") or height)
+    except Exception:
+        pass
+    write_subtitle_box(segments, ass, gray, transparency, width, height, text_key)
     partial.unlink(missing_ok=True)
 
     def _run(with_audio):
         partial.unlink(missing_ok=True)
-        run_tool(subtitle_mux_command(ffmpeg, video, srt, partial, with_audio), stop, child_setter)
+        run_tool(burn_subtitle_command(ffmpeg, video, ass, partial, wav, with_audio), stop, child_setter)
 
     try:
         try:
-            _run(True)
+            _run(wav is None)
         except RuntimeError as exc:
             low = str(exc).lower()
-            if "matches no streams" in low or "does not contain any stream" in low:
+            if wav is None and ("matches no streams" in low or "does not contain any stream" in low):
                 _run(False)
             else:
                 raise
     except MediaStopped:
         partial.unlink(missing_ok=True)
+        ass.unlink(missing_ok=True)
         raise
     except RuntimeError as exc:
         partial.unlink(missing_ok=True)
+        ass.unlink(missing_ok=True)
         low = str(exc).lower()
         if "matches no streams" in low or "does not contain any stream" in low:
             raise RuntimeError("Deze MP4 heeft geen videobeeld om te behouden.") from exc
-        raise RuntimeError("De ondertitels konden niet in de MP4 gezet worden.\n" + str(exc)) from exc
+        if "libx264" in low or "unknown encoder" in low:
+            raise RuntimeError("De grijze balk kon niet op het beeld gezet worden. FFmpeg mist libx264.\n" + str(exc)) from exc
+        raise RuntimeError("De ondertitels konden niet op het beeld gezet worden.\n" + str(exc)) from exc
+    ass.unlink(missing_ok=True)
     if not partial.is_file() or partial.stat().st_size < 32:
         partial.unlink(missing_ok=True)
         raise RuntimeError("De MP4 met ondertitels is leeg.")

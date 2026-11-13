@@ -94,7 +94,6 @@ class PreviewWindowTests(unittest.TestCase):
     def tearDown(self):
         preview = getattr(self.app, "_film_preview", None)
         if preview is not None:
-            cancel_after(preview)
             try:
                 preview._close()
             except Exception:
