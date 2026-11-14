@@ -36,6 +36,7 @@
 #include <QTimer>
 #include <QDate>
 #include <QProgressDialog>
+#include <QSettings>
 #include <vector>
 #include <queue>
 #include "frame_view_gl.h"
@@ -412,6 +413,22 @@ private:
 	QPointer<QCheckBox> autoOptimizeContrastCheckBox;
 	QPointer<QSlider> autoContrastLevelSlider;
 	QPointer<QSlider> autoColorLevelSlider;
+	struct ImageProcTargetValues
+	{
+		int lift = 0;
+		int gamma = 100;
+		int gain = 100;
+		int threshold = 300;
+		int blur = 0;
+		int red = 100;
+		int green = 100;
+		int blue = 100;
+		int brightness = 0;
+		int contrast = 100;
+		bool negative = false;
+		bool desaturate = false;
+		bool thresholdOn = false;
+	};
 	bool imagePresetRefreshLock = false;
 	bool imageProcTargetSwitchLock = false;
 	bool imageProcTargetsLoaded = false;
@@ -552,28 +569,14 @@ private:
 	void UpdateAdaptiveUiScale();
 	void PositionExtractTabAuxSections();
 	void PositionTransportBarBelowTabs();
-	struct ImageProcTargetValues
-	{
-		int lift = 0;
-		int gamma = 100;
-		int gain = 100;
-		int threshold = 300;
-		int blur = 0;
-		int red = 100;
-		int green = 100;
-		int blue = 100;
-		int brightness = 0;
-		int contrast = 100;
-		bool negative = false;
-		bool desaturate = false;
-		bool thresholdOn = false;
-	};
 	void SetupImageProcExtras();
 	void CaptureImageProcTargetFromControls(ImageProcTargetValues &values) const;
 	void ApplyImageProcTargetToControls(const ImageProcTargetValues &values);
 	ImageProcTargetValues &ActiveImageProcTarget();
 	void SaveImageProcTargets() const;
 	void LoadImageProcTargets(bool captureCurrentIfMissing);
+	static void WriteImageProcTargetGroup(QSettings &settings, const QString &group, const ImageProcTargetValues &values);
+	static bool ReadImageProcTargetGroup(QSettings &settings, const QString &group, ImageProcTargetValues &values);
 	static ImageProcTargetValues FactoryImageProcTarget();
 	void RefreshImagePresetCombo();
 	void ApplyNamedImagePreset(const QString &presetKey);

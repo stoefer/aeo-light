@@ -2058,10 +2058,10 @@ void MainWindow::ApplyImageProcTargetToControls(const ImageProcTargetValues &val
 	}
 }
 
-static void WriteImageProcTargetGroup(
+void MainWindow::WriteImageProcTargetGroup(
 		QSettings &settings,
 		const QString &group,
-		const MainWindow::ImageProcTargetValues &values)
+		const ImageProcTargetValues &values)
 {
 	settings.beginGroup(group);
 	settings.setValue("lift", values.lift);
@@ -2080,10 +2080,10 @@ static void WriteImageProcTargetGroup(
 	settings.endGroup();
 }
 
-static bool ReadImageProcTargetGroup(
+bool MainWindow::ReadImageProcTargetGroup(
 		QSettings &settings,
 		const QString &group,
-		MainWindow::ImageProcTargetValues &values)
+		ImageProcTargetValues &values)
 {
 	settings.beginGroup(group);
 	const bool present = settings.contains("lift");
