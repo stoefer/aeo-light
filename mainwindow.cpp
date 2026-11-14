@@ -43,6 +43,15 @@
 #include <QMessageBox>
 #include <QDesktopServices>
 #include <QInputDialog>
+#include <QLineEdit>
+#include <QPair>
+#include <QGridLayout>
+#include <QHBoxLayout>
+#include <QVBoxLayout>
+#include <QSlider>
+#include <QComboBox>
+#include <QCheckBox>
+#include <QPushButton>
 #include <QFormLayout>
 #include <QSoundEffect>
 #include <QImage>
@@ -577,6 +586,9 @@ struct AutoFrameStats
 	double lumaLow = 0.0;
 	double lumaHigh = 1.0;
 	double channelSpread = 0.0;
+	double meanR = 0.0;
+	double meanG = 0.0;
+	double meanB = 0.0;
 	bool valid = false;
 };
 
@@ -734,6 +746,9 @@ static bool ComputeAutoFrameStats(const FrameTexture *frame, AutoFrameStats &sta
 			(std::abs(rMean - gMean) +
 			 std::abs(gMean - bMean) +
 			 std::abs(bMean - rMean)) / 3.0;
+	stats.meanR = rMean;
+	stats.meanG = gMean;
+	stats.meanB = bMean;
 	stats.valid = true;
 	return true;
 }
@@ -1552,7 +1567,10 @@ MainWindow::MainWindow(QWidget *parent) :
 	autoOptimizeFramesEnabled = false;
 	autoOptimizeVideoEnabled = false;
 	autoOptimizeColorEnabled = true;
+	autoOptimizeContrastEnabled = true;
 	autoOptimizeProfileMode = 1;
+	autoContrastLevel = 100;
+	autoColorLevel = 100;
 	compactModeEnabled = false;
 	autoOptimizeFrameApplyLock = false;
 	suppressFrameAutoOptimizeDuringExtraction = false;
@@ -1562,6 +1580,7 @@ MainWindow::MainWindow(QWidget *parent) :
 	uiScaleBaseSize = QSize();
 	LoadVideoExportSettings();
 	LoadExtractOutputSettings();
+	SetupImageProcExtras();
 	InstallInlineHelpIcons();
 	bool usedLegacyShowHelpKey = false;
 	const bool showHelpText = ReadShowHelpTextSetting(&usedLegacyShowHelpKey);
@@ -1914,6 +1933,425 @@ void MainWindow::PositionExtractTabAuxSections()
 	}
 }
 
+namespace {
+
+const int kImagePresetLeave = -10000;
+
+struct FixedImagePreset
+{
+	const char *name;
+	int lift;
+	int gamma;
+	int gain;
+	int red;
+	int green;
+	int blue;
+	int brightness;
+	int contrast;
+};
+
+const FixedImagePreset kFixedImagePresets[] = {
+	{ "Neutraal", 0, 100, 100, 100, 100, 100, 0, 100 },
+	{ "Rode zweem minder", kImagePresetLeave, kImagePresetLeave, kImagePresetLeave, 82, 104, 110, kImagePresetLeave, kImagePresetLeave },
+	{ "Gele zweem minder", kImagePresetLeave, kImagePresetLeave, kImagePresetLeave, 90, 96, 112, kImagePresetLeave, kImagePresetLeave },
+	{ "Groene zweem minder", kImagePresetLeave, kImagePresetLeave, kImagePresetLeave, 108, 86, 104, kImagePresetLeave, kImagePresetLeave },
+	{ "Blauwe zweem minder", kImagePresetLeave, kImagePresetLeave, kImagePresetLeave, 110, 104, 84, kImagePresetLeave, kImagePresetLeave },
+	{ "Meer contrast", kImagePresetLeave, 92, 125, kImagePresetLeave, kImagePresetLeave, kImagePresetLeave, kImagePresetLeave, 125 },
+	{ "Minder contrast", kImagePresetLeave, 108, 90, kImagePresetLeave, kImagePresetLeave, kImagePresetLeave, kImagePresetLeave, 85 },
+	{ "Helderder", 8, kImagePresetLeave, 112, kImagePresetLeave, kImagePresetLeave, kImagePresetLeave, 12, kImagePresetLeave },
+	{ "Donkerder", -8, kImagePresetLeave, 90, kImagePresetLeave, kImagePresetLeave, kImagePresetLeave, -12, kImagePresetLeave }
+};
+
+int FixedImagePresetCount()
+{
+	return int(sizeof(kFixedImagePresets) / sizeof(kFixedImagePresets[0]));
+}
+
+void PutFixedPresetValue(QVariantMap &values, const char *key, int value)
+{
+	if(value != kImagePresetLeave)
+		values.insert(QString::fromLatin1(key), value);
+}
+
+QVariantMap FixedImagePresetValues(int index)
+{
+	QVariantMap values;
+	if(index < 0 || index >= FixedImagePresetCount())
+		return values;
+	const FixedImagePreset &preset = kFixedImagePresets[index];
+	PutFixedPresetValue(values, "lift", preset.lift);
+	PutFixedPresetValue(values, "gamma", preset.gamma);
+	PutFixedPresetValue(values, "gain", preset.gain);
+	PutFixedPresetValue(values, "red", preset.red);
+	PutFixedPresetValue(values, "green", preset.green);
+	PutFixedPresetValue(values, "blue", preset.blue);
+	PutFixedPresetValue(values, "brightness", preset.brightness);
+	PutFixedPresetValue(values, "contrast", preset.contrast);
+	return values;
+}
+
+} // namespace
+
+void MainWindow::SetupImageProcExtras()
+{
+	if(!ui || !ui->tab_2 || imageToneGroupBox)
+		return;
+
+	imageToneGroupBox = new QGroupBox(tr("Helderheid en contrast"), ui->tab_2);
+	QGridLayout *toneLayout = new QGridLayout(imageToneGroupBox);
+	toneLayout->setContentsMargins(8, 8, 8, 8);
+	toneLayout->setHorizontalSpacing(8);
+	QLabel *brightnessCaption = new QLabel(tr("Helderheid"), imageToneGroupBox);
+	imageBrightnessSlider = new QSlider(Qt::Horizontal, imageToneGroupBox);
+	imageBrightnessSlider->setRange(-100, 100);
+	imageBrightnessSlider->setValue(0);
+	imageBrightnessSlider->setToolTip(
+			tr("Verschuift het beeld lichter of donkerder. 0 is neutraal."));
+	imageBrightnessValueLabel = new QLabel(tr("0.00"), imageToneGroupBox);
+	imageBrightnessValueLabel->setMinimumWidth(42);
+	QLabel *contrastCaption = new QLabel(tr("Contrast"), imageToneGroupBox);
+	imageContrastSlider = new QSlider(Qt::Horizontal, imageToneGroupBox);
+	imageContrastSlider->setRange(25, 200);
+	imageContrastSlider->setValue(100);
+	imageContrastSlider->setToolTip(
+			tr("1.00 is neutraal. Lager maakt het vlakker, hoger maakt het harder."));
+	imageContrastValueLabel = new QLabel(tr("1.00"), imageToneGroupBox);
+	imageContrastValueLabel->setMinimumWidth(42);
+	toneLayout->addWidget(brightnessCaption, 0, 0);
+	toneLayout->addWidget(imageBrightnessSlider, 0, 1);
+	toneLayout->addWidget(imageBrightnessValueLabel, 0, 2);
+	toneLayout->addWidget(contrastCaption, 1, 0);
+	toneLayout->addWidget(imageContrastSlider, 1, 1);
+	toneLayout->addWidget(imageContrastValueLabel, 1, 2);
+	connect(imageBrightnessSlider.data(), &QSlider::valueChanged, this, [this](int value)
+	{
+		if(imageBrightnessValueLabel)
+			imageBrightnessValueLabel->setText(QString::number(value / 100.f, 'f', 2));
+		GPU_Params_Update(1);
+	});
+	connect(imageContrastSlider.data(), &QSlider::valueChanged, this, [this](int value)
+	{
+		if(imageContrastValueLabel)
+			imageContrastValueLabel->setText(QString::number(value / 100.f, 'f', 2));
+		GPU_Params_Update(1);
+	});
+
+	imagePresetGroupBox = new QGroupBox(tr("Image Proc presets"), ui->tab_2);
+	QVBoxLayout *presetLayout = new QVBoxLayout(imagePresetGroupBox);
+	presetLayout->setContentsMargins(8, 8, 8, 8);
+	presetLayout->setSpacing(6);
+	imagePresetComboBox = new QComboBox(imagePresetGroupBox);
+	imagePresetComboBox->setToolTip(
+			tr("Kies een vaste correctie of een opgeslagen eigen preset."));
+	QWidget *presetButtons = new QWidget(imagePresetGroupBox);
+	QHBoxLayout *presetButtonLayout = new QHBoxLayout(presetButtons);
+	presetButtonLayout->setContentsMargins(0, 0, 0, 0);
+	QPushButton *savePresetButton = new QPushButton(tr("Opslaan"), presetButtons);
+	QPushButton *deletePresetButton = new QPushButton(tr("Verwijderen"), presetButtons);
+	savePresetButton->setToolTip(
+			tr("Sla de huidige Image Proc-waarden op onder een eigen naam."));
+	deletePresetButton->setToolTip(
+			tr("Verwijder de gekozen persoonlijke preset. Vaste presets blijven staan."));
+	presetButtonLayout->addWidget(savePresetButton);
+	presetButtonLayout->addWidget(deletePresetButton);
+	presetButtonLayout->addStretch(1);
+	QLabel *presetHelp = new QLabel(
+			tr("Vaste presets zetten de meest voorkomende kleurzwemen, helderheid en contrast. Opslaan bewaart lift, gamma, gain, kleurbalans, helderheid en contrast."),
+			imagePresetGroupBox);
+	presetHelp->setWordWrap(true);
+	presetLayout->addWidget(imagePresetComboBox);
+	presetLayout->addWidget(presetButtons);
+	presetLayout->addWidget(presetHelp);
+	RefreshImagePresetCombo();
+	connect(imagePresetComboBox.data(),
+			static_cast<void (QComboBox::*)(int)>(&QComboBox::activated),
+			this,
+			[this](int index)
+	{
+		if(imagePresetRefreshLock || !imagePresetComboBox)
+			return;
+		ApplyNamedImagePreset(imagePresetComboBox->itemData(index).toString());
+	});
+	connect(savePresetButton, &QPushButton::clicked, this, [this]()
+	{
+		SavePersonalImagePreset();
+	});
+	connect(deletePresetButton, &QPushButton::clicked, this, [this]()
+	{
+		DeletePersonalImagePreset();
+	});
+
+	if(ui->autoOptimizeGroupBox)
+	{
+		ui->autoOptimizeGroupBox->setParent(ui->tab_2);
+		ui->autoOptimizeColorCheckBox->setText(tr("Auto kleur"));
+		ui->autoOptimizeColorCheckBox->setToolTip(
+				tr("Corrigeert de kleurbalans van het frame en de saturatie van de video-export."));
+		autoOptimizeContrastCheckBox = new QCheckBox(
+				tr("Auto contrast"), ui->autoOptimizeGroupBox);
+		autoOptimizeContrastCheckBox->setChecked(autoOptimizeContrastEnabled);
+		autoOptimizeContrastCheckBox->setToolTip(
+				tr("Past lift, gamma en gain aan, en helderheid/contrast van de video-export."));
+		if(ui->autoOptimizeProfileLayout)
+			ui->autoOptimizeProfileLayout->addWidget(autoOptimizeContrastCheckBox);
+
+		auto makeLevelRow = [](QWidget *parent, const QString &caption, int value) -> QPair<QWidget*, QSlider*>
+		{
+			QWidget *row = new QWidget(parent);
+			QHBoxLayout *rowLayout = new QHBoxLayout(row);
+			rowLayout->setContentsMargins(0, 0, 0, 0);
+			QLabel *captionLabel = new QLabel(caption, row);
+			captionLabel->setMinimumWidth(110);
+			QSlider *slider = new QSlider(Qt::Horizontal, row);
+			slider->setRange(0, 100);
+			slider->setValue(value);
+			QLabel *valueLabel = new QLabel(row);
+			valueLabel->setMinimumWidth(42);
+			valueLabel->setText(QString::number(slider->value()) + "%");
+			rowLayout->addWidget(captionLabel);
+			rowLayout->addWidget(slider, 1);
+			rowLayout->addWidget(valueLabel);
+			QObject::connect(slider, &QSlider::valueChanged, valueLabel, [valueLabel](int newValue)
+			{
+				valueLabel->setText(QString::number(newValue) + "%");
+			});
+			return qMakePair(row, slider);
+		};
+		if(ui->autoOptimizeGridLayout)
+		{
+			const QPair<QWidget*, QSlider*> contrastRow = makeLevelRow(
+					ui->autoOptimizeGroupBox,
+					tr("Contrastniveau"),
+					ClampRangeInt(autoContrastLevel, 0, 100));
+			const QPair<QWidget*, QSlider*> colorRow = makeLevelRow(
+					ui->autoOptimizeGroupBox,
+					tr("Kleurniveau"),
+					ClampRangeInt(autoColorLevel, 0, 100));
+			autoContrastLevelSlider = contrastRow.second;
+			autoColorLevelSlider = colorRow.second;
+			ui->autoOptimizeGridLayout->addWidget(contrastRow.first, 5, 0, 1, 2);
+			ui->autoOptimizeGridLayout->addWidget(colorRow.first, 6, 0, 1, 2);
+		}
+		ui->autoOptimizeHelpLabel->setText(
+				tr("Kleur en contrast schakel je apart. Het niveau (0-100%) bepaalt hoe sterk het gekozen profiel ingrijpt. 100% is de volle sterkte van Conservatief, Standaard of Sterk."));
+		if(autoOptimizeContrastCheckBox)
+		{
+			connect(autoOptimizeContrastCheckBox.data(), &QCheckBox::toggled, this, [this](bool checked)
+			{
+				autoOptimizeContrastEnabled = checked;
+				SaveVideoExportSettings();
+				if(autoOptimizeFramesEnabled)
+					ApplyAutoOptimizationToFrameControls(true);
+				else
+					UpdateAutoOptimizationControls();
+			});
+		}
+		if(autoContrastLevelSlider)
+		{
+			connect(autoContrastLevelSlider.data(), &QSlider::valueChanged, this, [this](int value)
+			{
+				autoContrastLevel = ClampRangeInt(value, 0, 100);
+				SaveVideoExportSettings();
+				if(autoOptimizeFramesEnabled)
+					ApplyAutoOptimizationToFrameControls(true);
+				else
+					UpdateAutoOptimizationControls();
+			});
+		}
+		if(autoColorLevelSlider)
+		{
+			connect(autoColorLevelSlider.data(), &QSlider::valueChanged, this, [this](int value)
+			{
+				autoColorLevel = ClampRangeInt(value, 0, 100);
+				SaveVideoExportSettings();
+				if(autoOptimizeFramesEnabled)
+					ApplyAutoOptimizationToFrameControls(true);
+				else
+					UpdateAutoOptimizationControls();
+			});
+		}
+	}
+	UpdateAutoOptimizationControls();
+}
+
+void MainWindow::RefreshImagePresetCombo()
+{
+	if(!imagePresetComboBox)
+		return;
+	imagePresetRefreshLock = true;
+	const QString selected = imagePresetComboBox->currentData().toString();
+	imagePresetComboBox->blockSignals(true);
+	imagePresetComboBox->clear();
+	imagePresetComboBox->addItem(tr("Kies een preset…"), QString());
+	for(int i = 0; i < FixedImagePresetCount(); ++i)
+	{
+		imagePresetComboBox->addItem(
+				tr(kFixedImagePresets[i].name),
+				QString("fixed:%1").arg(i));
+	}
+	QSettings settings;
+	settings.beginGroup("image-proc-presets");
+	QStringList names = settings.childKeys();
+	settings.endGroup();
+	names.sort(Qt::CaseInsensitive);
+	if(!names.isEmpty())
+		imagePresetComboBox->insertSeparator(imagePresetComboBox->count());
+	for(const QString &name : names)
+		imagePresetComboBox->addItem(name, QString("user:%1").arg(name));
+	const int restoreIndex = imagePresetComboBox->findData(selected);
+	imagePresetComboBox->setCurrentIndex(restoreIndex >= 0 ? restoreIndex : 0);
+	imagePresetComboBox->blockSignals(false);
+	imagePresetRefreshLock = false;
+}
+
+void MainWindow::ApplyNamedImagePreset(const QString &presetKey)
+{
+	if(presetKey.isEmpty())
+		return;
+	QVariantMap values;
+	if(presetKey.startsWith("fixed:"))
+	{
+		bool ok = false;
+		const int index = presetKey.mid(QString("fixed:").size()).toInt(&ok);
+		if(!ok)
+			return;
+		values = FixedImagePresetValues(index);
+	}
+	else if(presetKey.startsWith("user:"))
+	{
+		const QString name = presetKey.mid(QString("user:").size());
+		QSettings settings;
+		settings.beginGroup("image-proc-presets");
+		values = settings.value(name).toMap();
+		settings.endGroup();
+	}
+	if(values.isEmpty())
+		return;
+
+	auto assignSlider = [](QSlider *slider, const QVariantMap &source, const char *key)
+	{
+		const QString name = QString::fromLatin1(key);
+		if(!slider || !source.contains(name))
+			return;
+		slider->setValue(source.value(name).toInt());
+	};
+	assignSlider(ui->liftSlider, values, "lift");
+	assignSlider(ui->gammaSlider, values, "gamma");
+	assignSlider(ui->gainSlider, values, "gain");
+	assignSlider(ui->redBalanceSlider, values, "red");
+	assignSlider(ui->greenBalanceSlider, values, "green");
+	assignSlider(ui->blueBalanceSlider, values, "blue");
+	assignSlider(ui->blurSlider, values, "blur");
+	assignSlider(ui->thresholdSlider, values, "threshold");
+	assignSlider(imageBrightnessSlider, values, "brightness");
+	assignSlider(imageContrastSlider, values, "contrast");
+	if(values.contains("negative"))
+		ui->negBox->setChecked(values.value("negative").toBool());
+	if(values.contains("desaturate"))
+		ui->desatBox->setChecked(values.value("desaturate").toBool());
+	if(values.contains("threshold-on"))
+		ui->threshBox->setChecked(values.value("threshold-on").toBool());
+	GPU_Params_Update(1);
+}
+
+void MainWindow::SavePersonalImagePreset()
+{
+	bool accepted = false;
+	const QString name = QInputDialog::getText(
+			this,
+			tr("Preset opslaan"),
+			tr("Naam van deze Image Proc-preset"),
+			QLineEdit::Normal,
+			QString(),
+			&accepted).trimmed();
+	if(!accepted || name.isEmpty())
+		return;
+	if(name.size() > 60)
+	{
+		QMessageBox::information(
+				this,
+				tr("Preset opslaan"),
+				tr("Gebruik een naam van hoogstens 60 tekens."));
+		return;
+	}
+	QSettings settings;
+	settings.beginGroup("image-proc-presets");
+	if(settings.contains(name))
+	{
+		const QMessageBox::StandardButton answer = QMessageBox::question(
+				this,
+				tr("Preset opslaan"),
+				tr("\"%1\" bestaat al. Overschrijven?").arg(name));
+		if(answer != QMessageBox::Yes)
+		{
+			settings.endGroup();
+			return;
+		}
+	}
+	QVariantMap values;
+	values.insert("lift", ui->liftSlider->value());
+	values.insert("gamma", ui->gammaSlider->value());
+	values.insert("gain", ui->gainSlider->value());
+	values.insert("red", ui->redBalanceSlider->value());
+	values.insert("green", ui->greenBalanceSlider->value());
+	values.insert("blue", ui->blueBalanceSlider->value());
+	values.insert("blur", ui->blurSlider->value());
+	values.insert("threshold", ui->thresholdSlider->value());
+	values.insert("negative", ui->negBox->isChecked());
+	values.insert("desaturate", ui->desatBox->isChecked());
+	values.insert("threshold-on", ui->threshBox->isChecked());
+	if(imageBrightnessSlider)
+		values.insert("brightness", imageBrightnessSlider->value());
+	if(imageContrastSlider)
+		values.insert("contrast", imageContrastSlider->value());
+	settings.setValue(name, values);
+	settings.endGroup();
+	settings.sync();
+	RefreshImagePresetCombo();
+	if(imagePresetComboBox)
+	{
+		const int index = imagePresetComboBox->findData(QString("user:%1").arg(name));
+		if(index >= 0)
+		{
+			imagePresetRefreshLock = true;
+			imagePresetComboBox->setCurrentIndex(index);
+			imagePresetRefreshLock = false;
+		}
+	}
+	if(ui->statusBar)
+		ui->statusBar->showMessage(tr("Preset \"%1\" opgeslagen.").arg(name), 3500);
+}
+
+void MainWindow::DeletePersonalImagePreset()
+{
+	if(!imagePresetComboBox)
+		return;
+	const QString key = imagePresetComboBox->currentData().toString();
+	if(!key.startsWith("user:"))
+	{
+		QMessageBox::information(
+				this,
+				tr("Preset verwijderen"),
+				tr("Kies eerst een persoonlijke preset. Vaste presets blijven beschikbaar."));
+		return;
+	}
+	const QString name = key.mid(QString("user:").size());
+	const QMessageBox::StandardButton answer = QMessageBox::question(
+			this,
+			tr("Preset verwijderen"),
+			tr("\"%1\" verwijderen?").arg(name));
+	if(answer != QMessageBox::Yes)
+		return;
+	QSettings settings;
+	settings.beginGroup("image-proc-presets");
+	settings.remove(name);
+	settings.endGroup();
+	settings.sync();
+	RefreshImagePresetCombo();
+	if(ui->statusBar)
+		ui->statusBar->showMessage(tr("Preset \"%1\" verwijderd.").arg(name), 3500);
+}
+
 void MainWindow::PositionTransportBarBelowTabs()
 {
 	if(!ui || !ui->horizontalLayoutWidget_2 || !ui->tab_2) return;
@@ -1935,6 +2373,9 @@ void MainWindow::PositionTransportBarBelowTabs()
 	for(QWidget *sibling : siblings)
 	{
 		if(!sibling || sibling == bar || sibling->isHidden()) continue;
+		if(sibling == imageToneGroupBox || sibling == imagePresetGroupBox ||
+				sibling == ui->autoOptimizeGroupBox)
+			continue;
 		contentBottom = std::max(contentBottom, sibling->geometry().bottom());
 	}
 
@@ -1943,7 +2384,40 @@ void MainWindow::PositionTransportBarBelowTabs()
 	const int tabWidth = std::max(280, ui->tab_2->width() - (2 * margin));
 	const int barY = contentBottom + gap;
 	bar->setGeometry(margin, barY, tabWidth, barHeight);
-	bar->raise();
+
+	int footerY = barY + barHeight + gap;
+	auto sectionHeight = [](QWidget *widget, int width, int minimumHeight) -> int
+	{
+		if(!widget)
+			return 0;
+		int hinted = widget->sizeHint().height();
+		if(QLayout *layout = widget->layout())
+		{
+			const int contentWidth = std::max(200, width - 24);
+			if(layout->hasHeightForWidth())
+				hinted = std::max(hinted, layout->heightForWidth(contentWidth) + 30);
+			else
+				hinted = std::max(hinted, layout->sizeHint().height() + 30);
+		}
+		return std::max(minimumHeight, hinted + 8);
+	};
+	auto placeFooter = [&](QWidget *widget, int height)
+	{
+		if(!widget || height < 1) return;
+		if(widget->parentWidget() != ui->tab_2)
+			widget->setParent(ui->tab_2);
+		widget->setMinimumWidth(0);
+		widget->setMaximumWidth(QWIDGETSIZE_MAX);
+		widget->setGeometry(margin, footerY, tabWidth, height);
+		widget->show();
+		widget->raise();
+		footerY += height + gap;
+	};
+	placeFooter(imageToneGroupBox, sectionHeight(imageToneGroupBox, tabWidth, 108));
+	placeFooter(imagePresetGroupBox, sectionHeight(imagePresetGroupBox, tabWidth, 150));
+	placeFooter(
+			ui->autoOptimizeGroupBox,
+			std::min(480, sectionHeight(ui->autoOptimizeGroupBox, tabWidth, 300)));
 
 	if(ui->playSlider)
 	{
@@ -1977,7 +2451,7 @@ void MainWindow::PositionTransportBarBelowTabs()
 		ui->horizontalLayout_3->setStretch(ui->horizontalLayout_3->count() - 1, 1);
 	}
 
-	const int neededPageHeight = barY + barHeight + margin;
+	const int neededPageHeight = footerY + margin;
 	ui->tab_2->setMinimumHeight(neededPageHeight);
 	if(ui->tabWidget)
 	{
@@ -3063,6 +3537,10 @@ void MainWindow::SaveDefaultsImage()
 	settings.setValue("blur-sharp", ui->blurSlider->value());
 	settings.setValue("negative", ui->negBox->isChecked());
 	settings.setValue("desaturate",ui->desatBox->isChecked());
+	if(imageBrightnessSlider)
+		settings.setValue("brightness", imageBrightnessSlider->value());
+	if(imageContrastSlider)
+		settings.setValue("contrast", imageContrastSlider->value());
 	settings.endGroup();
 	settings.sync();
 }
@@ -3214,6 +3692,16 @@ void MainWindow::LoadDefaults()
 
 	ui->negBox->setChecked(settings.value("negative",false).toBool());
 	ui->desatBox->setChecked(settings.value("desaturate",false).toBool());
+	if(imageBrightnessSlider)
+	{
+		imageBrightnessSlider->setValue(
+				settings.value("brightness", 0).toInt());
+	}
+	if(imageContrastSlider)
+	{
+		imageContrastSlider->setValue(
+				settings.value("contrast", 100).toInt());
+	}
 	settings.endGroup();
 
 	// extraction/export parameters
@@ -3647,6 +4135,10 @@ void MainWindow::GPU_Params_Update(bool renderyes)
 		frame_window->red_balance = ui->redBalanceSlider->value()/100.0f;
 		frame_window->green_balance = ui->greenBalanceSlider->value()/100.0f;
 		frame_window->blue_balance = ui->blueBalanceSlider->value()/100.0f;
+		frame_window->tone_brightness = imageBrightnessSlider ?
+				imageBrightnessSlider->value() / 200.0f : 0.0f;
+		frame_window->tone_contrast = imageContrastSlider ?
+				std::max(0.25f, imageContrastSlider->value() / 100.0f) : 1.0f;
 		frame_window->blur = ui->blurSlider->value()/100.0f;
 		frame_window->threshold = ui->thresholdSlider->value()/100.0f;
 		frame_window->thresh = ui->threshBox->checkState();
@@ -6299,8 +6791,14 @@ void MainWindow::LoadVideoExportSettings()
 			settings.value("auto-optimize-video", false).toBool();
 	autoOptimizeColorEnabled =
 			settings.value("auto-optimize-color", true).toBool();
+	autoOptimizeContrastEnabled =
+			settings.value("auto-optimize-contrast", true).toBool();
 	autoOptimizeProfileMode = ClampRangeInt(
 			settings.value("auto-optimize-profile", 1).toInt(), 0, 2);
+	autoContrastLevel = ClampRangeInt(
+			settings.value("auto-contrast-level", 100).toInt(), 0, 100);
+	autoColorLevel = ClampRangeInt(
+			settings.value("auto-color-level", 100).toInt(), 0, 100);
 	settings.endGroup();
 	UpdateVideoExportControls();
 }
@@ -6320,7 +6818,10 @@ void MainWindow::SaveVideoExportSettings() const
 	settings.setValue("auto-optimize-frames", autoOptimizeFramesEnabled);
 	settings.setValue("auto-optimize-video", autoOptimizeVideoEnabled);
 	settings.setValue("auto-optimize-color", autoOptimizeColorEnabled);
+	settings.setValue("auto-optimize-contrast", autoOptimizeContrastEnabled);
 	settings.setValue("auto-optimize-profile", autoOptimizeProfileMode);
+	settings.setValue("auto-contrast-level", autoContrastLevel);
+	settings.setValue("auto-color-level", autoColorLevel);
 	settings.endGroup();
 }
 
@@ -6455,6 +6956,32 @@ void MainWindow::UpdateVideoExportControls()
 	ui->autoOptimizeFramesCheckBox->setChecked(autoOptimizeFramesEnabled);
 	ui->autoOptimizeVideoCheckBox->setChecked(autoOptimizeVideoEnabled);
 	ui->autoOptimizeColorCheckBox->setChecked(autoOptimizeColorEnabled);
+	if(autoOptimizeContrastCheckBox)
+	{
+		QSignalBlocker blockAutoContrast(autoOptimizeContrastCheckBox);
+		autoOptimizeContrastCheckBox->setChecked(autoOptimizeContrastEnabled);
+	}
+	if(autoContrastLevelSlider)
+	{
+		QSignalBlocker blockContrastLevel(autoContrastLevelSlider);
+		autoContrastLevelSlider->setValue(autoContrastLevel);
+	}
+	if(autoColorLevelSlider)
+	{
+		QSignalBlocker blockColorLevel(autoColorLevelSlider);
+		autoColorLevelSlider->setValue(autoColorLevel);
+	}
+	auto refreshLevelCaption = [](QSlider *slider)
+	{
+		if(!slider || !slider->parentWidget())
+			return;
+		const QList<QLabel*> labels = slider->parentWidget()->findChildren<QLabel*>(
+				QString(), Qt::FindDirectChildrenOnly);
+		if(!labels.isEmpty())
+			labels.last()->setText(QString::number(slider->value()) + "%");
+	};
+	refreshLevelCaption(autoContrastLevelSlider);
+	refreshLevelCaption(autoColorLevelSlider);
 	ui->autoOptimizeProfileComboBox->setCurrentIndex(
 			ClampRangeInt(autoOptimizeProfileMode, 0, 2));
 
@@ -6560,13 +7087,17 @@ void MainWindow::UpdateVideoExportControls()
 
 void MainWindow::UpdateAutoOptimizationControls()
 {
-	ui->autoOptimizeColorCheckBox->setEnabled(
-			autoOptimizeFramesEnabled || autoOptimizeVideoEnabled);
-	ui->autoOptimizeProfileComboBox->setEnabled(
-			autoOptimizeFramesEnabled || autoOptimizeVideoEnabled);
+	const bool autoActive = autoOptimizeFramesEnabled || autoOptimizeVideoEnabled;
+	ui->autoOptimizeColorCheckBox->setEnabled(autoActive);
+	if(autoOptimizeContrastCheckBox)
+		autoOptimizeContrastCheckBox->setEnabled(autoActive);
+	ui->autoOptimizeProfileComboBox->setEnabled(autoActive);
+	if(autoContrastLevelSlider)
+		autoContrastLevelSlider->setEnabled(autoActive && autoOptimizeContrastEnabled);
+	if(autoColorLevelSlider)
+		autoColorLevelSlider->setEnabled(autoActive && autoOptimizeColorEnabled);
 	ui->autoOptimizeAnalyzeButton->setEnabled(
-			currentFrameTexture != nullptr &&
-			(autoOptimizeFramesEnabled || autoOptimizeVideoEnabled));
+			currentFrameTexture != nullptr && autoActive);
 
 	QString summary = tr("Auto-optimalisatie uit.");
 	if(autoOptimizeFramesEnabled || autoOptimizeVideoEnabled)
@@ -6976,7 +7507,8 @@ bool MainWindow::CheckExportIntegrity(const QString &audioPath, const QString &v
 }
 
 bool MainWindow::AnalyzeCurrentFrameAutoStats(double &meanLuma, double &lumaLow,
-		double &lumaHigh, double &channelSpread) const
+		double &lumaHigh, double &channelSpread,
+		double *meanR, double *meanG, double *meanB) const
 {
 	AutoFrameStats stats;
 	if(!ComputeAutoFrameStats(currentFrameTexture, stats))
@@ -6985,6 +7517,9 @@ bool MainWindow::AnalyzeCurrentFrameAutoStats(double &meanLuma, double &lumaLow,
 	lumaLow = stats.lumaLow;
 	lumaHigh = stats.lumaHigh;
 	channelSpread = stats.channelSpread;
+	if(meanR) *meanR = stats.meanR;
+	if(meanG) *meanG = stats.meanG;
+	if(meanB) *meanB = stats.meanB;
 	return true;
 }
 
@@ -7006,45 +7541,73 @@ void MainWindow::ApplyAutoOptimizationToFrameControls(bool forceApply)
 	double lumaLow = 0.0;
 	double lumaHigh = 0.0;
 	double channelSpread = 0.0;
-	if(!AnalyzeCurrentFrameAutoStats(meanLuma, lumaLow, lumaHigh, channelSpread))
+	double meanR = 0.0;
+	double meanG = 0.0;
+	double meanB = 0.0;
+	if(!AnalyzeCurrentFrameAutoStats(
+			meanLuma, lumaLow, lumaHigh, channelSpread, &meanR, &meanG, &meanB))
 	{
 		UpdateAutoOptimizationControls();
 		return;
 	}
 
-	const double strength = AutoProfileStrength(autoOptimizeProfileMode);
+	const double profileStrength = AutoProfileStrength(autoOptimizeProfileMode);
+	const double contrastStrength = autoOptimizeContrastEnabled ?
+			profileStrength * (std::max(0, autoContrastLevel) / 100.0) : 0.0;
+	const double colorStrength = autoOptimizeColorEnabled ?
+			profileStrength * (std::max(0, autoColorLevel) / 100.0) : 0.0;
 	const double range = std::max(0.01, lumaHigh - lumaLow);
 	const double targetMean = 0.52;
 	const double targetRange = 0.62;
 	const double meanDelta = targetMean - meanLuma;
 	const double contrastDelta = targetRange - range;
 
-	const int liftTarget = ClampRangeInt(
-			int(std::lround((meanDelta * 120.0 + contrastDelta * 25.0) * strength)),
-			-45, 45);
-	const int gammaTarget = ClampRangeInt(
-			int(std::lround(100.0 - meanDelta * 50.0 * strength)),
-			80, 130);
-	const int gainTarget = ClampRangeInt(
-			int(std::lround(100.0 + contrastDelta * 190.0 * strength)),
-			75, 190);
-
 	autoOptimizeFrameApplyLock = true;
+	if(contrastStrength > 0.0)
 	{
+		const int liftTarget = ClampRangeInt(
+				int(std::lround((meanDelta * 120.0 + contrastDelta * 25.0) * contrastStrength)),
+				-45, 45);
+		const int gammaTarget = ClampRangeInt(
+				int(std::lround(100.0 - meanDelta * 50.0 * contrastStrength)),
+				80, 130);
+		const int gainTarget = ClampRangeInt(
+				int(std::lround(100.0 + contrastDelta * 190.0 * contrastStrength)),
+				75, 190);
 		QSignalBlocker lockLift(ui->liftSlider);
 		QSignalBlocker lockGamma(ui->gammaSlider);
 		QSignalBlocker lockGain(ui->gainSlider);
 		ui->liftSlider->setValue(liftTarget);
 		ui->gammaSlider->setValue(gammaTarget);
 		ui->gainSlider->setValue(gainTarget);
+		ui->liftLabel->setText(QString::number(liftTarget / 100.f, 'f', 2));
+		ui->gammaLabel->setText(QString::number(gammaTarget / 100.f, 'f', 2));
+		ui->gainLabel->setText(QString::number(gainTarget / 100.f, 'f', 2));
 	}
-	ui->liftLabel->setText(QString::number(ui->liftSlider->value() / 100.f, 'f', 2));
-	ui->gammaLabel->setText(QString::number(ui->gammaSlider->value() / 100.f, 'f', 2));
-	ui->gainLabel->setText(QString::number(ui->gainSlider->value() / 100.f, 'f', 2));
-
-	if(autoOptimizeColorEnabled)
+	if(colorStrength > 0.0)
 	{
+		const double avg = (meanR + meanG + meanB) / 3.0;
+		auto channelValue = [&](double channelMean) -> int
+		{
+			if(channelMean < 0.02) return 100;
+			double gain = avg / channelMean;
+			gain = 1.0 + (gain - 1.0) * colorStrength;
+			gain = std::max(0.70, std::min(1.40, gain));
+			return ClampRangeInt(int(std::lround(gain * 100.0)), 70, 140);
+		};
+		const int redTarget = channelValue(meanR);
+		const int greenTarget = channelValue(meanG);
+		const int blueTarget = channelValue(meanB);
+		QSignalBlocker lockRed(ui->redBalanceSlider);
+		QSignalBlocker lockGreen(ui->greenBalanceSlider);
+		QSignalBlocker lockBlue(ui->blueBalanceSlider);
 		QSignalBlocker lockDesat(ui->desatBox);
+		ui->redBalanceSlider->setValue(redTarget);
+		ui->greenBalanceSlider->setValue(greenTarget);
+		ui->blueBalanceSlider->setValue(blueTarget);
+		ui->redBalanceLabel->setText(QString::number(redTarget / 100.f, 'f', 2));
+		ui->greenBalanceLabel->setText(QString::number(greenTarget / 100.f, 'f', 2));
+		ui->blueBalanceLabel->setText(QString::number(blueTarget / 100.f, 'f', 2));
 		if(ui->desatBox->isChecked())
 			ui->desatBox->setChecked(false);
 	}
@@ -7063,15 +7626,26 @@ bool MainWindow::ComputeAutoVideoEqSettings(double &brightness, double &contrast
 	if(!AnalyzeCurrentFrameAutoStats(meanLuma, lumaLow, lumaHigh, channelSpread))
 		return false;
 
-	const double strength = AutoProfileStrength(autoOptimizeProfileMode);
+	const double profileStrength = AutoProfileStrength(autoOptimizeProfileMode);
+	const double contrastStrength = autoOptimizeContrastEnabled ?
+			profileStrength * (std::max(0, autoContrastLevel) / 100.0) : 0.0;
+	const double colorStrength = autoOptimizeColorEnabled ?
+			profileStrength * (std::max(0, autoColorLevel) / 100.0) : 0.0;
 	const double range = std::max(0.01, lumaHigh - lumaLow);
-	brightness = std::max(-0.20, std::min(0.20, (0.52 - meanLuma) * 0.45 * strength));
-	contrast = std::max(0.75, std::min(1.45, 1.0 + (0.62 - range) * 1.35 * strength));
+	brightness = 0.0;
+	contrast = 1.0;
 	saturation = 1.0;
-	if(autoOptimizeColorEnabled)
+	if(contrastStrength > 0.0)
+	{
+		brightness = std::max(-0.20, std::min(0.20,
+				(0.52 - meanLuma) * 0.45 * contrastStrength));
+		contrast = std::max(0.75, std::min(1.45,
+				1.0 + (0.62 - range) * 1.35 * contrastStrength));
+	}
+	if(colorStrength > 0.0)
 	{
 		saturation = std::max(0.75, std::min(1.45,
-				1.0 + (0.10 - channelSpread) * 2.2 * strength));
+				1.0 + (0.10 - channelSpread) * 2.2 * colorStrength));
 	}
 
 	if(summary)
@@ -11843,6 +12417,10 @@ void MainWindow::ResetImageSectionToFactoryDefaults()
 	ui->blueBalanceLabel->setText(QString::number(1.0f,'f',2));
 	ui->threshLabel->setText(QString::number(3.0f,'f',2));
 	ui->blurLabel->setText(QString::number(0.0f,'f',2));
+	if(imageBrightnessSlider)
+		imageBrightnessSlider->setValue(0);
+	if(imageContrastSlider)
+		imageContrastSlider->setValue(100);
 	GPU_Params_Update(1);
 }
 
@@ -11869,6 +12447,10 @@ void MainWindow::on_imageResetButton_clicked()
 	ui->threshBox->setChecked(settings.value("s-curve-on", false).toBool());
 	ui->negBox->setChecked(settings.value("negative", false).toBool());
 	ui->desatBox->setChecked(settings.value("desaturate", false).toBool());
+	if(imageBrightnessSlider)
+		imageBrightnessSlider->setValue(settings.value("brightness", 0).toInt());
+	if(imageContrastSlider)
+		imageContrastSlider->setValue(settings.value("contrast", 100).toInt());
 	settings.endGroup();
 	ui->liftLabel->setText(QString::number(ui->liftSlider->value()/100.f,'f',2));
 	ui->gammaLabel->setText(QString::number(ui->gammaSlider->value()/100.f,'f',2));
