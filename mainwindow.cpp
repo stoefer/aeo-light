@@ -1773,6 +1773,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
 	auto finalizeGracefulExit = [this, &closePreviewWindow]() {
 		if(this->scan.inFile.IsReady())
 			SaveLastUsedSettingsSnapshot();
+		SaveImageProcTargets();
 		SetSessionCleanExitFlag(true);
 		SaveUiWindowSettings();
 		closePreviewWindow();
@@ -1992,6 +1993,172 @@ QVariantMap FixedImagePresetValues(int index)
 
 } // namespace
 
+MainWindow::ImageProcTargetValues MainWindow::FactoryImageProcTarget()
+{
+	return ImageProcTargetValues();
+}
+
+MainWindow::ImageProcTargetValues &MainWindow::ActiveImageProcTarget()
+{
+	return imageProcTargetMode == 0 ? imageProcOptical : imageProcPicture;
+}
+
+void MainWindow::CaptureImageProcTargetFromControls(ImageProcTargetValues &values) const
+{
+	if(!ui) return;
+	values.lift = ui->liftSlider->value();
+	values.gamma = ui->gammaSlider->value();
+	values.gain = ui->gainSlider->value();
+	values.threshold = ui->thresholdSlider->value();
+	values.blur = ui->blurSlider->value();
+	values.red = ui->redBalanceSlider->value();
+	values.green = ui->greenBalanceSlider->value();
+	values.blue = ui->blueBalanceSlider->value();
+	values.negative = ui->negBox->isChecked();
+	values.desaturate = ui->desatBox->isChecked();
+	values.thresholdOn = ui->threshBox->isChecked();
+	if(imageBrightnessSlider)
+		values.brightness = imageBrightnessSlider->value();
+	if(imageContrastSlider)
+		values.contrast = imageContrastSlider->value();
+}
+
+void MainWindow::ApplyImageProcTargetToControls(const ImageProcTargetValues &values)
+{
+	if(!ui) return;
+	auto setSlider = [](QSlider *slider, QLabel *label, int number)
+	{
+		if(!slider) return;
+		QSignalBlocker blocker(slider);
+		slider->setValue(number);
+		if(label)
+			label->setText(QString::number(number / 100.f, 'f', 2));
+	};
+	setSlider(ui->liftSlider, ui->liftLabel, values.lift);
+	setSlider(ui->gammaSlider, ui->gammaLabel, values.gamma);
+	setSlider(ui->gainSlider, ui->gainLabel, values.gain);
+	setSlider(ui->thresholdSlider, ui->threshLabel, values.threshold);
+	setSlider(ui->blurSlider, ui->blurLabel, values.blur);
+	setSlider(ui->redBalanceSlider, ui->redBalanceLabel, values.red);
+	setSlider(ui->greenBalanceSlider, ui->greenBalanceLabel, values.green);
+	setSlider(ui->blueBalanceSlider, ui->blueBalanceLabel, values.blue);
+	setSlider(imageBrightnessSlider, imageBrightnessValueLabel, values.brightness);
+	setSlider(imageContrastSlider, imageContrastValueLabel, values.contrast);
+	{
+		QSignalBlocker blocker(ui->negBox);
+		ui->negBox->setChecked(values.negative);
+	}
+	{
+		QSignalBlocker blocker(ui->desatBox);
+		ui->desatBox->setChecked(values.desaturate);
+	}
+	{
+		QSignalBlocker blocker(ui->threshBox);
+		ui->threshBox->setChecked(values.thresholdOn);
+	}
+}
+
+static void WriteImageProcTargetGroup(
+		QSettings &settings,
+		const QString &group,
+		const MainWindow::ImageProcTargetValues &values)
+{
+	settings.beginGroup(group);
+	settings.setValue("lift", values.lift);
+	settings.setValue("gamma", values.gamma);
+	settings.setValue("gain", values.gain);
+	settings.setValue("threshold", values.threshold);
+	settings.setValue("blur", values.blur);
+	settings.setValue("red", values.red);
+	settings.setValue("green", values.green);
+	settings.setValue("blue", values.blue);
+	settings.setValue("brightness", values.brightness);
+	settings.setValue("contrast", values.contrast);
+	settings.setValue("negative", values.negative);
+	settings.setValue("desaturate", values.desaturate);
+	settings.setValue("threshold-on", values.thresholdOn);
+	settings.endGroup();
+}
+
+static bool ReadImageProcTargetGroup(
+		QSettings &settings,
+		const QString &group,
+		MainWindow::ImageProcTargetValues &values)
+{
+	settings.beginGroup(group);
+	const bool present = settings.contains("lift");
+	if(present)
+	{
+		values.lift = settings.value("lift", values.lift).toInt();
+		values.gamma = settings.value("gamma", values.gamma).toInt();
+		values.gain = settings.value("gain", values.gain).toInt();
+		values.threshold = settings.value("threshold", values.threshold).toInt();
+		values.blur = settings.value("blur", values.blur).toInt();
+		values.red = settings.value("red", values.red).toInt();
+		values.green = settings.value("green", values.green).toInt();
+		values.blue = settings.value("blue", values.blue).toInt();
+		values.brightness = settings.value("brightness", values.brightness).toInt();
+		values.contrast = settings.value("contrast", values.contrast).toInt();
+		values.negative = settings.value("negative", values.negative).toBool();
+		values.desaturate = settings.value("desaturate", values.desaturate).toBool();
+		values.thresholdOn = settings.value("threshold-on", values.thresholdOn).toBool();
+	}
+	settings.endGroup();
+	return present;
+}
+
+void MainWindow::SaveImageProcTargets() const
+{
+	QSettings settings;
+	settings.beginGroup("image-proc-target");
+	settings.setValue("active", imageProcTargetMode);
+	WriteImageProcTargetGroup(settings, "optical", imageProcOptical);
+	WriteImageProcTargetGroup(settings, "picture", imageProcPicture);
+	settings.endGroup();
+}
+
+void MainWindow::LoadImageProcTargets(bool captureCurrentIfMissing)
+{
+	if(imageProcTargetsLoaded)
+	{
+		ApplyImageProcTargetToControls(ActiveImageProcTarget());
+		if(imageProcTargetCombo)
+		{
+			imageProcTargetSwitchLock = true;
+			imageProcTargetCombo->setCurrentIndex(imageProcTargetMode);
+			imageProcTargetSwitchLock = false;
+		}
+		return;
+	}
+
+	QSettings settings;
+	settings.beginGroup("image-proc-target");
+	const bool hasOptical = settings.contains("optical/lift");
+	const bool hasPicture = settings.contains("picture/lift");
+	const int active = ClampRangeInt(settings.value("active", 0).toInt(), 0, 1);
+	if(!hasOptical && !hasPicture && !captureCurrentIfMissing)
+	{
+		settings.endGroup();
+		return;
+	}
+	if(hasOptical)
+		ReadImageProcTargetGroup(settings, "optical", imageProcOptical);
+	else
+		CaptureImageProcTargetFromControls(imageProcOptical);
+	if(hasPicture)
+		ReadImageProcTargetGroup(settings, "picture", imageProcPicture);
+	else
+		imageProcPicture = FactoryImageProcTarget();
+	settings.endGroup();
+	imageProcTargetMode = active;
+	imageProcTargetsLoaded = true;
+	imageProcTargetSwitchLock = true;
+	ApplyImageProcTargetToControls(ActiveImageProcTarget());
+	if(imageProcTargetCombo)
+		imageProcTargetCombo->setCurrentIndex(imageProcTargetMode);
+	imageProcTargetSwitchLock = false;
+}
+
 void MainWindow::SetupImageProcExtras()
 {
 	if(!ui || !ui->tab_2 || imageBrightnessSlider)
@@ -2035,7 +2202,32 @@ void MainWindow::SetupImageProcExtras()
 		ui->gridLayout->addWidget(imageContrastSlider, 10, 3);
 		if(ui->colorBalanceTipLabel)
 			ui->gridLayout->addWidget(ui->colorBalanceTipLabel, 11, 0, 1, 5);
+		QLabel *targetLabel = new QLabel(tr("Regeling voor"), sliderParent);
+		targetLabel->setAlignment(Qt::AlignRight | Qt::AlignTrailing | Qt::AlignVCenter);
+		imageProcTargetCombo = new QComboBox(sliderParent);
+		imageProcTargetCombo->addItem(tr("Optisch geluid"));
+		imageProcTargetCombo->addItem(tr("Beeld"));
+		imageProcTargetCombo->setToolTip(
+				tr("Optisch geluid regelt alleen het geluidsspoor. Beeld regelt het afgebakende picture-strip gebied. De huidige sliders worden bewaard voordat de andere stand wordt geladen."));
+		ui->gridLayout->addWidget(targetLabel, 0, 1);
+		ui->gridLayout->addWidget(imageProcTargetCombo, 0, 2, 1, 2);
+		connect(imageProcTargetCombo.data(),
+				static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+				this,
+				[this](int index)
+		{
+			if(imageProcTargetSwitchLock || index == imageProcTargetMode)
+				return;
+			CaptureImageProcTargetFromControls(ActiveImageProcTarget());
+			imageProcTargetMode = ClampRangeInt(index, 0, 1);
+			imageProcTargetSwitchLock = true;
+			ApplyImageProcTargetToControls(ActiveImageProcTarget());
+			imageProcTargetSwitchLock = false;
+			SaveImageProcTargets();
+			GPU_Params_Update(1);
+		});
 	}
+	LoadImageProcTargets(false);
 	connect(imageBrightnessSlider.data(), &QSlider::valueChanged, this, [this](int value)
 	{
 		if(imageBrightnessValueLabel)
@@ -2391,7 +2583,7 @@ void MainWindow::PositionTransportBarBelowTabs()
 				ui->gridLayout->sizeHint().height(),
 				ui->gridLayoutWidget_2->minimumSizeHint().height());
 		if(imageBrightnessSlider)
-			gridHeight = std::max(gridHeight, 372);
+			gridHeight = std::max(gridHeight, 410);
 		if(ui->colorBalanceTipLabel)
 			gridHeight = std::max(gridHeight, ui->colorBalanceTipLabel->geometry().bottom() + 8);
 		if(gridHeight > 0)
@@ -3603,25 +3795,25 @@ void MainWindow::SaveDefaultsSoundtrack()
 
 void MainWindow::SaveDefaultsImage()
 {
+	CaptureImageProcTargetFromControls(ActiveImageProcTarget());
+	const ImageProcTargetValues &values = ActiveImageProcTarget();
 	QSettings settings;
-
-	settings.beginGroup("image");
-	settings.setValue("lift", ui->liftSlider->value());
-	settings.setValue("gamma", ui->gammaSlider->value());
-	settings.setValue("gain", ui->gainSlider->value());
-	settings.setValue("red-balance", ui->redBalanceSlider->value());
-	settings.setValue("green-balance", ui->greenBalanceSlider->value());
-	settings.setValue("blue-balance", ui->blueBalanceSlider->value());
-	settings.setValue("s-curve", ui->thresholdSlider->value());
-	settings.setValue("s-curve-on", ui->threshBox->isChecked());
-	settings.setValue("blur-sharp", ui->blurSlider->value());
-	settings.setValue("negative", ui->negBox->isChecked());
-	settings.setValue("desaturate",ui->desatBox->isChecked());
-	if(imageBrightnessSlider)
-		settings.setValue("brightness", imageBrightnessSlider->value());
-	if(imageContrastSlider)
-		settings.setValue("contrast", imageContrastSlider->value());
+	settings.beginGroup(imageProcTargetMode == 0 ? "image" : "image-picture");
+	settings.setValue("lift", values.lift);
+	settings.setValue("gamma", values.gamma);
+	settings.setValue("gain", values.gain);
+	settings.setValue("red-balance", values.red);
+	settings.setValue("green-balance", values.green);
+	settings.setValue("blue-balance", values.blue);
+	settings.setValue("s-curve", values.threshold);
+	settings.setValue("s-curve-on", values.thresholdOn);
+	settings.setValue("blur-sharp", values.blur);
+	settings.setValue("negative", values.negative);
+	settings.setValue("desaturate", values.desaturate);
+	settings.setValue("brightness", values.brightness);
+	settings.setValue("contrast", values.contrast);
 	settings.endGroup();
+	SaveImageProcTargets();
 	settings.sync();
 }
 
@@ -3783,6 +3975,7 @@ void MainWindow::LoadDefaults()
 				settings.value("contrast", 100).toInt());
 	}
 	settings.endGroup();
+	LoadImageProcTargets(true);
 
 	// extraction/export parameters
 
@@ -4209,22 +4402,51 @@ void MainWindow::GPU_Params_Update(bool renderyes)
 		ui->maxFrequencyLabel->setText(
 				QString("%1").arg(float(this->MaxFrequency())/1000.0));
 
-		frame_window->gamma = ui->gammaSlider->value()/100.0f;
-		frame_window->lift = ui->liftSlider->value()/100.0f;
-		frame_window->gain = ui->gainSlider->value()/100.0f;
-		frame_window->red_balance = ui->redBalanceSlider->value()/100.0f;
-		frame_window->green_balance = ui->greenBalanceSlider->value()/100.0f;
-		frame_window->blue_balance = ui->blueBalanceSlider->value()/100.0f;
-		frame_window->tone_brightness = imageBrightnessSlider ?
-				imageBrightnessSlider->value() / 200.0f : 0.0f;
-		frame_window->tone_contrast = imageContrastSlider ?
-				std::max(0.25f, imageContrastSlider->value() / 100.0f) : 1.0f;
-		frame_window->blur = ui->blurSlider->value()/100.0f;
-		frame_window->threshold = ui->thresholdSlider->value()/100.0f;
-		frame_window->thresh = ui->threshBox->checkState();
+		if(!imageProcTargetsLoaded)
+			CaptureImageProcTargetFromControls(imageProcOptical);
+		else if(!imageProcTargetSwitchLock)
+			CaptureImageProcTargetFromControls(ActiveImageProcTarget());
+		auto pushLook = [](const ImageProcTargetValues &values,
+				float &lift, float &gamma, float &gain,
+				float &toneBrightness, float &toneContrast,
+				float &red, float &green, float &blue,
+				float &blur, float &threshold,
+				bool &threshOn, bool &negativeOn, bool &desaturateOn)
+		{
+			lift = values.lift / 100.0f;
+			gamma = values.gamma / 100.0f;
+			gain = values.gain / 100.0f;
+			toneBrightness = values.brightness / 200.0f;
+			toneContrast = std::max(0.25f, values.contrast / 100.0f);
+			red = values.red / 100.0f;
+			green = values.green / 100.0f;
+			blue = values.blue / 100.0f;
+			blur = values.blur / 100.0f;
+			threshold = values.threshold / 100.0f;
+			threshOn = values.thresholdOn;
+			negativeOn = values.negative;
+			desaturateOn = values.desaturate;
+		};
+		pushLook(imageProcOptical,
+				frame_window->lift, frame_window->gamma, frame_window->gain,
+				frame_window->tone_brightness, frame_window->tone_contrast,
+				frame_window->red_balance, frame_window->green_balance,
+				frame_window->blue_balance,
+				frame_window->blur, frame_window->threshold,
+				frame_window->thresh, frame_window->negative,
+				frame_window->desaturate);
+		pushLook(imageProcPicture,
+				frame_window->picture_lift, frame_window->picture_gamma,
+				frame_window->picture_gain,
+				frame_window->picture_tone_brightness,
+				frame_window->picture_tone_contrast,
+				frame_window->picture_red_balance,
+				frame_window->picture_green_balance,
+				frame_window->picture_blue_balance,
+				frame_window->picture_blur, frame_window->picture_threshold,
+				frame_window->picture_thresh, frame_window->picture_negative,
+				frame_window->picture_desaturate);
 		frame_window->trackonly = ui->actionShow_Soundtrack_Only->isChecked();
-		frame_window->negative = ui->negBox->checkState();
-		frame_window->desaturate = ui->desatBox->checkState();
 		frame_window->overlapshow = ui->actionShow_Overlap->isChecked();
 		frame_window->showAutoDetectLine =
 				ui->showAutoDetectLineCheckBox->isChecked();
@@ -12478,68 +12700,35 @@ void MainWindow::on_imageDefaultsButton_clicked()
 
 void MainWindow::ResetImageSectionToFactoryDefaults()
 {
-	ui->liftSlider->setValue(0);
-	ui->gammaSlider->setValue(100);
-	ui->gainSlider->setValue(100);
-	ui->thresholdSlider->setValue(300);
-	ui->blurSlider->setValue(0);
-	ui->redBalanceSlider->setValue(100);
-	ui->greenBalanceSlider->setValue(100);
-	ui->blueBalanceSlider->setValue(100);
-	ui->threshBox->setChecked(false);
-	ui->negBox->setChecked(false);
-	ui->desatBox->setChecked(false);
-	ui->liftLabel->setText(QString::number(0.0f,'f',2));
-	ui->gammaLabel->setText(QString::number(1.0f,'f',2));
-	ui->gainLabel->setText(QString::number(1.0f,'f',2));
-	ui->redBalanceLabel->setText(QString::number(1.0f,'f',2));
-	ui->greenBalanceLabel->setText(QString::number(1.0f,'f',2));
-	ui->blueBalanceLabel->setText(QString::number(1.0f,'f',2));
-	ui->threshLabel->setText(QString::number(3.0f,'f',2));
-	ui->blurLabel->setText(QString::number(0.0f,'f',2));
-	if(imageBrightnessSlider)
-		imageBrightnessSlider->setValue(0);
-	if(imageContrastSlider)
-		imageContrastSlider->setValue(100);
+	ActiveImageProcTarget() = FactoryImageProcTarget();
+	ApplyImageProcTargetToControls(ActiveImageProcTarget());
+	SaveImageProcTargets();
 	GPU_Params_Update(1);
 }
 
 void MainWindow::on_imageResetButton_clicked()
 {
 	QSettings settings;
-	settings.beginGroup("image");
-	const int lift = settings.value("lift", 0).toInt();
-	const int gamma = settings.value("gamma", 100).toInt();
-	const int gain = settings.value("gain", 100).toInt();
-	const int redBalance = settings.value("red-balance", 100).toInt();
-	const int greenBalance = settings.value("green-balance", 100).toInt();
-	const int blueBalance = settings.value("blue-balance", 100).toInt();
-	const int sCurve = settings.value("s-curve", 300).toInt();
-	const int blur = settings.value("blur-sharp", 0).toInt();
-	ui->liftSlider->setValue(lift);
-	ui->gammaSlider->setValue(gamma);
-	ui->gainSlider->setValue(gain);
-	ui->redBalanceSlider->setValue(redBalance);
-	ui->greenBalanceSlider->setValue(greenBalance);
-	ui->blueBalanceSlider->setValue(blueBalance);
-	ui->thresholdSlider->setValue(sCurve);
-	ui->blurSlider->setValue(blur);
-	ui->threshBox->setChecked(settings.value("s-curve-on", false).toBool());
-	ui->negBox->setChecked(settings.value("negative", false).toBool());
-	ui->desatBox->setChecked(settings.value("desaturate", false).toBool());
-	if(imageBrightnessSlider)
-		imageBrightnessSlider->setValue(settings.value("brightness", 0).toInt());
-	if(imageContrastSlider)
-		imageContrastSlider->setValue(settings.value("contrast", 100).toInt());
+	const QString group = imageProcTargetMode == 0 ? "image" : "image-picture";
+	settings.beginGroup(group);
+	ImageProcTargetValues values = FactoryImageProcTarget();
+	values.lift = settings.value("lift", values.lift).toInt();
+	values.gamma = settings.value("gamma", values.gamma).toInt();
+	values.gain = settings.value("gain", values.gain).toInt();
+	values.red = settings.value("red-balance", values.red).toInt();
+	values.green = settings.value("green-balance", values.green).toInt();
+	values.blue = settings.value("blue-balance", values.blue).toInt();
+	values.threshold = settings.value("s-curve", values.threshold).toInt();
+	values.blur = settings.value("blur-sharp", values.blur).toInt();
+	values.thresholdOn = settings.value("s-curve-on", values.thresholdOn).toBool();
+	values.negative = settings.value("negative", values.negative).toBool();
+	values.desaturate = settings.value("desaturate", values.desaturate).toBool();
+	values.brightness = settings.value("brightness", values.brightness).toInt();
+	values.contrast = settings.value("contrast", values.contrast).toInt();
 	settings.endGroup();
-	ui->liftLabel->setText(QString::number(ui->liftSlider->value()/100.f,'f',2));
-	ui->gammaLabel->setText(QString::number(ui->gammaSlider->value()/100.f,'f',2));
-	ui->gainLabel->setText(QString::number(ui->gainSlider->value()/100.f,'f',2));
-	ui->redBalanceLabel->setText(QString::number(ui->redBalanceSlider->value()/100.f,'f',2));
-	ui->greenBalanceLabel->setText(QString::number(ui->greenBalanceSlider->value()/100.f,'f',2));
-	ui->blueBalanceLabel->setText(QString::number(ui->blueBalanceSlider->value()/100.f,'f',2));
-	ui->threshLabel->setText(QString::number(ui->thresholdSlider->value()/100.f,'f',2));
-	ui->blurLabel->setText(QString::number(ui->blurSlider->value()/100.f,'f',2));
+	ActiveImageProcTarget() = values;
+	ApplyImageProcTargetToControls(values);
+	SaveImageProcTargets();
 	GPU_Params_Update(1);
 }
 

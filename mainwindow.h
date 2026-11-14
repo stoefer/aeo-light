@@ -408,10 +408,16 @@ private:
 	QPointer<QLabel> imageBrightnessValueLabel;
 	QPointer<QLabel> imageContrastValueLabel;
 	QPointer<QComboBox> imagePresetComboBox;
+	QPointer<QComboBox> imageProcTargetCombo;
 	QPointer<QCheckBox> autoOptimizeContrastCheckBox;
 	QPointer<QSlider> autoContrastLevelSlider;
 	QPointer<QSlider> autoColorLevelSlider;
 	bool imagePresetRefreshLock = false;
+	bool imageProcTargetSwitchLock = false;
+	bool imageProcTargetsLoaded = false;
+	int imageProcTargetMode = 0;
+	ImageProcTargetValues imageProcOptical;
+	ImageProcTargetValues imageProcPicture;
 	QTextStream log;
 	QTimer *sessionAutosaveTimer = NULL;
 	bool sessionRecoveryPending = false;
@@ -546,7 +552,29 @@ private:
 	void UpdateAdaptiveUiScale();
 	void PositionExtractTabAuxSections();
 	void PositionTransportBarBelowTabs();
+	struct ImageProcTargetValues
+	{
+		int lift = 0;
+		int gamma = 100;
+		int gain = 100;
+		int threshold = 300;
+		int blur = 0;
+		int red = 100;
+		int green = 100;
+		int blue = 100;
+		int brightness = 0;
+		int contrast = 100;
+		bool negative = false;
+		bool desaturate = false;
+		bool thresholdOn = false;
+	};
 	void SetupImageProcExtras();
+	void CaptureImageProcTargetFromControls(ImageProcTargetValues &values) const;
+	void ApplyImageProcTargetToControls(const ImageProcTargetValues &values);
+	ImageProcTargetValues &ActiveImageProcTarget();
+	void SaveImageProcTargets() const;
+	void LoadImageProcTargets(bool captureCurrentIfMissing);
+	static ImageProcTargetValues FactoryImageProcTarget();
 	void RefreshImagePresetCombo();
 	void ApplyNamedImagePreset(const QString &presetKey);
 	void SavePersonalImagePreset();

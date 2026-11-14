@@ -216,6 +216,19 @@ Frame_Window::Frame_Window(int w,int h)
 	red_balance = 1.0f;
 	green_balance = 1.0f;
 	blue_balance = 1.0f;
+	picture_lift = 0.0f;
+	picture_gamma = 1.0f;
+	picture_gain = 1.0f;
+	picture_tone_brightness = 0.0f;
+	picture_tone_contrast = 1.0f;
+	picture_red_balance = 1.0f;
+	picture_green_balance = 1.0f;
+	picture_blue_balance = 1.0f;
+	picture_threshold = 0.5f;
+	picture_blur = 0.0f;
+	picture_thresh = false;
+	picture_negative = false;
+	picture_desaturate = false;
 	threshold = 0.5;
 	blur = 0;
 	stereo = 0;
@@ -322,6 +335,11 @@ Frame_Window::Frame_Window(int w,int h)
 	m_colorcontrol_loc = 0;
 	m_color_balance_loc = 0;
 	m_tone_controls_loc = 0;
+	m_picture_colorcontrol_loc = -1;
+	m_picture_color_balance_loc = -1;
+	m_picture_tone_controls_loc = -1;
+	m_picture_manipcontrol_loc = -1;
+	m_picture_neg_loc = -1;
 	m_bounds_loc = 0;
     m_rot_angle = 0;
 	m_calcontrol_loc = 0;
@@ -470,6 +488,11 @@ void Frame_Window::initialize()
 	m_colorcontrol_loc = m_program->uniformLocation("color_controls");
 	m_color_balance_loc = m_program->uniformLocation("color_balance");
 	m_tone_controls_loc = m_program->uniformLocation("tone_controls");
+	m_picture_colorcontrol_loc = m_program->uniformLocation("picture_color_controls");
+	m_picture_color_balance_loc = m_program->uniformLocation("picture_color_balance");
+	m_picture_tone_controls_loc = m_program->uniformLocation("picture_tone_controls");
+	m_picture_manipcontrol_loc = m_program->uniformLocation("picture_manip_controls");
+	m_picture_neg_loc = m_program->uniformLocation("picture_negative");
 	m_manipcontrol_loc = m_program->uniformLocation("manip_controls");
 	m_calcontrol_loc = m_program->uniformLocation("cal_controls");
 	m_inputsize_loc = m_program->uniformLocation("inputsize");
@@ -760,6 +783,40 @@ void Frame_Window::update_parameters()
 				tone_brightness,
 				tone_contrast);
 	}
+	if(m_picture_colorcontrol_loc >= 0)
+	{
+		m_program->setUniformValue(
+				m_picture_colorcontrol_loc,
+				picture_lift,
+				picture_gamma,
+				picture_gain,
+				float(!picture_desaturate));
+	}
+	if(m_picture_color_balance_loc >= 0)
+	{
+		m_program->setUniformValue(
+				m_picture_color_balance_loc,
+				picture_red_balance,
+				picture_green_balance,
+				picture_blue_balance);
+	}
+	if(m_picture_tone_controls_loc >= 0)
+	{
+		m_program->setUniformValue(
+				m_picture_tone_controls_loc,
+				picture_tone_brightness,
+				picture_tone_contrast);
+	}
+	if(m_picture_manipcontrol_loc >= 0)
+	{
+		m_program->setUniformValue(
+				m_picture_manipcontrol_loc,
+				float(picture_thresh),
+				picture_threshold,
+				picture_blur);
+	}
+	if(m_picture_neg_loc >= 0)
+		m_program->setUniformValue(m_picture_neg_loc, float(picture_negative));
 	m_program->setUniformValue(m_manipcontrol_loc, float(thresh),threshold,
 			blur);
 	m_program->setUniformValue(m_bounds_loc,
