@@ -1,8 +1,12 @@
-# AEO-Light 3.1.70 (fork release)
+# AEO-Light 3.1.71 (fork release)
 
-Deze 3.1.70 patchrelease geeft elke A/V-track-slider de kleur van de lijn die hij verplaatst.
+Deze 3.1.71 patchrelease maakt de gekleurde A/V-track-sliders even dun als de gewone sliders.
 
-## Nieuw in 3.1.70
+## Nieuw in 3.1.71
+- De gekleurde sliderbalk is een lijn van 2 px, dezelfde dikte als Video stabilisatie en Horizontale stabilisatie.
+- De kleur van elke lijn blijft gelijk.
+
+## Eerder toegevoegd in 3.1.70
 - Soundtrack links is magenta, rechts is rood. Picture Strip is geel. Het zoekgebied is lichtblauw.
 - Frame Pitch Start is wit, Frame Pitch End is paars. Search Size is een lichtere paars, want die zet de breedte van die band.
 - Video Frame Top is cyaan, Video Frame Bottom is oranje.
@@ -424,28 +428,28 @@ Deze 3.1.70 patchrelease geeft elke A/V-track-slider de kleur van de lijn die hi
 4. Als SmartScreen waarschuwt: klik **Meer informatie** → **Toch uitvoeren**.
 
 ## Ultra-korte package checklist (5 punten)
-- [ ] Release-tag = `v3.1.70`.
+- [ ] Release-tag = `v3.1.71`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` staat op de release.
 - [ ] ZIP uitgepakt naar een lokale map.
-- [ ] `AEO-Light.exe` start en toont versie **3.1.70**.
+- [ ] `AEO-Light.exe` start en toont versie **3.1.71**.
 - [ ] Korte **Test Run** slaagt en maakt output aan.
 
-## Package checklist (v3.1.70, Windows x64)
-- [ ] Release-tag is `v3.1.70`.
+## Package checklist (v3.1.71, Windows x64)
+- [ ] Release-tag is `v3.1.71`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` is aanwezig op de releasepagina.
 - [ ] ZIP uitgepakt naar een lokale map (niet rechtstreeks uit de ZIP starten).
 - [ ] In de uitgepakte map staan minimaal:
   - `AEO-Light.exe`
   - `LICENSE.txt`
   - `ffmpeg.exe`
-- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.70**.
+- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.71**.
 - [ ] Snelle rooktest:
   - bron laden
   - korte **Test Run** uitvoeren
   - outputbestand wordt aangemaakt
 - [ ] (Optioneel) checksumcontrole van download:
   - `certutil -hashfile AEO-Light-Windows-x64.zip SHA256`
-  - verwacht: waarde op de `v3.1.70` releasepagina
+  - verwacht: waarde op de `v3.1.71` releasepagina
 
 ## Snelle start (aanbevolen)
 - Container: **MP4**

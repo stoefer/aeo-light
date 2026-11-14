@@ -3565,13 +3565,15 @@ void MainWindow::ApplyGuideLineSliderColors()
 			return;
 		slider->setStyleSheet(QString(
 				"QSlider::groove:horizontal {"
-				" background: %1; height: 6px;"
-				" border: 1px solid %2; border-radius: 2px; }"
-				"QSlider::sub-page:horizontal { background: %1; border-radius: 2px; }"
-				"QSlider::add-page:horizontal { background: %1; border-radius: 2px; }"
+				" background: %1; height: 2px; margin: 0;"
+				" border: none; }"
+				"QSlider::sub-page:horizontal {"
+				" background: %1; height: 2px; margin: 0; border: none; }"
+				"QSlider::add-page:horizontal {"
+				" background: %1; height: 2px; margin: 0; border: none; }"
 				"QSlider::handle:horizontal {"
-				" background: %3; border: 2px solid %2;"
-				" width: 12px; margin: -6px 0; border-radius: 7px; }")
+				" background: %3; border: 1px solid %2;"
+				" width: 11px; height: 16px; margin: -7px 0; border-radius: 2px; }")
 				.arg(QString::fromLatin1(groove),
 						QString::fromLatin1(edge),
 						QString::fromLatin1(handle)));
