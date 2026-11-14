@@ -1386,6 +1386,12 @@ MainWindow::MainWindow(QWidget *parent) :
 			ResetImageSectionToFactoryDefaults();
 		});
 	}
+	if(ui->tab_2 && ui->horizontalLayoutWidget_2)
+	{
+		// Scan Frame, the transport slider, Set In/Out and Rotate belong
+		// on Image Proc, under that tab's own controls.
+		ui->horizontalLayoutWidget_2->setParent(ui->tab_2);
+	}
 	if(ui->horizontalLayout_6)
 	{
 		QPushButton *factoryResetButton = new QPushButton(tr("Factory Reset"), this);
@@ -1910,25 +1916,37 @@ void MainWindow::PositionExtractTabAuxSections()
 
 void MainWindow::PositionTransportBarBelowTabs()
 {
-	if(!ui || !ui->horizontalLayoutWidget_2 || !ui->tabWidget) return;
+	if(!ui || !ui->horizontalLayoutWidget_2 || !ui->tab_2) return;
 
-	QRect bar = ui->horizontalLayoutWidget_2->geometry();
-	if(uiScaleBaseGeometry.contains(ui->horizontalLayoutWidget_2))
-		bar.setHeight(uiScaleBaseGeometry.value(ui->horizontalLayoutWidget_2).height());
-	else if(bar.height() < 90)
-		bar.setHeight(114);
+	QWidget *bar = ui->horizontalLayoutWidget_2;
+	if(bar->parentWidget() != ui->tab_2)
+		bar->setParent(ui->tab_2);
 
-	const QRect tabRect = ui->tabWidget->geometry();
-	bar.moveTop(tabRect.bottom() + 12);
-	bar.moveLeft(tabRect.left() + 18);
-	bar.setWidth(std::max(420, tabRect.width() - 36));
-	ui->horizontalLayoutWidget_2->setGeometry(bar);
-	ui->horizontalLayoutWidget_2->raise();
+	int barHeight = 114;
+	if(uiScaleBaseGeometry.contains(bar) &&
+			uiScaleBaseGeometry.value(bar).height() >= 90)
+		barHeight = uiScaleBaseGeometry.value(bar).height();
+	else if(bar->height() >= 90)
+		barHeight = bar->height();
+
+	int contentBottom = 0;
+	const QList<QWidget*> siblings = ui->tab_2->findChildren<QWidget*>(
+			QString(), Qt::FindDirectChildrenOnly);
+	for(QWidget *sibling : siblings)
+	{
+		if(!sibling || sibling == bar || sibling->isHidden()) continue;
+		contentBottom = std::max(contentBottom, sibling->geometry().bottom());
+	}
+
+	const int margin = 10;
+	const int gap = 12;
+	const int tabWidth = std::max(280, ui->tab_2->width() - (2 * margin));
+	const int barY = contentBottom + gap;
+	bar->setGeometry(margin, barY, tabWidth, barHeight);
+	bar->raise();
 
 	if(ui->playSlider)
 	{
-		// The view-options column used to share this row. Without a cap
-		// the slider stretches across the whole panel.
 		ui->playSlider->setMinimumWidth(280);
 		ui->playSlider->setMaximumWidth(420);
 		ui->playSlider->setFixedHeight(22);
@@ -1948,15 +1966,30 @@ void MainWindow::PositionTransportBarBelowTabs()
 		ui->horizontalLayout_4->invalidate();
 	}
 	if(ui->horizontalLayout_3 &&
-			!ui->horizontalLayoutWidget_2->property("transportBarSpacerAdded").toBool())
+			!bar->property("transportBarSpacerAdded").toBool())
 	{
 		ui->horizontalLayout_3->addStretch(1);
-		ui->horizontalLayoutWidget_2->setProperty("transportBarSpacerAdded", true);
+		bar->setProperty("transportBarSpacerAdded", true);
 	}
 	if(ui->horizontalLayout_3 && ui->horizontalLayout_3->count() > 1)
 	{
 		ui->horizontalLayout_3->setStretch(0, 0);
 		ui->horizontalLayout_3->setStretch(ui->horizontalLayout_3->count() - 1, 1);
+	}
+
+	const int neededPageHeight = barY + barHeight + margin;
+	ui->tab_2->setMinimumHeight(neededPageHeight);
+	if(ui->tabWidget)
+	{
+		const int tabBarHeight = ui->tabWidget->tabBar() ?
+				std::max(28, ui->tabWidget->tabBar()->height()) : 34;
+		const int neededTabHeight = tabBarHeight + neededPageHeight;
+		if(ui->tabWidget->height() < neededTabHeight)
+		{
+			QRect tabRect = ui->tabWidget->geometry();
+			tabRect.setHeight(neededTabHeight);
+			ui->tabWidget->setGeometry(tabRect);
+		}
 	}
 }
 
@@ -2394,10 +2427,6 @@ void MainWindow::UpdateAdaptiveUiScale()
 	{
 		QRect contentRect = uiScaleBaseGeometry.value(ui->scrollAreaWidgetContents);
 		int targetContentHeight = contentRect.height() + tuning.contentHeightDelta;
-		if(ui->horizontalLayoutWidget_2)
-			targetContentHeight = std::max(
-					targetContentHeight,
-					ui->horizontalLayoutWidget_2->geometry().bottom() + 28);
 		if(ui->tabWidget)
 			targetContentHeight = std::max(
 					targetContentHeight,
