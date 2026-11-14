@@ -1,8 +1,51 @@
-# AEO-Light 3.1.62 (fork release)
+# AEO-Light 3.1.71 (fork release)
 
-Deze 3.1.62 patchrelease herstelt het opstarten. 3.1.61 stopte direct omdat de view-opties-layout bij het verplaatsen werd vernietigd.
+Deze 3.1.71 patchrelease maakt de gekleurde A/V-track-sliders even dun als de gewone sliders.
 
-## Nieuw in 3.1.62
+## Nieuw in 3.1.71
+- De gekleurde sliderbalk is een lijn van 2 px, dezelfde dikte als Video stabilisatie en Horizontale stabilisatie.
+- De kleur van elke lijn blijft gelijk.
+
+## Eerder toegevoegd in 3.1.70
+- Soundtrack links is magenta, rechts is rood. Picture Strip is geel. Het zoekgebied is lichtblauw.
+- Frame Pitch Start is wit, Frame Pitch End is paars. Search Size is een lichtere paars, want die zet de breedte van die band.
+- Video Frame Top is cyaan, Video Frame Bottom is oranje.
+
+## Eerder toegevoegd in 3.1.69
+- **Wit aanwijzen** zet de kleurbalans op een lichte plek die wit of grijs hoort te zijn.
+- **Schaduw aanwijzen** haalt paars (of een andere zweem) uit de donkere delen, zonder de lichte delen opnieuw te kleuren.
+- De kleurbalans-sliders lopen nu van 0.25 tot 4.00, zodat een sterke zweem niet meer op 2.00 blijft hangen.
+
+## Eerder toegevoegd in 3.1.68
+- **Regeling voor** staat bovenaan Image Proc: **Optisch geluid** of **Beeld**.
+- Optisch geluid blijft het geluidsspoor regelen. Beeld regelt het gebied tussen de Picture Strip-lijnen.
+- Bij het omschakelen worden de sliders van de huidige stand bewaard en daarna de andere stand geladen.
+
+## Eerder toegevoegd in 3.1.67
+- **Helderheid** en **Contrast** staan direct onder B balance, in dezelfde sliderlijst, zonder apart vak.
+- Negative, Desaturate en Calibrate sluiten direct aan op die lijst.
+- **Set as Default**, **Reset Section** en **Factory Reset** staan helemaal onderaan Image Proc.
+
+## Eerder toegevoegd in 3.1.66
+- **Helderheid** en **Contrast** werken in de preview en in de gerenderde exportframes.
+- **Image Proc presets**: vaste correcties voor rode, gele, groene en blauwe zweem, plus helderder, donkerder en meer of minder contrast. **Opslaan** bewaart de huidige Image Proc-waarden als persoonlijke preset.
+- **Automatische kleur/contrast/helderheid** staat onderaan Image Proc, boven de drie knoppen.
+- Auto kleur en auto contrast zijn apart aan of uit te zetten.
+- **Kleurniveau** en **Contrastniveau** (0-100%) bepalen hoe sterk het gekozen profiel ingrijpt. 100% is de volle sterkte van Conservatief, Standaard of Sterk.
+
+## Eerder toegevoegd in 3.1.65
+- Scan Frame, de afspeelslider, Set In/Out en Rotate staan op **Image Proc**.
+
+## Eerder toegevoegd in 3.1.64
+- Het voltooiingsvenster na extractie blijft boven het hoofdvenster en de preview.
+- **OK** en **View Log** sluiten dat venster. De exportmap opent pas daarna, zodat die het venster niet bedekt.
+
+## Eerder toegevoegd in 3.1.63
+- **Extract A/V**: View options blijven volledig leesbaar. De afspeelslider houdt een normale breedte en staat onder de tabs, niet meer over de view-opties.
+- Sampleknoppen en **Auto Load Settings** blijven helemaal zichtbaar onder View options.
+- **Queue**: Import, Stop en de presetknoppen staan op een eerste regel, Pause/Skip/Retry/Extract op een tweede. Lange labels gebruiken twee regels tekst en een iets kleiner lettertype.
+
+## Eerder toegevoegd in 3.1.62
 - Opstartcrash opgelost: de view-opties worden verplaatst naar **Extract A/V** zonder de bestaande layout te verwijderen.
 
 ## Eerder toegevoegd in 3.1.61
@@ -385,28 +428,28 @@ Deze 3.1.62 patchrelease herstelt het opstarten. 3.1.61 stopte direct omdat de v
 4. Als SmartScreen waarschuwt: klik **Meer informatie** → **Toch uitvoeren**.
 
 ## Ultra-korte package checklist (5 punten)
-- [ ] Release-tag = `v3.1.62`.
+- [ ] Release-tag = `v3.1.71`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` staat op de release.
 - [ ] ZIP uitgepakt naar een lokale map.
-- [ ] `AEO-Light.exe` start en toont versie **3.1.62**.
+- [ ] `AEO-Light.exe` start en toont versie **3.1.71**.
 - [ ] Korte **Test Run** slaagt en maakt output aan.
 
-## Package checklist (v3.1.62, Windows x64)
-- [ ] Release-tag is `v3.1.62`.
+## Package checklist (v3.1.71, Windows x64)
+- [ ] Release-tag is `v3.1.71`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` is aanwezig op de releasepagina.
 - [ ] ZIP uitgepakt naar een lokale map (niet rechtstreeks uit de ZIP starten).
 - [ ] In de uitgepakte map staan minimaal:
   - `AEO-Light.exe`
   - `LICENSE.txt`
   - `ffmpeg.exe`
-- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.62**.
+- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.71**.
 - [ ] Snelle rooktest:
   - bron laden
   - korte **Test Run** uitvoeren
   - outputbestand wordt aangemaakt
 - [ ] (Optioneel) checksumcontrole van download:
   - `certutil -hashfile AEO-Light-Windows-x64.zip SHA256`
-  - verwacht: waarde op de `v3.1.62` releasepagina
+  - verwacht: waarde op de `v3.1.71` releasepagina
 
 ## Snelle start (aanbevolen)
 - Container: **MP4**

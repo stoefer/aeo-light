@@ -99,9 +99,30 @@ public:
 	float currstart;
 	float rendermode;
 	float lift,gamma,gain;
+	float tone_brightness;
+	float tone_contrast;
 	float red_balance;
 	float green_balance;
 	float blue_balance;
+	float shadow_red;
+	float shadow_green;
+	float shadow_blue;
+	float picture_lift,picture_gamma,picture_gain;
+	float picture_tone_brightness;
+	float picture_tone_contrast;
+	float picture_red_balance;
+	float picture_green_balance;
+	float picture_blue_balance;
+	float picture_shadow_red;
+	float picture_shadow_green;
+	float picture_shadow_blue;
+	int colorPickMode;
+	void (*colorPickCB)(int mode, float xNorm, float yFromTop, void *userData);
+	void *colorPickUserData;
+	float picture_threshold,picture_blur;
+	bool picture_thresh;
+	bool picture_negative;
+	bool picture_desaturate;
 	float threshold,blur;
 	float stereo;
 	bool thresh;
@@ -193,6 +214,14 @@ private:
 	GLuint dminmax_loc;
 	GLuint m_colorcontrol_loc;//test uniform varaiable
 	GLuint m_color_balance_loc;
+	GLint m_tone_controls_loc;
+	GLint m_picture_colorcontrol_loc;
+	GLint m_picture_color_balance_loc;
+	GLint m_shadow_balance_loc;
+	GLint m_picture_shadow_balance_loc;
+	GLint m_picture_tone_controls_loc;
+	GLint m_picture_manipcontrol_loc;
+	GLint m_picture_neg_loc;
 	GLuint m_bounds_loc; //location of bounds uniform
     GLuint m_rot_angle; // bind for rotation angle
 	GLuint m_calcontrol_loc;

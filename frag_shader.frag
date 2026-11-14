@@ -23,6 +23,14 @@ uniform vec2 pix_boundry;
 uniform vec4 bounds; //x1,x2,y1,y2
 uniform vec4 color_controls; //lift, gamma, gain,sat;
 uniform vec3 color_balance; // per-channel gain for cast correction (R,G,B)
+uniform vec3 shadow_balance; // extra gain that fades out above the shadows
+uniform vec2 tone_controls; // x = brightness offset, y = contrast scale
+uniform vec4 picture_color_controls; // lift, gamma, gain, sat for the picture strip
+uniform vec3 picture_color_balance;
+uniform vec3 picture_shadow_balance;
+uniform vec2 picture_tone_controls;
+uniform vec3 picture_manip_controls;
+uniform float picture_negative;
 uniform vec3 manip_controls; //thresh,threshold amount,  blur
 uniform vec4 overlap; //   y_search Area ,y_ offset,  bottom,  top;
 uniform vec2 video_crop; // top and bottom crop margins for video frame guides
@@ -269,9 +277,23 @@ vTexRotated = vTexRotated +vec2(0.5,0.5);
             grabberm =vec2(1.0);
         }
 
-        if( vTexCoord.x < bounds.y && vTexCoord.x > bounds.x)
-
+        float pictureLeft = min(pix_boundry.x, pix_boundry.y);
+        float pictureRight = max(pix_boundry.x, pix_boundry.y);
+        bool inOptical = vTexCoord.x < bounds.y && vTexCoord.x > bounds.x;
+        bool hasPictureBounds = (pictureRight - pictureLeft) > 0.002;
+        bool inPicture = !inOptical && (
+                hasPictureBounds
+                    ? (vTexCoord.x > pictureLeft && vTexCoord.x < pictureRight)
+                    : true);
+        if(inOptical || inPicture)
         {
+            vec4 active_color = inOptical ? color_controls : picture_color_controls;
+            vec3 active_balance = inOptical ? color_balance : picture_color_balance;
+            vec2 active_tone = inOptical ? tone_controls : picture_tone_controls;
+            vec3 active_manip = inOptical ? manip_controls : picture_manip_controls;
+            float active_negative = inOptical ? negative : picture_negative;
+            if(!inOptical)
+                grabberm = vec2(1.0);
             for( k=0; k<25; k++ )
             {
 
@@ -288,14 +310,14 @@ vTexRotated = vTexRotated +vec2(0.5,0.5);
                 blur_texel+=(tmps *KERNEL_HBLUR [k]);
             }
 
-            if(cal_controls.y==0.0)
+            if(!(inOptical && cal_controls.y==1.0))
             {
-                if(manip_controls.z>=0.0)
-                    texel = mix(texel,sharp_texel,manip_controls.z);  //sharpen control
+                if(active_manip.z>=0.0)
+                    texel = mix(texel,sharp_texel,active_manip.z);  //sharpen control
                 else
-                    texel = mix(texel,blur_texel,(0.0-manip_controls.z)*2.0); //blur control
+                    texel = mix(texel,blur_texel,(0.0-active_manip.z)*2.0); //blur control
 
-                if(cal_controls.x==1.0)
+                if(inOptical && cal_controls.x==1.0)
                 {
                     vec4        cal_texel=vec4(0.0);
 
@@ -307,23 +329,29 @@ vTexRotated = vTexRotated +vec2(0.5,0.5);
                 }
 
 
-                if(negative==1.0)
+                if(active_negative==1.0)
                     texel=vec4(1.0)-texel;//neg flip
-                texel+=vec4(color_controls.x); //lift should chnage to neg gain?
+                texel+=vec4(active_color.x); //lift should chnage to neg gain?
                 texel=clamp(texel,vec4(0),vec4(1.0));
-                texel=pow(texel,vec4(color_controls.y)); //gamma
-                texel*=vec4(color_controls.z);           //gain
-                texel.rgb*=color_balance;                //per-channel cast correction
+                texel=pow(texel,vec4(active_color.y)); //gamma
+                texel*=vec4(active_color.z);           //gain
+                texel.rgb*=active_balance;                //per-channel cast correction
+                float shadowLuma = dot(max(texel.rgb, vec3(0.0)), vec3(0.2126, 0.7152, 0.0722));
+                float shadowMix = 1.0 - smoothstep(0.05, 0.50, shadowLuma);
+                vec3 active_shadow = inOptical ? shadow_balance : picture_shadow_balance;
+                texel.rgb *= mix(vec3(1.0), active_shadow, shadowMix);
+                texel.rgb = (texel.rgb - vec3(0.5)) * active_tone.y
+                        + vec3(0.5) + vec3(active_tone.x);
                 texel=clamp(texel,vec4(0),vec4(1.0));
                 texel.xyz=RGBToHSL(texel.xyz);
-                texel.y  *= color_controls.a; //saturation
+                texel.y  *= active_color.a; //saturation
 
                 texel.xyz=HSLToRGB(texel.xyz);
 
-                if (manip_controls.x==1.0)//threshold boolean
+                if (active_manip.x==1.0)//threshold boolean
                 {
 
-                    texel = pow(texel,vec4(manip_controls.y)) / ((pow(vec4(0.5),vec4(manip_controls.y))) +pow(texel,vec4(manip_controls.y)) ); //sigmoid function
+                    texel = pow(texel,vec4(active_manip.y)) / ((pow(vec4(0.5),vec4(active_manip.y))) +pow(texel,vec4(active_manip.y)) ); //sigmoid function
 
 
                 }

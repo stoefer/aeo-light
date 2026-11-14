@@ -43,6 +43,15 @@
 #include <QMessageBox>
 #include <QDesktopServices>
 #include <QInputDialog>
+#include <QLineEdit>
+#include <QPair>
+#include <QGridLayout>
+#include <QHBoxLayout>
+#include <QVBoxLayout>
+#include <QSlider>
+#include <QComboBox>
+#include <QCheckBox>
+#include <QPushButton>
 #include <QFormLayout>
 #include <QSoundEffect>
 #include <QImage>
@@ -75,6 +84,8 @@
 #include <QMap>
 #include <QVBoxLayout>
 #include <QSlider>
+#include <QAbstractButton>
+#include <QSizePolicy>
 #include <QVariantMap>
 #include <QFontMetrics>
 
@@ -575,6 +586,9 @@ struct AutoFrameStats
 	double lumaLow = 0.0;
 	double lumaHigh = 1.0;
 	double channelSpread = 0.0;
+	double meanR = 0.0;
+	double meanG = 0.0;
+	double meanB = 0.0;
 	bool valid = false;
 };
 
@@ -732,6 +746,9 @@ static bool ComputeAutoFrameStats(const FrameTexture *frame, AutoFrameStats &sta
 			(std::abs(rMean - gMean) +
 			 std::abs(gMean - bMean) +
 			 std::abs(bMean - rMean)) / 3.0;
+	stats.meanR = rMean;
+	stats.meanG = gMean;
+	stats.meanB = bMean;
 	stats.valid = true;
 	return true;
 }
@@ -1384,6 +1401,12 @@ MainWindow::MainWindow(QWidget *parent) :
 			ResetImageSectionToFactoryDefaults();
 		});
 	}
+	if(ui->tab_2 && ui->horizontalLayoutWidget_2)
+	{
+		// Scan Frame, the transport slider, Set In/Out and Rotate belong
+		// on Image Proc, under that tab's own controls.
+		ui->horizontalLayoutWidget_2->setParent(ui->tab_2);
+	}
 	if(ui->horizontalLayout_6)
 	{
 		QPushButton *factoryResetButton = new QPushButton(tr("Factory Reset"), this);
@@ -1412,10 +1435,18 @@ MainWindow::MainWindow(QWidget *parent) :
 		if(movedViewLayout)
 		{
 			movedViewLayout->setParent(nullptr);
+			// The designer spacer only existed to fill the old bottom strip.
+			// Inside the Extract group it stretches the box over the slider.
+			for(int i = movedViewLayout->count() - 1; i >= 0; --i)
+			{
+				QLayoutItem *item = movedViewLayout->itemAt(i);
+				if(item && item->spacerItem())
+					delete movedViewLayout->takeAt(i);
+			}
 			extractViewOptionsGroupBox = new QGroupBox(tr("View options"), ui->tab_3);
 			extractViewOptionsGroupBox->setObjectName("extractViewOptionsGroupBox");
 			QVBoxLayout *extractViewOptionsLayout = new QVBoxLayout(extractViewOptionsGroupBox);
-			extractViewOptionsLayout->setContentsMargins(8, 8, 8, 8);
+			extractViewOptionsLayout->setContentsMargins(8, 16, 8, 8);
 			extractViewOptionsLayout->setSpacing(4);
 			extractViewOptionsLayout->addLayout(movedViewLayout);
 			if(ui->label_3)
@@ -1536,7 +1567,10 @@ MainWindow::MainWindow(QWidget *parent) :
 	autoOptimizeFramesEnabled = false;
 	autoOptimizeVideoEnabled = false;
 	autoOptimizeColorEnabled = true;
+	autoOptimizeContrastEnabled = true;
 	autoOptimizeProfileMode = 1;
+	autoContrastLevel = 100;
+	autoColorLevel = 100;
 	compactModeEnabled = false;
 	autoOptimizeFrameApplyLock = false;
 	suppressFrameAutoOptimizeDuringExtraction = false;
@@ -1546,6 +1580,7 @@ MainWindow::MainWindow(QWidget *parent) :
 	uiScaleBaseSize = QSize();
 	LoadVideoExportSettings();
 	LoadExtractOutputSettings();
+	SetupImageProcExtras();
 	InstallInlineHelpIcons();
 	bool usedLegacyShowHelpKey = false;
 	const bool showHelpText = ReadShowHelpTextSetting(&usedLegacyShowHelpKey);
@@ -1738,6 +1773,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
 	auto finalizeGracefulExit = [this, &closePreviewWindow]() {
 		if(this->scan.inFile.IsReady())
 			SaveLastUsedSettingsSnapshot();
+		SaveImageProcTargets();
 		SetSessionCleanExitFlag(true);
 		SaveUiWindowSettings();
 		closePreviewWindow();
@@ -1804,7 +1840,14 @@ void MainWindow::CaptureUiScaleBaseGeometry()
 	uiScaleBaseGeometry.clear();
 	uiScaleBaseFontPt.clear();
 
-	const QList<QWidget*> topChildren = cw->findChildren<QWidget*>(
+	// The positioned panels live on the scroll contents, not on the
+	// QScrollArea itself. Capturing the scroll area missed the tab and
+	// the transport bar, so the bar stayed on top of Extract A/V.
+	QWidget *layoutRoot = (ui && ui->scrollAreaWidgetContents) ?
+			ui->scrollAreaWidgetContents : cw;
+	uiScaleBaseGeometry.insert(layoutRoot, layoutRoot->geometry());
+
+	const QList<QWidget*> topChildren = layoutRoot->findChildren<QWidget*>(
 			QString(), Qt::FindDirectChildrenOnly);
 	for(QWidget *w : topChildren)
 	{
@@ -1829,17 +1872,29 @@ void MainWindow::PositionExtractTabAuxSections()
 {
 	if(!ui || !ui->tab_3) return;
 	const int margin = 10;
-	const int gap = 8;
+	const int gap = 10;
 	const int tabWidth = std::max(280, ui->tab_3->width() - (2 * margin));
-	const int tabHeight = std::max(200, ui->tab_3->height());
 	int nextY = margin;
 	if(ui->extractOutputGroupBox)
-		nextY = ui->extractOutputGroupBox->geometry().bottom() + gap + 1;
+	{
+		QGroupBox *output = ui->extractOutputGroupBox;
+		int hinted = output->minimumSizeHint().height();
+		if(hinted < output->height() || hinted > 480)
+			hinted = output->height();
+		if(output->height() < hinted)
+		{
+			QRect outputRect = output->geometry();
+			outputRect.setHeight(hinted);
+			output->setGeometry(outputRect);
+		}
+		nextY = output->geometry().bottom() + gap + 1;
+	}
 
 	if(extractViewOptionsGroupBox)
 	{
-		const int viewHeight = std::max(
-				116, extractViewOptionsGroupBox->sizeHint().height() + 4);
+		const int viewHeight = std::min(
+				260,
+				std::max(188, extractViewOptionsGroupBox->sizeHint().height() + 6));
 		extractViewOptionsGroupBox->setGeometry(
 				margin,
 				nextY,
@@ -1850,17 +1905,1315 @@ void MainWindow::PositionExtractTabAuxSections()
 
 	if(ui->gridLayoutWidget_3)
 	{
-		const int sampleHeight = std::max(
-				120, ui->gridLayoutWidget_3->sizeHint().height() + 2);
-		int sampleY = nextY;
-		if((sampleY + sampleHeight + margin) > tabHeight)
-			sampleY = std::max(nextY, tabHeight - sampleHeight - margin);
+		// Four sample rows plus Auto Load Settings. Do not pull this
+		// block upward: that hid the lower rows under the tab edge.
+		const int sampleHeight = std::min(
+				220,
+				std::max(168, ui->gridLayoutWidget_3->sizeHint().height() + 8));
+		ui->gridLayoutWidget_3->setMinimumHeight(sampleHeight);
 		ui->gridLayoutWidget_3->setGeometry(
 				margin,
-				sampleY,
+				nextY,
 				tabWidth,
 				sampleHeight);
+		nextY += sampleHeight + margin;
 	}
+
+	if(ui->tabWidget)
+	{
+		const int tabBarHeight = ui->tabWidget->tabBar() ?
+				std::max(28, ui->tabWidget->tabBar()->height()) : 34;
+		const int neededTabHeight = tabBarHeight + nextY + 12;
+		ui->tab_3->setMinimumHeight(nextY + 4);
+		if(ui->tabWidget->height() < neededTabHeight)
+		{
+			QRect tabRect = ui->tabWidget->geometry();
+			tabRect.setHeight(neededTabHeight);
+			ui->tabWidget->setGeometry(tabRect);
+		}
+	}
+}
+
+namespace {
+
+const int kImagePresetLeave = -10000;
+
+struct FixedImagePreset
+{
+	const char *name;
+	int lift;
+	int gamma;
+	int gain;
+	int red;
+	int green;
+	int blue;
+	int brightness;
+	int contrast;
+};
+
+const FixedImagePreset kFixedImagePresets[] = {
+	{ "Neutraal", 0, 100, 100, 100, 100, 100, 0, 100 },
+	{ "Rode zweem minder", kImagePresetLeave, kImagePresetLeave, kImagePresetLeave, 82, 104, 110, kImagePresetLeave, kImagePresetLeave },
+	{ "Gele zweem minder", kImagePresetLeave, kImagePresetLeave, kImagePresetLeave, 90, 96, 112, kImagePresetLeave, kImagePresetLeave },
+	{ "Groene zweem minder", kImagePresetLeave, kImagePresetLeave, kImagePresetLeave, 108, 86, 104, kImagePresetLeave, kImagePresetLeave },
+	{ "Blauwe zweem minder", kImagePresetLeave, kImagePresetLeave, kImagePresetLeave, 110, 104, 84, kImagePresetLeave, kImagePresetLeave },
+	{ "Meer contrast", kImagePresetLeave, 92, 125, kImagePresetLeave, kImagePresetLeave, kImagePresetLeave, kImagePresetLeave, 125 },
+	{ "Minder contrast", kImagePresetLeave, 108, 90, kImagePresetLeave, kImagePresetLeave, kImagePresetLeave, kImagePresetLeave, 85 },
+	{ "Helderder", 8, kImagePresetLeave, 112, kImagePresetLeave, kImagePresetLeave, kImagePresetLeave, 12, kImagePresetLeave },
+	{ "Donkerder", -8, kImagePresetLeave, 90, kImagePresetLeave, kImagePresetLeave, kImagePresetLeave, -12, kImagePresetLeave }
+};
+
+int FixedImagePresetCount()
+{
+	return int(sizeof(kFixedImagePresets) / sizeof(kFixedImagePresets[0]));
+}
+
+void PutFixedPresetValue(QVariantMap &values, const char *key, int value)
+{
+	if(value != kImagePresetLeave)
+		values.insert(QString::fromLatin1(key), value);
+}
+
+QVariantMap FixedImagePresetValues(int index)
+{
+	QVariantMap values;
+	if(index < 0 || index >= FixedImagePresetCount())
+		return values;
+	const FixedImagePreset &preset = kFixedImagePresets[index];
+	PutFixedPresetValue(values, "lift", preset.lift);
+	PutFixedPresetValue(values, "gamma", preset.gamma);
+	PutFixedPresetValue(values, "gain", preset.gain);
+	PutFixedPresetValue(values, "red", preset.red);
+	PutFixedPresetValue(values, "green", preset.green);
+	PutFixedPresetValue(values, "blue", preset.blue);
+	PutFixedPresetValue(values, "brightness", preset.brightness);
+	PutFixedPresetValue(values, "contrast", preset.contrast);
+	if(index == 0)
+	{
+		values.insert("shadow-red", 100);
+		values.insert("shadow-green", 100);
+		values.insert("shadow-blue", 100);
+	}
+	return values;
+}
+
+} // namespace
+
+MainWindow::ImageProcTargetValues MainWindow::FactoryImageProcTarget()
+{
+	return ImageProcTargetValues();
+}
+
+MainWindow::ImageProcTargetValues &MainWindow::ActiveImageProcTarget()
+{
+	return imageProcTargetMode == 0 ? imageProcOptical : imageProcPicture;
+}
+
+void MainWindow::CaptureImageProcTargetFromControls(ImageProcTargetValues &values) const
+{
+	if(!ui) return;
+	values.lift = ui->liftSlider->value();
+	values.gamma = ui->gammaSlider->value();
+	values.gain = ui->gainSlider->value();
+	values.threshold = ui->thresholdSlider->value();
+	values.blur = ui->blurSlider->value();
+	values.red = ui->redBalanceSlider->value();
+	values.green = ui->greenBalanceSlider->value();
+	values.blue = ui->blueBalanceSlider->value();
+	values.negative = ui->negBox->isChecked();
+	values.desaturate = ui->desatBox->isChecked();
+	values.thresholdOn = ui->threshBox->isChecked();
+	if(imageBrightnessSlider)
+		values.brightness = imageBrightnessSlider->value();
+	if(imageContrastSlider)
+		values.contrast = imageContrastSlider->value();
+}
+
+void MainWindow::ApplyImageProcTargetToControls(const ImageProcTargetValues &values)
+{
+	if(!ui) return;
+	auto setSlider = [](QSlider *slider, QLabel *label, int number)
+	{
+		if(!slider) return;
+		QSignalBlocker blocker(slider);
+		slider->setValue(number);
+		if(label)
+			label->setText(QString::number(number / 100.f, 'f', 2));
+	};
+	setSlider(ui->liftSlider, ui->liftLabel, values.lift);
+	setSlider(ui->gammaSlider, ui->gammaLabel, values.gamma);
+	setSlider(ui->gainSlider, ui->gainLabel, values.gain);
+	setSlider(ui->thresholdSlider, ui->threshLabel, values.threshold);
+	setSlider(ui->blurSlider, ui->blurLabel, values.blur);
+	setSlider(ui->redBalanceSlider, ui->redBalanceLabel, values.red);
+	setSlider(ui->greenBalanceSlider, ui->greenBalanceLabel, values.green);
+	setSlider(ui->blueBalanceSlider, ui->blueBalanceLabel, values.blue);
+	setSlider(imageBrightnessSlider, imageBrightnessValueLabel, values.brightness);
+	setSlider(imageContrastSlider, imageContrastValueLabel, values.contrast);
+	{
+		QSignalBlocker blocker(ui->negBox);
+		ui->negBox->setChecked(values.negative);
+	}
+	{
+		QSignalBlocker blocker(ui->desatBox);
+		ui->desatBox->setChecked(values.desaturate);
+	}
+	{
+		QSignalBlocker blocker(ui->threshBox);
+		ui->threshBox->setChecked(values.thresholdOn);
+	}
+}
+
+void MainWindow::WriteImageProcTargetGroup(
+		QSettings &settings,
+		const QString &group,
+		const ImageProcTargetValues &values)
+{
+	settings.beginGroup(group);
+	settings.setValue("lift", values.lift);
+	settings.setValue("gamma", values.gamma);
+	settings.setValue("gain", values.gain);
+	settings.setValue("threshold", values.threshold);
+	settings.setValue("blur", values.blur);
+	settings.setValue("red", values.red);
+	settings.setValue("green", values.green);
+	settings.setValue("blue", values.blue);
+	settings.setValue("brightness", values.brightness);
+	settings.setValue("contrast", values.contrast);
+	settings.setValue("shadow-red", values.shadowRed);
+	settings.setValue("shadow-green", values.shadowGreen);
+	settings.setValue("shadow-blue", values.shadowBlue);
+	settings.setValue("negative", values.negative);
+	settings.setValue("desaturate", values.desaturate);
+	settings.setValue("threshold-on", values.thresholdOn);
+	settings.endGroup();
+}
+
+bool MainWindow::ReadImageProcTargetGroup(
+		QSettings &settings,
+		const QString &group,
+		ImageProcTargetValues &values)
+{
+	settings.beginGroup(group);
+	const bool present = settings.contains("lift");
+	if(present)
+	{
+		values.lift = settings.value("lift", values.lift).toInt();
+		values.gamma = settings.value("gamma", values.gamma).toInt();
+		values.gain = settings.value("gain", values.gain).toInt();
+		values.threshold = settings.value("threshold", values.threshold).toInt();
+		values.blur = settings.value("blur", values.blur).toInt();
+		values.red = settings.value("red", values.red).toInt();
+		values.green = settings.value("green", values.green).toInt();
+		values.blue = settings.value("blue", values.blue).toInt();
+		values.brightness = settings.value("brightness", values.brightness).toInt();
+		values.contrast = settings.value("contrast", values.contrast).toInt();
+		values.shadowRed = settings.value("shadow-red", values.shadowRed).toInt();
+		values.shadowGreen = settings.value("shadow-green", values.shadowGreen).toInt();
+		values.shadowBlue = settings.value("shadow-blue", values.shadowBlue).toInt();
+		values.negative = settings.value("negative", values.negative).toBool();
+		values.desaturate = settings.value("desaturate", values.desaturate).toBool();
+		values.thresholdOn = settings.value("threshold-on", values.thresholdOn).toBool();
+	}
+	settings.endGroup();
+	return present;
+}
+
+void MainWindow::SaveImageProcTargets() const
+{
+	QSettings settings;
+	settings.beginGroup("image-proc-target");
+	settings.setValue("active", imageProcTargetMode);
+	WriteImageProcTargetGroup(settings, "optical", imageProcOptical);
+	WriteImageProcTargetGroup(settings, "picture", imageProcPicture);
+	settings.endGroup();
+}
+
+void MainWindow::LoadImageProcTargets(bool captureCurrentIfMissing)
+{
+	if(imageProcTargetsLoaded)
+	{
+		ApplyImageProcTargetToControls(ActiveImageProcTarget());
+		if(imageProcTargetCombo)
+		{
+			imageProcTargetSwitchLock = true;
+			imageProcTargetCombo->setCurrentIndex(imageProcTargetMode);
+			imageProcTargetSwitchLock = false;
+		}
+		return;
+	}
+
+	QSettings settings;
+	settings.beginGroup("image-proc-target");
+	const bool hasOptical = settings.contains("optical/lift");
+	const bool hasPicture = settings.contains("picture/lift");
+	const int active = ClampRangeInt(settings.value("active", 0).toInt(), 0, 1);
+	if(!hasOptical && !hasPicture && !captureCurrentIfMissing)
+	{
+		settings.endGroup();
+		return;
+	}
+	if(hasOptical)
+		ReadImageProcTargetGroup(settings, "optical", imageProcOptical);
+	else
+		CaptureImageProcTargetFromControls(imageProcOptical);
+	if(hasPicture)
+		ReadImageProcTargetGroup(settings, "picture", imageProcPicture);
+	else
+		imageProcPicture = FactoryImageProcTarget();
+	settings.endGroup();
+	imageProcTargetMode = active;
+	imageProcTargetsLoaded = true;
+	imageProcTargetSwitchLock = true;
+	ApplyImageProcTargetToControls(ActiveImageProcTarget());
+	if(imageProcTargetCombo)
+		imageProcTargetCombo->setCurrentIndex(imageProcTargetMode);
+	imageProcTargetSwitchLock = false;
+}
+
+static double ColorPickSmoothStep(double edge0, double edge1, double x)
+{
+	if(edge1 <= edge0)
+		return x < edge0 ? 0.0 : 1.0;
+	const double t = std::max(0.0, std::min(1.0, (x - edge0) / (edge1 - edge0)));
+	return t * t * (3.0 - 2.0 * t);
+}
+
+static bool ReadFramePixelRgb(const FrameTexture *frame, int x, int y,
+		double &r, double &g, double &b)
+{
+	if(!frame || !frame->buf || frame->width <= 0 || frame->height <= 0)
+		return false;
+	if(x < 0 || y < 0 || x >= frame->width || y >= frame->height)
+		return false;
+	const int comps = std::max(1, frame->nComponents);
+	if(frame->format == GL_UNSIGNED_BYTE)
+	{
+		const uint8_t *src = reinterpret_cast<const uint8_t *>(frame->buf);
+		const int idx = (y * frame->width + x) * comps;
+		if(comps >= 3)
+		{
+			r = src[idx] / 255.0;
+			g = src[idx + 1] / 255.0;
+			b = src[idx + 2] / 255.0;
+		}
+		else
+		{
+			r = g = b = src[idx] / 255.0;
+		}
+		return true;
+	}
+	if(frame->format == GL_UNSIGNED_SHORT)
+	{
+		const uint16_t *src = reinterpret_cast<const uint16_t *>(frame->buf);
+		const int idx = (y * frame->width + x) * comps;
+		auto norm = [&](uint16_t value) -> double
+		{
+			if(frame->isNonNativeEndianess)
+				value = uint16_t((value >> 8) | (value << 8));
+			return double(value) / 65535.0;
+		};
+		if(comps >= 3)
+		{
+			r = norm(src[idx]);
+			g = norm(src[idx + 1]);
+			b = norm(src[idx + 2]);
+		}
+		else
+		{
+			r = g = b = norm(src[idx]);
+		}
+		return true;
+	}
+	if(frame->format == GL_UNSIGNED_INT_10_10_10_2)
+	{
+		const uint32_t *src = reinterpret_cast<const uint32_t *>(frame->buf);
+		uint32_t px = src[y * frame->width + x];
+		if(frame->isNonNativeEndianess)
+		{
+			px = ((px & 0x000000FFu) << 24) | ((px & 0x0000FF00u) << 8) |
+					((px & 0x00FF0000u) >> 8) | ((px & 0xFF000000u) >> 24);
+		}
+		r = double(px & 0x3FFu) / 1023.0;
+		g = double((px >> 10) & 0x3FFu) / 1023.0;
+		b = double((px >> 20) & 0x3FFu) / 1023.0;
+		return true;
+	}
+	return false;
+}
+
+void MainWindow::SetColorPickMode(int mode)
+{
+	mode = ClampRangeInt(mode, 0, 2);
+	if(frame_window)
+	{
+		frame_window->colorPickMode = mode;
+		frame_window->setCursor(mode == 0 ? Qt::ArrowCursor : Qt::CrossCursor);
+	}
+	if(!imageColorPickStatusLabel)
+		return;
+	if(mode == 1)
+	{
+		imageColorPickStatusLabel->setText(
+				tr("Klik in het voorbeeld op een lichte plek die wit of grijs hoort te zijn."));
+	}
+	else if(mode == 2)
+	{
+		imageColorPickStatusLabel->setText(
+				tr("Klik in het voorbeeld op een donkere plek die grijs of zwart hoort te zijn."));
+	}
+	else
+	{
+		imageColorPickStatusLabel->setText(
+				tr("Wit voor de lichte delen, schaduw voor het paars in het donker."));
+	}
+}
+
+void MainWindow::ApplyColorPick(int mode, float xNorm, float yFromTop)
+{
+	auto setStatus = [this](const QString &text)
+	{
+		if(imageColorPickStatusLabel)
+			imageColorPickStatusLabel->setText(text);
+	};
+	if(!ui || !frame_window || !currentFrameTexture)
+	{
+		setStatus(tr("Open eerst een frame."));
+		return;
+	}
+	const FrameTexture *frame = currentFrameTexture;
+	float regionLeft = imageProcTargetMode == 0 ?
+			frame_window->bounds[0] : frame_window->pixbounds[0];
+	float regionRight = imageProcTargetMode == 0 ?
+			frame_window->bounds[1] : frame_window->pixbounds[1];
+	if(regionRight < regionLeft)
+		std::swap(regionLeft, regionRight);
+	if((regionRight - regionLeft) > 0.002f &&
+			(xNorm < regionLeft || xNorm > regionRight))
+	{
+		setStatus(imageProcTargetMode == 0 ?
+				tr("Klik binnen het optische geluidsspoor.") :
+				tr("Klik binnen de gele Picture Strip-lijnen."));
+		return;
+	}
+
+	const double angle = double(frame_window->rot_angle) * 3.14159265358979323846 / 180.0;
+	const double c = std::cos(angle);
+	const double s = std::sin(angle);
+	const double dx = double(xNorm) - 0.5;
+	const double dy = double(yFromTop) - 0.5;
+	const double sourceX = std::max(0.0, std::min(1.0,
+			c * dx - s * dy + 0.5 + double(frame_window->horizontal_stabilize_shift)));
+	const double sourceY = std::max(0.0, std::min(1.0,
+			s * dx + c * dy + 0.5 + double(frame_window->vertical_stabilize_shift)));
+	const int centerX = ClampRangeInt(
+			int(std::lround(sourceX * (frame->width - 1))), 0, frame->width - 1);
+	const int centerY = ClampRangeInt(
+			int(std::lround(sourceY * (frame->height - 1))), 0, frame->height - 1);
+
+	double sumR = 0.0;
+	double sumG = 0.0;
+	double sumB = 0.0;
+	int samples = 0;
+	for(int y = centerY - 2; y <= centerY + 2; ++y)
+	{
+		for(int x = centerX - 2; x <= centerX + 2; ++x)
+		{
+			double r = 0.0;
+			double g = 0.0;
+			double b = 0.0;
+			if(!ReadFramePixelRgb(frame, x, y, r, g, b))
+				continue;
+			sumR += r;
+			sumG += g;
+			sumB += b;
+			++samples;
+		}
+	}
+	if(samples < 4)
+	{
+		setStatus(tr("Die plek kan niet worden gelezen."));
+		return;
+	}
+	double r = sumR / samples;
+	double g = sumG / samples;
+	double b = sumB / samples;
+
+	const bool negative = ui->negBox->isChecked();
+	const double lift = ui->liftSlider->value() / 100.0;
+	const double gamma = std::max(0.05, ui->gammaSlider->value() / 100.0);
+	const double gain = ui->gainSlider->value() / 100.0;
+	auto graded = [&](double channel) -> double
+	{
+		double value = negative ? 1.0 - channel : channel;
+		value = std::max(0.0, std::min(1.0, value + lift));
+		value = std::pow(value, gamma);
+		value *= std::max(0.0, gain);
+		return value;
+	};
+	double pr = std::max(1e-4, graded(r));
+	double pg = std::max(1e-4, graded(g));
+	double pb = std::max(1e-4, graded(b));
+	const double luma = 0.2126 * pr + 0.7152 * pg + 0.0722 * pb;
+
+	auto toSlider = [](double factor) -> int
+	{
+		return ClampRangeInt(int(std::lround(factor * 100.0)), 25, 400);
+	};
+	auto limited = [](double factor) -> bool
+	{
+		return factor < 0.25 || factor > 4.0;
+	};
+
+	QString status;
+	bool hitLimit = false;
+	if(mode == 2)
+	{
+		pr *= ui->redBalanceSlider->value() / 100.0;
+		pg *= ui->greenBalanceSlider->value() / 100.0;
+		pb *= ui->blueBalanceSlider->value() / 100.0;
+		const double shownLuma = 0.2126 * pr + 0.7152 * pg + 0.0722 * pb;
+		const double shadowWeight = 1.0 - ColorPickSmoothStep(0.05, 0.50, shownLuma);
+		if(shadowWeight < 0.35)
+		{
+			setStatus(tr("Die plek is te licht. Kies een donkere plek voor de schaduw."));
+			return;
+		}
+		const double peak = std::max(pr, std::max(pg, pb));
+		auto shadowFactor = [&](double shown) -> double
+		{
+			shown = std::max(1e-4, shown);
+			return (peak / shown - (1.0 - shadowWeight)) / shadowWeight;
+		};
+		const double wantR = shadowFactor(pr);
+		const double wantG = shadowFactor(pg);
+		const double wantB = shadowFactor(pb);
+		hitLimit = limited(wantR) || limited(wantG) || limited(wantB);
+		ImageProcTargetValues &active = ActiveImageProcTarget();
+		active.shadowRed = toSlider(wantR);
+		active.shadowGreen = toSlider(wantG);
+		active.shadowBlue = toSlider(wantB);
+		status = tr("Schaduw: R %1  G %2  B %3.")
+				.arg(active.shadowRed / 100.0, 0, 'f', 2)
+				.arg(active.shadowGreen / 100.0, 0, 'f', 2)
+				.arg(active.shadowBlue / 100.0, 0, 'f', 2);
+	}
+	else
+	{
+		if(luma < 0.20)
+		{
+			setStatus(tr("Die plek is te donker. Kies een lichte plek voor de witbalans."));
+			return;
+		}
+		const double peak = std::max(pr, std::max(pg, pb));
+		const double wantR = peak / pr;
+		const double wantG = peak / pg;
+		const double wantB = peak / pb;
+		hitLimit = limited(wantR) || limited(wantG) || limited(wantB);
+		const int red = toSlider(wantR);
+		const int green = toSlider(wantG);
+		const int blue = toSlider(wantB);
+		{
+			QSignalBlocker lockRed(ui->redBalanceSlider);
+			QSignalBlocker lockGreen(ui->greenBalanceSlider);
+			QSignalBlocker lockBlue(ui->blueBalanceSlider);
+			ui->redBalanceSlider->setValue(red);
+			ui->greenBalanceSlider->setValue(green);
+			ui->blueBalanceSlider->setValue(blue);
+		}
+		ui->redBalanceLabel->setText(QString::number(red / 100.f, 'f', 2));
+		ui->greenBalanceLabel->setText(QString::number(green / 100.f, 'f', 2));
+		ui->blueBalanceLabel->setText(QString::number(blue / 100.f, 'f', 2));
+		status = tr("Witbalans: R %1  G %2  B %3.")
+				.arg(red / 100.0, 0, 'f', 2)
+				.arg(green / 100.0, 0, 'f', 2)
+				.arg(blue / 100.0, 0, 'f', 2);
+		const ImageProcTargetValues &active = ActiveImageProcTarget();
+		if(std::abs(active.shadowRed - 100) > 3 ||
+				std::abs(active.shadowGreen - 100) > 3 ||
+				std::abs(active.shadowBlue - 100) > 3)
+		{
+			status += tr(" Wijs de schaduw opnieuw aan.");
+		}
+	}
+	if(hitLimit)
+		status += tr(" De zweem is zo sterk dat een slider op de grens staat.");
+	{
+		QSignalBlocker lockWhite(imageWhitePickButton.data());
+		QSignalBlocker lockShadow(imageShadowPickButton.data());
+		if(imageWhitePickButton)
+			imageWhitePickButton->setChecked(false);
+		if(imageShadowPickButton)
+			imageShadowPickButton->setChecked(false);
+	}
+	if(frame_window)
+	{
+		frame_window->colorPickMode = 0;
+		frame_window->setCursor(Qt::ArrowCursor);
+	}
+	GPU_Params_Update(1);
+	SaveImageProcTargets();
+	setStatus(status);
+}
+
+void MainWindow::SetupImageProcExtras()
+{
+	if(!ui || !ui->tab_2 || imageBrightnessSlider)
+		return;
+
+	QWidget *sliderParent = ui->gridLayoutWidget_2 ? ui->gridLayoutWidget_2 : ui->tab_2;
+	auto alignValue = [](QLabel *label)
+	{
+		label->setAlignment(Qt::AlignRight | Qt::AlignTrailing | Qt::AlignVCenter);
+		label->setMinimumWidth(42);
+	};
+	QLabel *brightnessCaption = new QLabel(tr("Helderheid"), sliderParent);
+	brightnessCaption->setAlignment(Qt::AlignRight | Qt::AlignTrailing | Qt::AlignVCenter);
+	imageBrightnessSlider = new QSlider(Qt::Horizontal, sliderParent);
+	imageBrightnessSlider->setRange(-100, 100);
+	imageBrightnessSlider->setValue(0);
+	imageBrightnessSlider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+	imageBrightnessSlider->setToolTip(
+			tr("Verschuift het beeld lichter of donkerder. 0 is neutraal."));
+	imageBrightnessValueLabel = new QLabel(tr("0.00"), sliderParent);
+	alignValue(imageBrightnessValueLabel);
+	QLabel *contrastCaption = new QLabel(tr("Contrast"), sliderParent);
+	contrastCaption->setAlignment(Qt::AlignRight | Qt::AlignTrailing | Qt::AlignVCenter);
+	imageContrastSlider = new QSlider(Qt::Horizontal, sliderParent);
+	imageContrastSlider->setRange(25, 200);
+	imageContrastSlider->setValue(100);
+	imageContrastSlider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+	imageContrastSlider->setToolTip(
+			tr("1.00 is neutraal. Lager maakt het vlakker, hoger maakt het harder."));
+	imageContrastValueLabel = new QLabel(tr("1.00"), sliderParent);
+	alignValue(imageContrastValueLabel);
+	if(ui->gridLayout)
+	{
+		if(ui->colorBalanceTipLabel)
+			ui->gridLayout->removeWidget(ui->colorBalanceTipLabel);
+		ui->gridLayout->addWidget(brightnessCaption, 9, 1);
+		ui->gridLayout->addWidget(imageBrightnessValueLabel, 9, 2);
+		ui->gridLayout->addWidget(imageBrightnessSlider, 9, 3);
+		ui->gridLayout->addWidget(contrastCaption, 10, 1);
+		ui->gridLayout->addWidget(imageContrastValueLabel, 10, 2);
+		ui->gridLayout->addWidget(imageContrastSlider, 10, 3);
+		if(ui->colorBalanceTipLabel)
+			ui->gridLayout->addWidget(ui->colorBalanceTipLabel, 11, 0, 1, 5);
+		QLabel *targetLabel = new QLabel(tr("Regeling voor"), sliderParent);
+		targetLabel->setAlignment(Qt::AlignRight | Qt::AlignTrailing | Qt::AlignVCenter);
+		imageProcTargetCombo = new QComboBox(sliderParent);
+		imageProcTargetCombo->addItem(tr("Optisch geluid"));
+		imageProcTargetCombo->addItem(tr("Beeld"));
+		imageProcTargetCombo->setToolTip(
+				tr("Optisch geluid regelt alleen het geluidsspoor. Beeld regelt het afgebakende picture-strip gebied. De huidige sliders worden bewaard voordat de andere stand wordt geladen."));
+		ui->gridLayout->addWidget(targetLabel, 0, 1);
+		ui->gridLayout->addWidget(imageProcTargetCombo, 0, 2, 1, 2);
+		connect(imageProcTargetCombo.data(),
+				static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+				this,
+				[this](int index)
+		{
+			if(imageProcTargetSwitchLock || index == imageProcTargetMode)
+				return;
+			CaptureImageProcTargetFromControls(ActiveImageProcTarget());
+			imageProcTargetMode = ClampRangeInt(index, 0, 1);
+			imageProcTargetSwitchLock = true;
+			ApplyImageProcTargetToControls(ActiveImageProcTarget());
+			imageProcTargetSwitchLock = false;
+			SaveImageProcTargets();
+			GPU_Params_Update(1);
+		});
+		ui->redBalanceSlider->setRange(25, 400);
+		ui->greenBalanceSlider->setRange(25, 400);
+		ui->blueBalanceSlider->setRange(25, 400);
+		if(ui->colorBalanceTipLabel)
+		{
+			ui->colorBalanceTipLabel->setText(
+					tr("Paars in de donkere delen haal je weg met Schaduw aanwijzen. Cyaan of groen in de lichte delen met Wit aanwijzen. Klik op een plek die grijs hoort te zijn, niet op gekleurde letters."));
+		}
+		imageColorPickRow = new QWidget(sliderParent);
+		QHBoxLayout *pickLayout = new QHBoxLayout(imageColorPickRow);
+		pickLayout->setContentsMargins(0, 0, 0, 0);
+		pickLayout->setSpacing(6);
+		QLabel *pickCaption = new QLabel(tr("Witbalans"), imageColorPickRow);
+		pickCaption->setAlignment(Qt::AlignRight | Qt::AlignTrailing | Qt::AlignVCenter);
+		imageWhitePickButton = new QPushButton(tr("Wit aanwijzen"), imageColorPickRow);
+		imageShadowPickButton = new QPushButton(tr("Schaduw aanwijzen"), imageColorPickRow);
+		imageWhitePickButton->setCheckable(true);
+		imageShadowPickButton->setCheckable(true);
+		imageWhitePickButton->setToolTip(
+				tr("Klik daarna in het voorbeeld op een lichte plek die wit of grijs hoort te zijn. De kleurbalans maakt die plek neutraal."));
+		imageShadowPickButton->setToolTip(
+				tr("Klik daarna op een donkere plek die grijs of zwart hoort te zijn. Dat haalt paars uit de schaduwen en laat de lichte delen met rust."));
+		pickLayout->addWidget(pickCaption);
+		pickLayout->addWidget(imageWhitePickButton);
+		pickLayout->addWidget(imageShadowPickButton);
+		pickLayout->addStretch(1);
+		ui->gridLayout->addWidget(imageColorPickRow, 12, 0, 1, 5);
+		imageColorPickStatusLabel = new QLabel(
+				tr("Wit voor de lichte delen, schaduw voor het paars in het donker."),
+				sliderParent);
+		imageColorPickStatusLabel->setWordWrap(true);
+		ui->gridLayout->addWidget(imageColorPickStatusLabel, 13, 0, 1, 5);
+		connect(imageWhitePickButton.data(), &QPushButton::toggled, this, [this](bool checked)
+		{
+			if(checked && imageShadowPickButton)
+				imageShadowPickButton->setChecked(false);
+			SetColorPickMode(checked ? 1 : (imageShadowPickButton && imageShadowPickButton->isChecked() ? 2 : 0));
+		});
+		connect(imageShadowPickButton.data(), &QPushButton::toggled, this, [this](bool checked)
+		{
+			if(checked && imageWhitePickButton)
+				imageWhitePickButton->setChecked(false);
+			SetColorPickMode(checked ? 2 : (imageWhitePickButton && imageWhitePickButton->isChecked() ? 1 : 0));
+		});
+	}
+	LoadImageProcTargets(false);
+	connect(imageBrightnessSlider.data(), &QSlider::valueChanged, this, [this](int value)
+	{
+		if(imageBrightnessValueLabel)
+			imageBrightnessValueLabel->setText(QString::number(value / 100.f, 'f', 2));
+		GPU_Params_Update(1);
+	});
+	connect(imageContrastSlider.data(), &QSlider::valueChanged, this, [this](int value)
+	{
+		if(imageContrastValueLabel)
+			imageContrastValueLabel->setText(QString::number(value / 100.f, 'f', 2));
+		GPU_Params_Update(1);
+	});
+
+	imagePresetGroupBox = new QGroupBox(tr("Image Proc presets"), ui->tab_2);
+	QVBoxLayout *presetLayout = new QVBoxLayout(imagePresetGroupBox);
+	presetLayout->setContentsMargins(8, 8, 8, 8);
+	presetLayout->setSpacing(6);
+	imagePresetComboBox = new QComboBox(imagePresetGroupBox);
+	imagePresetComboBox->setToolTip(
+			tr("Kies een vaste correctie of een opgeslagen eigen preset."));
+	QWidget *presetButtons = new QWidget(imagePresetGroupBox);
+	QHBoxLayout *presetButtonLayout = new QHBoxLayout(presetButtons);
+	presetButtonLayout->setContentsMargins(0, 0, 0, 0);
+	QPushButton *savePresetButton = new QPushButton(tr("Opslaan"), presetButtons);
+	QPushButton *deletePresetButton = new QPushButton(tr("Verwijderen"), presetButtons);
+	savePresetButton->setToolTip(
+			tr("Sla de huidige Image Proc-waarden op onder een eigen naam."));
+	deletePresetButton->setToolTip(
+			tr("Verwijder de gekozen persoonlijke preset. Vaste presets blijven staan."));
+	presetButtonLayout->addWidget(savePresetButton);
+	presetButtonLayout->addWidget(deletePresetButton);
+	presetButtonLayout->addStretch(1);
+	QLabel *presetHelp = new QLabel(
+			tr("Vaste presets zetten de meest voorkomende kleurzwemen, helderheid en contrast. Opslaan bewaart lift, gamma, gain, kleurbalans, helderheid en contrast."),
+			imagePresetGroupBox);
+	presetHelp->setWordWrap(true);
+	presetLayout->addWidget(imagePresetComboBox);
+	presetLayout->addWidget(presetButtons);
+	presetLayout->addWidget(presetHelp);
+	RefreshImagePresetCombo();
+	connect(imagePresetComboBox.data(),
+			static_cast<void (QComboBox::*)(int)>(&QComboBox::activated),
+			this,
+			[this](int index)
+	{
+		if(imagePresetRefreshLock || !imagePresetComboBox)
+			return;
+		ApplyNamedImagePreset(imagePresetComboBox->itemData(index).toString());
+	});
+	connect(savePresetButton, &QPushButton::clicked, this, [this]()
+	{
+		SavePersonalImagePreset();
+	});
+	connect(deletePresetButton, &QPushButton::clicked, this, [this]()
+	{
+		DeletePersonalImagePreset();
+	});
+
+	if(ui->autoOptimizeGroupBox)
+	{
+		ui->autoOptimizeGroupBox->setParent(ui->tab_2);
+		ui->autoOptimizeColorCheckBox->setText(tr("Auto kleur"));
+		ui->autoOptimizeColorCheckBox->setToolTip(
+				tr("Corrigeert de kleurbalans van het frame en de saturatie van de video-export."));
+		autoOptimizeContrastCheckBox = new QCheckBox(
+				tr("Auto contrast"), ui->autoOptimizeGroupBox);
+		autoOptimizeContrastCheckBox->setChecked(autoOptimizeContrastEnabled);
+		autoOptimizeContrastCheckBox->setToolTip(
+				tr("Past lift, gamma en gain aan, en helderheid/contrast van de video-export."));
+		if(ui->autoOptimizeProfileLayout)
+			ui->autoOptimizeProfileLayout->addWidget(autoOptimizeContrastCheckBox);
+
+		auto makeLevelRow = [](QWidget *parent, const QString &caption, int value) -> QPair<QWidget*, QSlider*>
+		{
+			QWidget *row = new QWidget(parent);
+			QHBoxLayout *rowLayout = new QHBoxLayout(row);
+			rowLayout->setContentsMargins(0, 0, 0, 0);
+			QLabel *captionLabel = new QLabel(caption, row);
+			captionLabel->setMinimumWidth(110);
+			QSlider *slider = new QSlider(Qt::Horizontal, row);
+			slider->setRange(0, 100);
+			slider->setValue(value);
+			QLabel *valueLabel = new QLabel(row);
+			valueLabel->setMinimumWidth(42);
+			valueLabel->setText(QString::number(slider->value()) + "%");
+			rowLayout->addWidget(captionLabel);
+			rowLayout->addWidget(slider, 1);
+			rowLayout->addWidget(valueLabel);
+			QObject::connect(slider, &QSlider::valueChanged, valueLabel, [valueLabel](int newValue)
+			{
+				valueLabel->setText(QString::number(newValue) + "%");
+			});
+			return qMakePair(row, slider);
+		};
+		if(ui->autoOptimizeGridLayout)
+		{
+			const QPair<QWidget*, QSlider*> contrastRow = makeLevelRow(
+					ui->autoOptimizeGroupBox,
+					tr("Contrastniveau"),
+					ClampRangeInt(autoContrastLevel, 0, 100));
+			const QPair<QWidget*, QSlider*> colorRow = makeLevelRow(
+					ui->autoOptimizeGroupBox,
+					tr("Kleurniveau"),
+					ClampRangeInt(autoColorLevel, 0, 100));
+			autoContrastLevelSlider = contrastRow.second;
+			autoColorLevelSlider = colorRow.second;
+			ui->autoOptimizeGridLayout->addWidget(contrastRow.first, 5, 0, 1, 2);
+			ui->autoOptimizeGridLayout->addWidget(colorRow.first, 6, 0, 1, 2);
+		}
+		ui->autoOptimizeHelpLabel->setText(
+				tr("Kleur en contrast schakel je apart. Het niveau (0-100%) bepaalt hoe sterk het gekozen profiel ingrijpt. 100% is de volle sterkte van Conservatief, Standaard of Sterk."));
+		if(autoOptimizeContrastCheckBox)
+		{
+			connect(autoOptimizeContrastCheckBox.data(), &QCheckBox::toggled, this, [this](bool checked)
+			{
+				autoOptimizeContrastEnabled = checked;
+				SaveVideoExportSettings();
+				if(autoOptimizeFramesEnabled)
+					ApplyAutoOptimizationToFrameControls(true);
+				else
+					UpdateAutoOptimizationControls();
+			});
+		}
+		if(autoContrastLevelSlider)
+		{
+			connect(autoContrastLevelSlider.data(), &QSlider::valueChanged, this, [this](int value)
+			{
+				autoContrastLevel = ClampRangeInt(value, 0, 100);
+				SaveVideoExportSettings();
+				if(autoOptimizeFramesEnabled)
+					ApplyAutoOptimizationToFrameControls(true);
+				else
+					UpdateAutoOptimizationControls();
+			});
+		}
+		if(autoColorLevelSlider)
+		{
+			connect(autoColorLevelSlider.data(), &QSlider::valueChanged, this, [this](int value)
+			{
+				autoColorLevel = ClampRangeInt(value, 0, 100);
+				SaveVideoExportSettings();
+				if(autoOptimizeFramesEnabled)
+					ApplyAutoOptimizationToFrameControls(true);
+				else
+					UpdateAutoOptimizationControls();
+			});
+		}
+	}
+	UpdateAutoOptimizationControls();
+}
+
+void MainWindow::RefreshImagePresetCombo()
+{
+	if(!imagePresetComboBox)
+		return;
+	imagePresetRefreshLock = true;
+	const QString selected = imagePresetComboBox->currentData().toString();
+	imagePresetComboBox->blockSignals(true);
+	imagePresetComboBox->clear();
+	imagePresetComboBox->addItem(tr("Kies een preset…"), QString());
+	for(int i = 0; i < FixedImagePresetCount(); ++i)
+	{
+		imagePresetComboBox->addItem(
+				tr(kFixedImagePresets[i].name),
+				QString("fixed:%1").arg(i));
+	}
+	QSettings settings;
+	settings.beginGroup("image-proc-presets");
+	QStringList names = settings.childKeys();
+	settings.endGroup();
+	names.sort(Qt::CaseInsensitive);
+	if(!names.isEmpty())
+		imagePresetComboBox->insertSeparator(imagePresetComboBox->count());
+	for(const QString &name : names)
+		imagePresetComboBox->addItem(name, QString("user:%1").arg(name));
+	const int restoreIndex = imagePresetComboBox->findData(selected);
+	imagePresetComboBox->setCurrentIndex(restoreIndex >= 0 ? restoreIndex : 0);
+	imagePresetComboBox->blockSignals(false);
+	imagePresetRefreshLock = false;
+}
+
+void MainWindow::ApplyNamedImagePreset(const QString &presetKey)
+{
+	if(presetKey.isEmpty())
+		return;
+	QVariantMap values;
+	if(presetKey.startsWith("fixed:"))
+	{
+		bool ok = false;
+		const int index = presetKey.mid(QString("fixed:").size()).toInt(&ok);
+		if(!ok)
+			return;
+		values = FixedImagePresetValues(index);
+	}
+	else if(presetKey.startsWith("user:"))
+	{
+		const QString name = presetKey.mid(QString("user:").size());
+		QSettings settings;
+		settings.beginGroup("image-proc-presets");
+		values = settings.value(name).toMap();
+		settings.endGroup();
+	}
+	if(values.isEmpty())
+		return;
+
+	auto assignSlider = [](QSlider *slider, const QVariantMap &source, const char *key)
+	{
+		const QString name = QString::fromLatin1(key);
+		if(!slider || !source.contains(name))
+			return;
+		slider->setValue(source.value(name).toInt());
+	};
+	assignSlider(ui->liftSlider, values, "lift");
+	assignSlider(ui->gammaSlider, values, "gamma");
+	assignSlider(ui->gainSlider, values, "gain");
+	assignSlider(ui->redBalanceSlider, values, "red");
+	assignSlider(ui->greenBalanceSlider, values, "green");
+	assignSlider(ui->blueBalanceSlider, values, "blue");
+	assignSlider(ui->blurSlider, values, "blur");
+	assignSlider(ui->thresholdSlider, values, "threshold");
+	assignSlider(imageBrightnessSlider, values, "brightness");
+	assignSlider(imageContrastSlider, values, "contrast");
+	if(values.contains("negative"))
+		ui->negBox->setChecked(values.value("negative").toBool());
+	if(values.contains("desaturate"))
+		ui->desatBox->setChecked(values.value("desaturate").toBool());
+	if(values.contains("threshold-on"))
+		ui->threshBox->setChecked(values.value("threshold-on").toBool());
+	if(values.contains("shadow-red") || values.contains("shadow-green") || values.contains("shadow-blue"))
+	{
+		ImageProcTargetValues &active = ActiveImageProcTarget();
+		if(values.contains("shadow-red"))
+			active.shadowRed = values.value("shadow-red").toInt();
+		if(values.contains("shadow-green"))
+			active.shadowGreen = values.value("shadow-green").toInt();
+		if(values.contains("shadow-blue"))
+			active.shadowBlue = values.value("shadow-blue").toInt();
+	}
+	GPU_Params_Update(1);
+}
+
+void MainWindow::SavePersonalImagePreset()
+{
+	bool accepted = false;
+	const QString name = QInputDialog::getText(
+			this,
+			tr("Preset opslaan"),
+			tr("Naam van deze Image Proc-preset"),
+			QLineEdit::Normal,
+			QString(),
+			&accepted).trimmed();
+	if(!accepted || name.isEmpty())
+		return;
+	if(name.size() > 60)
+	{
+		QMessageBox::information(
+				this,
+				tr("Preset opslaan"),
+				tr("Gebruik een naam van hoogstens 60 tekens."));
+		return;
+	}
+	QSettings settings;
+	settings.beginGroup("image-proc-presets");
+	if(settings.contains(name))
+	{
+		const QMessageBox::StandardButton answer = QMessageBox::question(
+				this,
+				tr("Preset opslaan"),
+				tr("\"%1\" bestaat al. Overschrijven?").arg(name));
+		if(answer != QMessageBox::Yes)
+		{
+			settings.endGroup();
+			return;
+		}
+	}
+	QVariantMap values;
+	values.insert("lift", ui->liftSlider->value());
+	values.insert("gamma", ui->gammaSlider->value());
+	values.insert("gain", ui->gainSlider->value());
+	values.insert("red", ui->redBalanceSlider->value());
+	values.insert("green", ui->greenBalanceSlider->value());
+	values.insert("blue", ui->blueBalanceSlider->value());
+	values.insert("blur", ui->blurSlider->value());
+	values.insert("threshold", ui->thresholdSlider->value());
+	values.insert("negative", ui->negBox->isChecked());
+	values.insert("desaturate", ui->desatBox->isChecked());
+	values.insert("threshold-on", ui->threshBox->isChecked());
+	if(imageBrightnessSlider)
+		values.insert("brightness", imageBrightnessSlider->value());
+	if(imageContrastSlider)
+		values.insert("contrast", imageContrastSlider->value());
+	CaptureImageProcTargetFromControls(ActiveImageProcTarget());
+	values.insert("shadow-red", ActiveImageProcTarget().shadowRed);
+	values.insert("shadow-green", ActiveImageProcTarget().shadowGreen);
+	values.insert("shadow-blue", ActiveImageProcTarget().shadowBlue);
+	settings.setValue(name, values);
+	settings.endGroup();
+	settings.sync();
+	RefreshImagePresetCombo();
+	if(imagePresetComboBox)
+	{
+		const int index = imagePresetComboBox->findData(QString("user:%1").arg(name));
+		if(index >= 0)
+		{
+			imagePresetRefreshLock = true;
+			imagePresetComboBox->setCurrentIndex(index);
+			imagePresetRefreshLock = false;
+		}
+	}
+	if(ui->statusBar)
+		ui->statusBar->showMessage(tr("Preset \"%1\" opgeslagen.").arg(name), 3500);
+}
+
+void MainWindow::DeletePersonalImagePreset()
+{
+	if(!imagePresetComboBox)
+		return;
+	const QString key = imagePresetComboBox->currentData().toString();
+	if(!key.startsWith("user:"))
+	{
+		QMessageBox::information(
+				this,
+				tr("Preset verwijderen"),
+				tr("Kies eerst een persoonlijke preset. Vaste presets blijven beschikbaar."));
+		return;
+	}
+	const QString name = key.mid(QString("user:").size());
+	const QMessageBox::StandardButton answer = QMessageBox::question(
+			this,
+			tr("Preset verwijderen"),
+			tr("\"%1\" verwijderen?").arg(name));
+	if(answer != QMessageBox::Yes)
+		return;
+	QSettings settings;
+	settings.beginGroup("image-proc-presets");
+	settings.remove(name);
+	settings.endGroup();
+	settings.sync();
+	RefreshImagePresetCombo();
+	if(ui->statusBar)
+		ui->statusBar->showMessage(tr("Preset \"%1\" verwijderd.").arg(name), 3500);
+}
+
+void MainWindow::PositionTransportBarBelowTabs()
+{
+	if(!ui || !ui->horizontalLayoutWidget_2 || !ui->tab_2) return;
+
+	QWidget *bar = ui->horizontalLayoutWidget_2;
+	if(bar->parentWidget() != ui->tab_2)
+		bar->setParent(ui->tab_2);
+
+	int barHeight = 114;
+	if(uiScaleBaseGeometry.contains(bar) &&
+			uiScaleBaseGeometry.value(bar).height() >= 90)
+		barHeight = uiScaleBaseGeometry.value(bar).height();
+	else if(bar->height() >= 90)
+		barHeight = bar->height();
+
+	const int margin = 10;
+	const int gap = 8;
+	const int tabWidth = std::max(280, ui->tab_2->width() - (2 * margin));
+
+	if(ui->gridLayoutWidget_2 && ui->gridLayout)
+	{
+		ui->gridLayout->activate();
+		int gridHeight = std::max(
+				ui->gridLayout->sizeHint().height(),
+				ui->gridLayoutWidget_2->minimumSizeHint().height());
+		if(imageBrightnessSlider)
+			gridHeight = std::max(gridHeight, 480);
+		if(imageColorPickRow)
+			gridHeight = std::max(gridHeight, imageColorPickRow->geometry().bottom() + 8);
+		if(imageColorPickStatusLabel)
+			gridHeight = std::max(gridHeight, imageColorPickStatusLabel->geometry().bottom() + 8);
+		if(ui->colorBalanceTipLabel)
+			gridHeight = std::max(gridHeight, ui->colorBalanceTipLabel->geometry().bottom() + 8);
+		if(gridHeight > 0)
+		{
+			QRect gridRect = ui->gridLayoutWidget_2->geometry();
+			gridRect.setHeight(gridHeight);
+			ui->gridLayoutWidget_2->setMinimumHeight(gridHeight);
+			ui->gridLayoutWidget_2->setGeometry(gridRect);
+		}
+	}
+	if(ui->horizontalLayoutWidget && ui->gridLayoutWidget_2)
+	{
+		QRect rowRect = ui->horizontalLayoutWidget->geometry();
+		rowRect.moveTop(ui->gridLayoutWidget_2->geometry().bottom() + 4);
+		if(rowRect.height() < 32)
+			rowRect.setHeight(32);
+		ui->horizontalLayoutWidget->setGeometry(rowRect);
+	}
+
+	QPushButton *imageFactoryResetButton = nullptr;
+	const QList<QPushButton*> imageButtons = ui->tab_2->findChildren<QPushButton*>(
+			QString(), Qt::FindDirectChildrenOnly);
+	for(QPushButton *button : imageButtons)
+	{
+		if(!button || button == ui->imageDefaultsButton || button == ui->imageResetButton)
+			continue;
+		if(button->text().contains("Factory", Qt::CaseInsensitive))
+			imageFactoryResetButton = button;
+	}
+
+	int contentBottom = 0;
+	const QList<QWidget*> siblings = ui->tab_2->findChildren<QWidget*>(
+			QString(), Qt::FindDirectChildrenOnly);
+	for(QWidget *sibling : siblings)
+	{
+		if(!sibling || sibling == bar || sibling->isHidden()) continue;
+		if(sibling == imageToneGroupBox || sibling == imagePresetGroupBox ||
+				sibling == ui->autoOptimizeGroupBox ||
+				sibling == ui->imageDefaultsButton ||
+				sibling == ui->imageResetButton ||
+				sibling == imageFactoryResetButton)
+			continue;
+		contentBottom = std::max(contentBottom, sibling->geometry().bottom());
+	}
+
+	const int barY = contentBottom + gap;
+	bar->setGeometry(margin, barY, tabWidth, barHeight);
+
+	int footerY = barY + barHeight + gap;
+	auto sectionHeight = [](QWidget *widget, int width, int minimumHeight) -> int
+	{
+		if(!widget)
+			return 0;
+		int hinted = widget->sizeHint().height();
+		if(QLayout *layout = widget->layout())
+		{
+			const int contentWidth = std::max(200, width - 24);
+			if(layout->hasHeightForWidth())
+				hinted = std::max(hinted, layout->heightForWidth(contentWidth) + 30);
+			else
+				hinted = std::max(hinted, layout->sizeHint().height() + 30);
+		}
+		return std::max(minimumHeight, hinted + 8);
+	};
+	auto placeFooter = [&](QWidget *widget, int height)
+	{
+		if(!widget || height < 1) return;
+		if(widget->parentWidget() != ui->tab_2)
+			widget->setParent(ui->tab_2);
+		widget->setMinimumWidth(0);
+		widget->setMaximumWidth(QWIDGETSIZE_MAX);
+		widget->setGeometry(margin, footerY, tabWidth, height);
+		widget->show();
+		widget->raise();
+		footerY += height + gap;
+	};
+	placeFooter(imagePresetGroupBox, sectionHeight(imagePresetGroupBox, tabWidth, 150));
+	placeFooter(
+			ui->autoOptimizeGroupBox,
+			std::min(480, sectionHeight(ui->autoOptimizeGroupBox, tabWidth, 300)));
+
+	const int buttonTop = footerY;
+	auto placeImageButton = [&](QWidget *button)
+	{
+		if(!button) return;
+		QRect rect = button->geometry();
+		if(rect.width() < 40)
+			rect.setWidth(127);
+		if(rect.height() < 24)
+			rect.setHeight(32);
+		rect.moveTop(buttonTop);
+		button->setGeometry(rect);
+		button->show();
+		button->raise();
+	};
+	placeImageButton(ui->imageDefaultsButton);
+	placeImageButton(ui->imageResetButton);
+	placeImageButton(imageFactoryResetButton);
+	int buttonBottom = buttonTop;
+	if(ui->imageDefaultsButton)
+		buttonBottom = std::max(buttonBottom, ui->imageDefaultsButton->geometry().bottom());
+	if(ui->imageResetButton)
+		buttonBottom = std::max(buttonBottom, ui->imageResetButton->geometry().bottom());
+	if(imageFactoryResetButton)
+		buttonBottom = std::max(buttonBottom, imageFactoryResetButton->geometry().bottom());
+	footerY = buttonBottom + gap;
+
+	if(ui->playSlider)
+	{
+		ui->playSlider->setMinimumWidth(280);
+		ui->playSlider->setMaximumWidth(420);
+		ui->playSlider->setFixedHeight(22);
+		ui->playSlider->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+	}
+	if(ui->horizontalLayout_4)
+	{
+		for(int i = 0; i < ui->horizontalLayout_4->count(); ++i)
+		{
+			QLayoutItem *item = ui->horizontalLayout_4->itemAt(i);
+			if(item && item->spacerItem())
+			{
+				item->spacerItem()->changeSize(
+						24, 20, QSizePolicy::Fixed, QSizePolicy::Minimum);
+			}
+		}
+		ui->horizontalLayout_4->invalidate();
+	}
+	if(ui->horizontalLayout_3 &&
+			!bar->property("transportBarSpacerAdded").toBool())
+	{
+		ui->horizontalLayout_3->addStretch(1);
+		bar->setProperty("transportBarSpacerAdded", true);
+	}
+	if(ui->horizontalLayout_3 && ui->horizontalLayout_3->count() > 1)
+	{
+		ui->horizontalLayout_3->setStretch(0, 0);
+		ui->horizontalLayout_3->setStretch(ui->horizontalLayout_3->count() - 1, 1);
+	}
+
+	const int neededPageHeight = footerY + margin;
+	ui->tab_2->setMinimumHeight(neededPageHeight);
+	if(ui->tabWidget)
+	{
+		const int tabBarHeight = ui->tabWidget->tabBar() ?
+				std::max(28, ui->tabWidget->tabBar()->height()) : 34;
+		const int neededTabHeight = tabBarHeight + neededPageHeight;
+		if(ui->tabWidget->height() < neededTabHeight)
+		{
+			QRect tabRect = ui->tabWidget->geometry();
+			tabRect.setHeight(neededTabHeight);
+			ui->tabWidget->setGeometry(tabRect);
+		}
+	}
+}
+
+void MainWindow::ArrangeQueueActionBar()
+{
+	if(!ui || !ui->horizontalLayoutWidget_4 || !ui->horizontalLayout_7)
+		return;
+
+	QWidget *bar = ui->horizontalLayoutWidget_4;
+	if(!bar->property("queueActionBarArranged").toBool())
+	{
+		auto detach = [this](QWidget *widget)
+		{
+			if(!widget || !ui->horizontalLayout_7) return;
+			for(int i = 0; i < ui->horizontalLayout_7->count(); ++i)
+			{
+				QLayoutItem *item = ui->horizontalLayout_7->itemAt(i);
+				if(item && item->widget() == widget)
+				{
+					ui->horizontalLayout_7->takeAt(i);
+					delete item;
+					return;
+				}
+			}
+		};
+
+		const QList<QWidget*> row0 = {
+			ui->queueImportVFBClipsButton,
+			ui->queueStopAfterCurrentCheckBox,
+			ui->queueSavePresetButton,
+			ui->queueLoadPresetButton,
+			ui->queueDeletePresetButton
+		};
+		const QList<QWidget*> row1 = {
+			ui->queuePauseResumeButton,
+			ui->queueSkipCurrentButton,
+			ui->queueRetryFailedButton,
+			ui->queueExtractButton
+		};
+		for(QWidget *widget : row0)
+			detach(widget);
+		for(QWidget *widget : row1)
+			detach(widget);
+		while(ui->horizontalLayout_7->count() > 0)
+		{
+			QLayoutItem *item = ui->horizontalLayout_7->takeAt(0);
+			delete item;
+		}
+
+		QGridLayout *grid = new QGridLayout();
+		grid->setContentsMargins(0, 2, 0, 2);
+		grid->setHorizontalSpacing(6);
+		grid->setVerticalSpacing(6);
+		auto place = [&](const QList<QWidget*> &row, int rowIndex)
+		{
+			int column = 0;
+			for(QWidget *widget : row)
+			{
+				if(!widget) continue;
+				grid->addWidget(widget, rowIndex, column);
+				grid->setColumnStretch(column, 1);
+				++column;
+			}
+		};
+		place(row0, 0);
+		place(row1, 1);
+		ui->horizontalLayout_7->setContentsMargins(0, 0, 0, 0);
+		ui->horizontalLayout_7->addLayout(grid);
+
+		auto twoLine = [](QAbstractButton *button, const QString &text, const QString &tip)
+		{
+			if(!button) return;
+			button->setText(text);
+			button->setToolTip(tip);
+			button->setMinimumHeight(40);
+		};
+		twoLine(ui->queueImportVFBClipsButton,
+				tr("Import\nfrom VFB"), tr("Import from VFB"));
+		twoLine(ui->queueStopAfterCurrentCheckBox,
+				tr("Stop na\nhuidig item"), tr("Stop na huidig item"));
+		twoLine(ui->queueSavePresetButton,
+				tr("Save\nQueue Preset"), tr("Save Queue Preset"));
+		twoLine(ui->queueLoadPresetButton,
+				tr("Load\nQueue Preset"), tr("Load Queue Preset"));
+		twoLine(ui->queueDeletePresetButton,
+				tr("Delete\nQueue Preset"), tr("Delete Queue Preset"));
+		bar->setProperty("queueActionBarArranged", true);
+	}
+
+	auto compactFont = [](QWidget *widget)
+	{
+		if(!widget) return;
+		QFont font = widget->font();
+		font.setPointSize(8);
+		widget->setFont(font);
+	};
+	const QList<QWidget*> queueButtons = {
+		ui->queueImportVFBClipsButton,
+		ui->queueStopAfterCurrentCheckBox,
+		ui->queueSavePresetButton,
+		ui->queueLoadPresetButton,
+		ui->queueDeletePresetButton,
+		ui->queuePauseResumeButton,
+		ui->queueSkipCurrentButton,
+		ui->queueRetryFailedButton,
+		ui->queueExtractButton
+	};
+	for(QWidget *widget : queueButtons)
+		compactFont(widget);
+
+	const int barX = 10;
+	const int barY = 220;
+	const int barW = 631;
+	const int barH = 98;
+	bar->setGeometry(barX, barY, barW, barH);
+	if(ui->queueBatchStatusLabel)
+		ui->queueBatchStatusLabel->setGeometry(barX, barY + barH + 8, barW, 36);
+	if(ui->horizontalLayoutWidget_8)
+		ui->horizontalLayoutWidget_8->setGeometry(barX, barY + barH + 50, barW, 28);
 }
 
 void MainWindow::UpdateAdaptiveUiScale()
@@ -2095,12 +3448,6 @@ void MainWindow::UpdateAdaptiveUiScale()
 	const int gridNeededHeight =
 			opticalNeeded + videoNeeded + tuning.rowSpacing + 24;
 
-	int tabHeightShift = 0;
-	if(ui->tabWidget && uiScaleBaseGeometry.contains(ui->tabWidget))
-	{
-		const QRect baseTabRect = uiScaleBaseGeometry.value(ui->tabWidget);
-		tabHeightShift = ui->tabWidget->geometry().height() - baseTabRect.height();
-	}
 	const int tabControlsShift = std::max(0, tuning.tabControlsOffsetY);
 
 	auto baseRectForWidget = [](QWidget *w) -> QRect
@@ -2176,59 +3523,24 @@ void MainWindow::UpdateAdaptiveUiScale()
 		}
 	}
 
-	if(ui->tabWidget && uiScaleBaseGeometry.contains(ui->tabWidget))
-	{
-		const QRect baseTabRect = uiScaleBaseGeometry.value(ui->tabWidget);
-		tabHeightShift = ui->tabWidget->geometry().height() - baseTabRect.height();
-	}
-
-	if(ui->horizontalLayoutWidget_2 &&
-			uiScaleBaseGeometry.contains(ui->horizontalLayoutWidget_2))
-	{
-		QRect viewRect = uiScaleBaseGeometry.value(ui->horizontalLayoutWidget_2);
-		viewRect.moveTop(viewRect.y() + tabHeightShift);
-		ui->horizontalLayoutWidget_2->setGeometry(viewRect);
-	}
-
-	const bool samplePanelInMainFlow = (
-			ui->gridLayoutWidget_3 &&
-			ui->gridLayoutWidget_3->parentWidget() == cw);
-
-	if(samplePanelInMainFlow &&
-			ui->gridLayoutWidget_3 &&
-			uiScaleBaseGeometry.contains(ui->gridLayoutWidget_3))
-	{
-		QRect sampleRect = uiScaleBaseGeometry.value(ui->gridLayoutWidget_3);
-		sampleRect.moveTop(sampleRect.y() + tabHeightShift);
-		if(ui->horizontalLayoutWidget_2)
-		{
-			const QRect viewRect = ui->horizontalLayoutWidget_2->geometry();
-			const int minTop = viewRect.bottom() + tuning.panelGap;
-			if(sampleRect.top() < minTop)
-				sampleRect.moveTop(minTop);
-		}
-		ui->gridLayoutWidget_3->setGeometry(sampleRect);
-	}
+	PositionExtractTabAuxSections();
+	PositionTransportBarBelowTabs();
+	ArrangeQueueActionBar();
 
 	if(ui->scrollAreaWidgetContents &&
 			uiScaleBaseGeometry.contains(ui->scrollAreaWidgetContents))
 	{
 		QRect contentRect = uiScaleBaseGeometry.value(ui->scrollAreaWidgetContents);
 		int targetContentHeight = contentRect.height() + tuning.contentHeightDelta;
-		if(samplePanelInMainFlow && ui->gridLayoutWidget_3)
+		if(ui->tabWidget)
 			targetContentHeight = std::max(
 					targetContentHeight,
-					ui->gridLayoutWidget_3->geometry().bottom() + (tuning.panelGap + 10));
-		else if(ui->horizontalLayoutWidget_2)
-			targetContentHeight = std::max(
-					targetContentHeight,
-					ui->horizontalLayoutWidget_2->geometry().bottom() + 120);
+					ui->tabWidget->geometry().bottom() + 28);
 		targetContentHeight = std::max(tuning.contentMinHeight, targetContentHeight);
 		contentRect.setHeight(targetContentHeight);
 		ui->scrollAreaWidgetContents->setGeometry(contentRect);
 		ui->scrollAreaWidgetContents->setMinimumHeight(targetContentHeight);
 	}
-	PositionExtractTabAuxSections();
 
 	const QString resolvedProfileKey =
 			(profile == RES_PROFILE_HD) ? "hd" :
@@ -2239,6 +3551,56 @@ void MainWindow::UpdateAdaptiveUiScale()
 			(profile == RES_PROFILE_HD) ? 95 :
 			(profile == RES_PROFILE_UHD) ? 108 : 100;
 	uiScaleLayoutActive = (profile != RES_PROFILE_FHD);
+	ApplyGuideLineSliderColors();
+}
+
+void MainWindow::ApplyGuideLineSliderColors()
+{
+	if(!ui)
+		return;
+	auto paint = [](QSlider *slider, const char *groove, const char *edge,
+			const char *handle, const QString &tip)
+	{
+		if(!slider)
+			return;
+		slider->setStyleSheet(QString(
+				"QSlider::groove:horizontal {"
+				" background: %1; height: 2px; margin: 0;"
+				" border: none; }"
+				"QSlider::sub-page:horizontal {"
+				" background: %1; height: 2px; margin: 0; border: none; }"
+				"QSlider::add-page:horizontal {"
+				" background: %1; height: 2px; margin: 0; border: none; }"
+				"QSlider::handle:horizontal {"
+				" background: %3; border: 1px solid %2;"
+				" width: 11px; height: 16px; margin: -7px 0; border-radius: 2px; }")
+				.arg(QString::fromLatin1(groove),
+						QString::fromLatin1(edge),
+						QString::fromLatin1(handle)));
+		if(!tip.isEmpty())
+			slider->setToolTip(tip);
+	};
+	const char *lightHandle = "#f7f7f7";
+	paint(ui->leftSlider, "#FF00FF", "#FF00FF", lightHandle,
+			tr("Magenta lijn: linkerkant van het optische geluidsspoor."));
+	paint(ui->rightSlider, "#FF0000", "#FF0000", lightHandle,
+			tr("Rode lijn: rechterkant van het optische geluidsspoor."));
+	paint(ui->leftPixSlider, "#FFFF00", "#C6C600", lightHandle,
+			tr("Gele lijn: linkerkant van de Picture Strip."));
+	paint(ui->rightPixSlider, "#FFFF00", "#C6C600", lightHandle,
+			tr("Gele lijn: rechterkant van de Picture Strip."));
+	paint(ui->leftPixSearchSlider, "#33B8FF", "#33B8FF", lightHandle,
+			tr("Lichtblauwe zone: zoekgebied rond de linker Picture Strip-lijn."));
+	paint(ui->framepitchstartSlider, "#F2F2F2", "#6E6E6E", "#3C3C3C",
+			tr("Witte lijn: Frame Pitch Start."));
+	paint(ui->FramePitchendSlider, "#FF00FF", "#FF00FF", lightHandle,
+			tr("Paarse lijn: Frame Pitch End."));
+	paint(ui->overlapSlider, "#C46AD6", "#C46AD6", lightHandle,
+			tr("Breedte van de paarse Frame Pitch-band."));
+	paint(ui->videoFrameTopSlider, "#00FFFF", "#00A8A8", lightHandle,
+			tr("Cyaan lijn: bovenkant van het videokader."));
+	paint(ui->videoFrameBottomSlider, "#FF9900", "#FF9900", lightHandle,
+			tr("Oranje lijn: onderkant van het videokader."));
 }
 
 void MainWindow::UpdateLayoutProfileStatusBadge(
@@ -2842,21 +4204,28 @@ void MainWindow::SaveDefaultsSoundtrack()
 
 void MainWindow::SaveDefaultsImage()
 {
+	CaptureImageProcTargetFromControls(ActiveImageProcTarget());
+	const ImageProcTargetValues &values = ActiveImageProcTarget();
 	QSettings settings;
-
-	settings.beginGroup("image");
-	settings.setValue("lift", ui->liftSlider->value());
-	settings.setValue("gamma", ui->gammaSlider->value());
-	settings.setValue("gain", ui->gainSlider->value());
-	settings.setValue("red-balance", ui->redBalanceSlider->value());
-	settings.setValue("green-balance", ui->greenBalanceSlider->value());
-	settings.setValue("blue-balance", ui->blueBalanceSlider->value());
-	settings.setValue("s-curve", ui->thresholdSlider->value());
-	settings.setValue("s-curve-on", ui->threshBox->isChecked());
-	settings.setValue("blur-sharp", ui->blurSlider->value());
-	settings.setValue("negative", ui->negBox->isChecked());
-	settings.setValue("desaturate",ui->desatBox->isChecked());
+	settings.beginGroup(imageProcTargetMode == 0 ? "image" : "image-picture");
+	settings.setValue("lift", values.lift);
+	settings.setValue("gamma", values.gamma);
+	settings.setValue("gain", values.gain);
+	settings.setValue("red-balance", values.red);
+	settings.setValue("green-balance", values.green);
+	settings.setValue("blue-balance", values.blue);
+	settings.setValue("s-curve", values.threshold);
+	settings.setValue("s-curve-on", values.thresholdOn);
+	settings.setValue("blur-sharp", values.blur);
+	settings.setValue("negative", values.negative);
+	settings.setValue("desaturate", values.desaturate);
+	settings.setValue("brightness", values.brightness);
+	settings.setValue("contrast", values.contrast);
+	settings.setValue("shadow-red", values.shadowRed);
+	settings.setValue("shadow-green", values.shadowGreen);
+	settings.setValue("shadow-blue", values.shadowBlue);
 	settings.endGroup();
+	SaveImageProcTargets();
 	settings.sync();
 }
 
@@ -3007,7 +4376,18 @@ void MainWindow::LoadDefaults()
 
 	ui->negBox->setChecked(settings.value("negative",false).toBool());
 	ui->desatBox->setChecked(settings.value("desaturate",false).toBool());
+	if(imageBrightnessSlider)
+	{
+		imageBrightnessSlider->setValue(
+				settings.value("brightness", 0).toInt());
+	}
+	if(imageContrastSlider)
+	{
+		imageContrastSlider->setValue(
+				settings.value("contrast", 100).toInt());
+	}
 	settings.endGroup();
+	LoadImageProcTargets(true);
 
 	// extraction/export parameters
 
@@ -3434,18 +4814,60 @@ void MainWindow::GPU_Params_Update(bool renderyes)
 		ui->maxFrequencyLabel->setText(
 				QString("%1").arg(float(this->MaxFrequency())/1000.0));
 
-		frame_window->gamma = ui->gammaSlider->value()/100.0f;
-		frame_window->lift = ui->liftSlider->value()/100.0f;
-		frame_window->gain = ui->gainSlider->value()/100.0f;
-		frame_window->red_balance = ui->redBalanceSlider->value()/100.0f;
-		frame_window->green_balance = ui->greenBalanceSlider->value()/100.0f;
-		frame_window->blue_balance = ui->blueBalanceSlider->value()/100.0f;
-		frame_window->blur = ui->blurSlider->value()/100.0f;
-		frame_window->threshold = ui->thresholdSlider->value()/100.0f;
-		frame_window->thresh = ui->threshBox->checkState();
+		if(!imageProcTargetsLoaded)
+			CaptureImageProcTargetFromControls(imageProcOptical);
+		else if(!imageProcTargetSwitchLock)
+			CaptureImageProcTargetFromControls(ActiveImageProcTarget());
+		auto pushLook = [](const ImageProcTargetValues &values,
+				float &lift, float &gamma, float &gain,
+				float &toneBrightness, float &toneContrast,
+				float &red, float &green, float &blue,
+				float &shadowRed, float &shadowGreen, float &shadowBlue,
+				float &blur, float &threshold,
+				bool &threshOn, bool &negativeOn, bool &desaturateOn)
+		{
+			lift = values.lift / 100.0f;
+			gamma = values.gamma / 100.0f;
+			gain = values.gain / 100.0f;
+			toneBrightness = values.brightness / 200.0f;
+			toneContrast = std::max(0.25f, values.contrast / 100.0f);
+			red = values.red / 100.0f;
+			green = values.green / 100.0f;
+			blue = values.blue / 100.0f;
+			shadowRed = values.shadowRed / 100.0f;
+			shadowGreen = values.shadowGreen / 100.0f;
+			shadowBlue = values.shadowBlue / 100.0f;
+			blur = values.blur / 100.0f;
+			threshold = values.threshold / 100.0f;
+			threshOn = values.thresholdOn;
+			negativeOn = values.negative;
+			desaturateOn = values.desaturate;
+		};
+		pushLook(imageProcOptical,
+				frame_window->lift, frame_window->gamma, frame_window->gain,
+				frame_window->tone_brightness, frame_window->tone_contrast,
+				frame_window->red_balance, frame_window->green_balance,
+				frame_window->blue_balance,
+				frame_window->shadow_red, frame_window->shadow_green,
+				frame_window->shadow_blue,
+				frame_window->blur, frame_window->threshold,
+				frame_window->thresh, frame_window->negative,
+				frame_window->desaturate);
+		pushLook(imageProcPicture,
+				frame_window->picture_lift, frame_window->picture_gamma,
+				frame_window->picture_gain,
+				frame_window->picture_tone_brightness,
+				frame_window->picture_tone_contrast,
+				frame_window->picture_red_balance,
+				frame_window->picture_green_balance,
+				frame_window->picture_blue_balance,
+				frame_window->picture_shadow_red,
+				frame_window->picture_shadow_green,
+				frame_window->picture_shadow_blue,
+				frame_window->picture_blur, frame_window->picture_threshold,
+				frame_window->picture_thresh, frame_window->picture_negative,
+				frame_window->picture_desaturate);
 		frame_window->trackonly = ui->actionShow_Soundtrack_Only->isChecked();
-		frame_window->negative = ui->negBox->checkState();
-		frame_window->desaturate = ui->desatBox->checkState();
 		frame_window->overlapshow = ui->actionShow_Overlap->isChecked();
 		frame_window->showAutoDetectLine =
 				ui->showAutoDetectLineCheckBox->isChecked();
@@ -3681,6 +5103,13 @@ bool MainWindow::NewSource(QString filename, SourceFormat ft)
 			frame_window->currentOperation = &traceSubroutineOperation;
 			frame_window->setTitle(filename);
 			frame_window->ParamUpdateCallback(&(this->GUI_Params_Update_Static),this);
+			frame_window->colorPickCB = &MainWindow::ColorPickCallback;
+			frame_window->colorPickUserData = this;
+			frame_window->colorPickMode = 0;
+			if(imageWhitePickButton)
+				imageWhitePickButton->setChecked(false);
+			if(imageShadowPickButton)
+				imageShadowPickButton->setChecked(false);
 
 			Log() << "New frame window\n";
 			frame_window->logger = &Log();
@@ -6092,8 +7521,14 @@ void MainWindow::LoadVideoExportSettings()
 			settings.value("auto-optimize-video", false).toBool();
 	autoOptimizeColorEnabled =
 			settings.value("auto-optimize-color", true).toBool();
+	autoOptimizeContrastEnabled =
+			settings.value("auto-optimize-contrast", true).toBool();
 	autoOptimizeProfileMode = ClampRangeInt(
 			settings.value("auto-optimize-profile", 1).toInt(), 0, 2);
+	autoContrastLevel = ClampRangeInt(
+			settings.value("auto-contrast-level", 100).toInt(), 0, 100);
+	autoColorLevel = ClampRangeInt(
+			settings.value("auto-color-level", 100).toInt(), 0, 100);
 	settings.endGroup();
 	UpdateVideoExportControls();
 }
@@ -6113,7 +7548,10 @@ void MainWindow::SaveVideoExportSettings() const
 	settings.setValue("auto-optimize-frames", autoOptimizeFramesEnabled);
 	settings.setValue("auto-optimize-video", autoOptimizeVideoEnabled);
 	settings.setValue("auto-optimize-color", autoOptimizeColorEnabled);
+	settings.setValue("auto-optimize-contrast", autoOptimizeContrastEnabled);
 	settings.setValue("auto-optimize-profile", autoOptimizeProfileMode);
+	settings.setValue("auto-contrast-level", autoContrastLevel);
+	settings.setValue("auto-color-level", autoColorLevel);
 	settings.endGroup();
 }
 
@@ -6248,6 +7686,32 @@ void MainWindow::UpdateVideoExportControls()
 	ui->autoOptimizeFramesCheckBox->setChecked(autoOptimizeFramesEnabled);
 	ui->autoOptimizeVideoCheckBox->setChecked(autoOptimizeVideoEnabled);
 	ui->autoOptimizeColorCheckBox->setChecked(autoOptimizeColorEnabled);
+	if(autoOptimizeContrastCheckBox)
+	{
+		QSignalBlocker blockAutoContrast(autoOptimizeContrastCheckBox);
+		autoOptimizeContrastCheckBox->setChecked(autoOptimizeContrastEnabled);
+	}
+	if(autoContrastLevelSlider)
+	{
+		QSignalBlocker blockContrastLevel(autoContrastLevelSlider);
+		autoContrastLevelSlider->setValue(autoContrastLevel);
+	}
+	if(autoColorLevelSlider)
+	{
+		QSignalBlocker blockColorLevel(autoColorLevelSlider);
+		autoColorLevelSlider->setValue(autoColorLevel);
+	}
+	auto refreshLevelCaption = [](QSlider *slider)
+	{
+		if(!slider || !slider->parentWidget())
+			return;
+		const QList<QLabel*> labels = slider->parentWidget()->findChildren<QLabel*>(
+				QString(), Qt::FindDirectChildrenOnly);
+		if(!labels.isEmpty())
+			labels.last()->setText(QString::number(slider->value()) + "%");
+	};
+	refreshLevelCaption(autoContrastLevelSlider);
+	refreshLevelCaption(autoColorLevelSlider);
 	ui->autoOptimizeProfileComboBox->setCurrentIndex(
 			ClampRangeInt(autoOptimizeProfileMode, 0, 2));
 
@@ -6353,13 +7817,17 @@ void MainWindow::UpdateVideoExportControls()
 
 void MainWindow::UpdateAutoOptimizationControls()
 {
-	ui->autoOptimizeColorCheckBox->setEnabled(
-			autoOptimizeFramesEnabled || autoOptimizeVideoEnabled);
-	ui->autoOptimizeProfileComboBox->setEnabled(
-			autoOptimizeFramesEnabled || autoOptimizeVideoEnabled);
+	const bool autoActive = autoOptimizeFramesEnabled || autoOptimizeVideoEnabled;
+	ui->autoOptimizeColorCheckBox->setEnabled(autoActive);
+	if(autoOptimizeContrastCheckBox)
+		autoOptimizeContrastCheckBox->setEnabled(autoActive);
+	ui->autoOptimizeProfileComboBox->setEnabled(autoActive);
+	if(autoContrastLevelSlider)
+		autoContrastLevelSlider->setEnabled(autoActive && autoOptimizeContrastEnabled);
+	if(autoColorLevelSlider)
+		autoColorLevelSlider->setEnabled(autoActive && autoOptimizeColorEnabled);
 	ui->autoOptimizeAnalyzeButton->setEnabled(
-			currentFrameTexture != nullptr &&
-			(autoOptimizeFramesEnabled || autoOptimizeVideoEnabled));
+			currentFrameTexture != nullptr && autoActive);
 
 	QString summary = tr("Auto-optimalisatie uit.");
 	if(autoOptimizeFramesEnabled || autoOptimizeVideoEnabled)
@@ -6769,7 +8237,8 @@ bool MainWindow::CheckExportIntegrity(const QString &audioPath, const QString &v
 }
 
 bool MainWindow::AnalyzeCurrentFrameAutoStats(double &meanLuma, double &lumaLow,
-		double &lumaHigh, double &channelSpread) const
+		double &lumaHigh, double &channelSpread,
+		double *meanR, double *meanG, double *meanB) const
 {
 	AutoFrameStats stats;
 	if(!ComputeAutoFrameStats(currentFrameTexture, stats))
@@ -6778,6 +8247,9 @@ bool MainWindow::AnalyzeCurrentFrameAutoStats(double &meanLuma, double &lumaLow,
 	lumaLow = stats.lumaLow;
 	lumaHigh = stats.lumaHigh;
 	channelSpread = stats.channelSpread;
+	if(meanR) *meanR = stats.meanR;
+	if(meanG) *meanG = stats.meanG;
+	if(meanB) *meanB = stats.meanB;
 	return true;
 }
 
@@ -6799,45 +8271,73 @@ void MainWindow::ApplyAutoOptimizationToFrameControls(bool forceApply)
 	double lumaLow = 0.0;
 	double lumaHigh = 0.0;
 	double channelSpread = 0.0;
-	if(!AnalyzeCurrentFrameAutoStats(meanLuma, lumaLow, lumaHigh, channelSpread))
+	double meanR = 0.0;
+	double meanG = 0.0;
+	double meanB = 0.0;
+	if(!AnalyzeCurrentFrameAutoStats(
+			meanLuma, lumaLow, lumaHigh, channelSpread, &meanR, &meanG, &meanB))
 	{
 		UpdateAutoOptimizationControls();
 		return;
 	}
 
-	const double strength = AutoProfileStrength(autoOptimizeProfileMode);
+	const double profileStrength = AutoProfileStrength(autoOptimizeProfileMode);
+	const double contrastStrength = autoOptimizeContrastEnabled ?
+			profileStrength * (std::max(0, autoContrastLevel) / 100.0) : 0.0;
+	const double colorStrength = autoOptimizeColorEnabled ?
+			profileStrength * (std::max(0, autoColorLevel) / 100.0) : 0.0;
 	const double range = std::max(0.01, lumaHigh - lumaLow);
 	const double targetMean = 0.52;
 	const double targetRange = 0.62;
 	const double meanDelta = targetMean - meanLuma;
 	const double contrastDelta = targetRange - range;
 
-	const int liftTarget = ClampRangeInt(
-			int(std::lround((meanDelta * 120.0 + contrastDelta * 25.0) * strength)),
-			-45, 45);
-	const int gammaTarget = ClampRangeInt(
-			int(std::lround(100.0 - meanDelta * 50.0 * strength)),
-			80, 130);
-	const int gainTarget = ClampRangeInt(
-			int(std::lround(100.0 + contrastDelta * 190.0 * strength)),
-			75, 190);
-
 	autoOptimizeFrameApplyLock = true;
+	if(contrastStrength > 0.0)
 	{
+		const int liftTarget = ClampRangeInt(
+				int(std::lround((meanDelta * 120.0 + contrastDelta * 25.0) * contrastStrength)),
+				-45, 45);
+		const int gammaTarget = ClampRangeInt(
+				int(std::lround(100.0 - meanDelta * 50.0 * contrastStrength)),
+				80, 130);
+		const int gainTarget = ClampRangeInt(
+				int(std::lround(100.0 + contrastDelta * 190.0 * contrastStrength)),
+				75, 190);
 		QSignalBlocker lockLift(ui->liftSlider);
 		QSignalBlocker lockGamma(ui->gammaSlider);
 		QSignalBlocker lockGain(ui->gainSlider);
 		ui->liftSlider->setValue(liftTarget);
 		ui->gammaSlider->setValue(gammaTarget);
 		ui->gainSlider->setValue(gainTarget);
+		ui->liftLabel->setText(QString::number(liftTarget / 100.f, 'f', 2));
+		ui->gammaLabel->setText(QString::number(gammaTarget / 100.f, 'f', 2));
+		ui->gainLabel->setText(QString::number(gainTarget / 100.f, 'f', 2));
 	}
-	ui->liftLabel->setText(QString::number(ui->liftSlider->value() / 100.f, 'f', 2));
-	ui->gammaLabel->setText(QString::number(ui->gammaSlider->value() / 100.f, 'f', 2));
-	ui->gainLabel->setText(QString::number(ui->gainSlider->value() / 100.f, 'f', 2));
-
-	if(autoOptimizeColorEnabled)
+	if(colorStrength > 0.0)
 	{
+		const double avg = (meanR + meanG + meanB) / 3.0;
+		auto channelValue = [&](double channelMean) -> int
+		{
+			if(channelMean < 0.02) return 100;
+			double gain = avg / channelMean;
+			gain = 1.0 + (gain - 1.0) * colorStrength;
+			gain = std::max(0.70, std::min(1.40, gain));
+			return ClampRangeInt(int(std::lround(gain * 100.0)), 70, 140);
+		};
+		const int redTarget = channelValue(meanR);
+		const int greenTarget = channelValue(meanG);
+		const int blueTarget = channelValue(meanB);
+		QSignalBlocker lockRed(ui->redBalanceSlider);
+		QSignalBlocker lockGreen(ui->greenBalanceSlider);
+		QSignalBlocker lockBlue(ui->blueBalanceSlider);
 		QSignalBlocker lockDesat(ui->desatBox);
+		ui->redBalanceSlider->setValue(redTarget);
+		ui->greenBalanceSlider->setValue(greenTarget);
+		ui->blueBalanceSlider->setValue(blueTarget);
+		ui->redBalanceLabel->setText(QString::number(redTarget / 100.f, 'f', 2));
+		ui->greenBalanceLabel->setText(QString::number(greenTarget / 100.f, 'f', 2));
+		ui->blueBalanceLabel->setText(QString::number(blueTarget / 100.f, 'f', 2));
 		if(ui->desatBox->isChecked())
 			ui->desatBox->setChecked(false);
 	}
@@ -6856,15 +8356,26 @@ bool MainWindow::ComputeAutoVideoEqSettings(double &brightness, double &contrast
 	if(!AnalyzeCurrentFrameAutoStats(meanLuma, lumaLow, lumaHigh, channelSpread))
 		return false;
 
-	const double strength = AutoProfileStrength(autoOptimizeProfileMode);
+	const double profileStrength = AutoProfileStrength(autoOptimizeProfileMode);
+	const double contrastStrength = autoOptimizeContrastEnabled ?
+			profileStrength * (std::max(0, autoContrastLevel) / 100.0) : 0.0;
+	const double colorStrength = autoOptimizeColorEnabled ?
+			profileStrength * (std::max(0, autoColorLevel) / 100.0) : 0.0;
 	const double range = std::max(0.01, lumaHigh - lumaLow);
-	brightness = std::max(-0.20, std::min(0.20, (0.52 - meanLuma) * 0.45 * strength));
-	contrast = std::max(0.75, std::min(1.45, 1.0 + (0.62 - range) * 1.35 * strength));
+	brightness = 0.0;
+	contrast = 1.0;
 	saturation = 1.0;
-	if(autoOptimizeColorEnabled)
+	if(contrastStrength > 0.0)
+	{
+		brightness = std::max(-0.20, std::min(0.20,
+				(0.52 - meanLuma) * 0.45 * contrastStrength));
+		contrast = std::max(0.75, std::min(1.45,
+				1.0 + (0.62 - range) * 1.35 * contrastStrength));
+	}
+	if(colorStrength > 0.0)
 	{
 		saturation = std::max(0.75, std::min(1.45,
-				1.0 + (0.10 - channelSpread) * 2.2 * strength));
+				1.0 + (0.10 - channelSpread) * 2.2 * colorStrength));
 	}
 
 	if(summary)
@@ -7624,13 +9135,12 @@ bool MainWindow::extractGL(QString filename, bool doTimer,
 				timingMsg,
 				processMsg);
 	}
+	QString folderToOpen;
 	if(success && !batch && outputOpenFolderAfterExport && !suppressResultDialog)
 	{
 		const QString preferredPath =
 				!videoFilename.isEmpty() ? videoFilename : filename;
-		const QString outDir = QFileInfo(preferredPath).absolutePath();
-		if(!outDir.isEmpty())
-			QDesktopServices::openUrl(QUrl::fromLocalFile(outDir));
+		folderToOpen = QFileInfo(preferredPath).absolutePath();
 	}
 
 	if(!batch)
@@ -7640,26 +9150,60 @@ bool MainWindow::extractGL(QString filename, bool doTimer,
 
 		if(!suppressResultDialog)
 		{
-			QMessageBox msg;
+			// The embedded preview is a native window. Without an owner
+			// and topmost flag, this dialog falls behind the main window
+			// and its modality freezes the rest of the app.
+			const bool restorePreview = previewContainerWidget &&
+					previewContainerWidget->isVisible();
+			if(restorePreview)
+				previewContainerWidget->setVisible(false);
+
+			QMessageBox msg(this);
+			msg.setWindowTitle(tr("AEO-Light"));
+			msg.setIcon(QMessageBox::Information);
 			msg.setText(processMsg);
 			msg.setInformativeText(timingMsg);
+			msg.setWindowModality(Qt::ApplicationModal);
+			msg.setWindowFlag(Qt::WindowStaysOnTopHint, true);
 			QPushButton *viewButton =
-					msg.addButton("View Log", QMessageBox::HelpRole);
-			msg.addButton(QMessageBox::Ok);
-
+					msg.addButton(tr("View Log"), QMessageBox::ActionRole);
+			QPushButton *okButton = msg.addButton(QMessageBox::Ok);
+			msg.setDefaultButton(okButton);
+			const QRect host = this->frameGeometry();
+			msg.adjustSize();
+			msg.move(host.center() - QPoint(msg.width() / 2, msg.height() / 2));
+			this->raise();
+			this->activateWindow();
+			QTimer *raiseTimer = new QTimer(&msg);
+			raiseTimer->setSingleShot(true);
+			QObject::connect(raiseTimer, &QTimer::timeout, &msg, [&msg]()
+			{
+				if(!msg.isVisible()) return;
+				msg.raise();
+				msg.activateWindow();
+			});
+			raiseTimer->start(50);
 			msg.exec();
+
+			if(restorePreview && previewContainerWidget)
+				previewContainerWidget->setVisible(true);
 
 			if(msg.clickedButton() == viewButton)
 			{
 				#ifdef Q_OS_WIN32
-				system(QString("start %1/%2").arg(QDir::homePath(),"AEO-log.txt")
-						.toStdString().c_str());
+				QProcess::startDetached("cmd", QStringList()
+						<< "/c" << "start" << ""
+						<< QDir(QDir::homePath()).filePath("AEO-log.txt"));
 				#else
-				system("open ~/.aeolight.log.txt");
+				QProcess::startDetached("open", QStringList()
+						<< QDir::home().filePath(".aeolight.log.txt"));
 				#endif
 			}
 		}
 	}
+
+	if(!folderToOpen.isEmpty())
+		QDesktopServices::openUrl(QUrl::fromLocalFile(folderToOpen));
 
 	return success;
 }
@@ -11584,60 +13128,38 @@ void MainWindow::on_imageDefaultsButton_clicked()
 
 void MainWindow::ResetImageSectionToFactoryDefaults()
 {
-	ui->liftSlider->setValue(0);
-	ui->gammaSlider->setValue(100);
-	ui->gainSlider->setValue(100);
-	ui->thresholdSlider->setValue(300);
-	ui->blurSlider->setValue(0);
-	ui->redBalanceSlider->setValue(100);
-	ui->greenBalanceSlider->setValue(100);
-	ui->blueBalanceSlider->setValue(100);
-	ui->threshBox->setChecked(false);
-	ui->negBox->setChecked(false);
-	ui->desatBox->setChecked(false);
-	ui->liftLabel->setText(QString::number(0.0f,'f',2));
-	ui->gammaLabel->setText(QString::number(1.0f,'f',2));
-	ui->gainLabel->setText(QString::number(1.0f,'f',2));
-	ui->redBalanceLabel->setText(QString::number(1.0f,'f',2));
-	ui->greenBalanceLabel->setText(QString::number(1.0f,'f',2));
-	ui->blueBalanceLabel->setText(QString::number(1.0f,'f',2));
-	ui->threshLabel->setText(QString::number(3.0f,'f',2));
-	ui->blurLabel->setText(QString::number(0.0f,'f',2));
+	ActiveImageProcTarget() = FactoryImageProcTarget();
+	ApplyImageProcTargetToControls(ActiveImageProcTarget());
+	SaveImageProcTargets();
 	GPU_Params_Update(1);
 }
 
 void MainWindow::on_imageResetButton_clicked()
 {
 	QSettings settings;
-	settings.beginGroup("image");
-	const int lift = settings.value("lift", 0).toInt();
-	const int gamma = settings.value("gamma", 100).toInt();
-	const int gain = settings.value("gain", 100).toInt();
-	const int redBalance = settings.value("red-balance", 100).toInt();
-	const int greenBalance = settings.value("green-balance", 100).toInt();
-	const int blueBalance = settings.value("blue-balance", 100).toInt();
-	const int sCurve = settings.value("s-curve", 300).toInt();
-	const int blur = settings.value("blur-sharp", 0).toInt();
-	ui->liftSlider->setValue(lift);
-	ui->gammaSlider->setValue(gamma);
-	ui->gainSlider->setValue(gain);
-	ui->redBalanceSlider->setValue(redBalance);
-	ui->greenBalanceSlider->setValue(greenBalance);
-	ui->blueBalanceSlider->setValue(blueBalance);
-	ui->thresholdSlider->setValue(sCurve);
-	ui->blurSlider->setValue(blur);
-	ui->threshBox->setChecked(settings.value("s-curve-on", false).toBool());
-	ui->negBox->setChecked(settings.value("negative", false).toBool());
-	ui->desatBox->setChecked(settings.value("desaturate", false).toBool());
+	const QString group = imageProcTargetMode == 0 ? "image" : "image-picture";
+	settings.beginGroup(group);
+	ImageProcTargetValues values = FactoryImageProcTarget();
+	values.lift = settings.value("lift", values.lift).toInt();
+	values.gamma = settings.value("gamma", values.gamma).toInt();
+	values.gain = settings.value("gain", values.gain).toInt();
+	values.red = settings.value("red-balance", values.red).toInt();
+	values.green = settings.value("green-balance", values.green).toInt();
+	values.blue = settings.value("blue-balance", values.blue).toInt();
+	values.threshold = settings.value("s-curve", values.threshold).toInt();
+	values.blur = settings.value("blur-sharp", values.blur).toInt();
+	values.thresholdOn = settings.value("s-curve-on", values.thresholdOn).toBool();
+	values.negative = settings.value("negative", values.negative).toBool();
+	values.desaturate = settings.value("desaturate", values.desaturate).toBool();
+	values.brightness = settings.value("brightness", values.brightness).toInt();
+	values.contrast = settings.value("contrast", values.contrast).toInt();
+	values.shadowRed = settings.value("shadow-red", values.shadowRed).toInt();
+	values.shadowGreen = settings.value("shadow-green", values.shadowGreen).toInt();
+	values.shadowBlue = settings.value("shadow-blue", values.shadowBlue).toInt();
 	settings.endGroup();
-	ui->liftLabel->setText(QString::number(ui->liftSlider->value()/100.f,'f',2));
-	ui->gammaLabel->setText(QString::number(ui->gammaSlider->value()/100.f,'f',2));
-	ui->gainLabel->setText(QString::number(ui->gainSlider->value()/100.f,'f',2));
-	ui->redBalanceLabel->setText(QString::number(ui->redBalanceSlider->value()/100.f,'f',2));
-	ui->greenBalanceLabel->setText(QString::number(ui->greenBalanceSlider->value()/100.f,'f',2));
-	ui->blueBalanceLabel->setText(QString::number(ui->blueBalanceSlider->value()/100.f,'f',2));
-	ui->threshLabel->setText(QString::number(ui->thresholdSlider->value()/100.f,'f',2));
-	ui->blurLabel->setText(QString::number(ui->blurSlider->value()/100.f,'f',2));
+	ActiveImageProcTarget() = values;
+	ApplyImageProcTargetToControls(values);
+	SaveImageProcTargets();
 	GPU_Params_Update(1);
 }
 

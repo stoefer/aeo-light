@@ -211,9 +211,33 @@ Frame_Window::Frame_Window(int w,int h)
 	lift=0;
 	gamma=1.0f;
 	gain=1.0f;
+	tone_brightness = 0.0f;
+	tone_contrast = 1.0f;
 	red_balance = 1.0f;
 	green_balance = 1.0f;
 	blue_balance = 1.0f;
+	shadow_red = 1.0f;
+	shadow_green = 1.0f;
+	shadow_blue = 1.0f;
+	picture_lift = 0.0f;
+	picture_gamma = 1.0f;
+	picture_gain = 1.0f;
+	picture_tone_brightness = 0.0f;
+	picture_tone_contrast = 1.0f;
+	picture_red_balance = 1.0f;
+	picture_green_balance = 1.0f;
+	picture_blue_balance = 1.0f;
+	picture_shadow_red = 1.0f;
+	picture_shadow_green = 1.0f;
+	picture_shadow_blue = 1.0f;
+	colorPickMode = 0;
+	colorPickCB = NULL;
+	colorPickUserData = NULL;
+	picture_threshold = 0.5f;
+	picture_blur = 0.0f;
+	picture_thresh = false;
+	picture_negative = false;
+	picture_desaturate = false;
 	threshold = 0.5;
 	blur = 0;
 	stereo = 0;
@@ -319,6 +343,14 @@ Frame_Window::Frame_Window(int w,int h)
 	dminmax_loc = 0;
 	m_colorcontrol_loc = 0;
 	m_color_balance_loc = 0;
+	m_tone_controls_loc = 0;
+	m_picture_colorcontrol_loc = -1;
+	m_picture_color_balance_loc = -1;
+	m_shadow_balance_loc = -1;
+	m_picture_shadow_balance_loc = -1;
+	m_picture_tone_controls_loc = -1;
+	m_picture_manipcontrol_loc = -1;
+	m_picture_neg_loc = -1;
 	m_bounds_loc = 0;
     m_rot_angle = 0;
 	m_calcontrol_loc = 0;
@@ -466,6 +498,14 @@ void Frame_Window::initialize()
 	pix_bounds_loc = m_program->uniformLocation("pix_boundry");
 	m_colorcontrol_loc = m_program->uniformLocation("color_controls");
 	m_color_balance_loc = m_program->uniformLocation("color_balance");
+	m_tone_controls_loc = m_program->uniformLocation("tone_controls");
+	m_picture_colorcontrol_loc = m_program->uniformLocation("picture_color_controls");
+	m_picture_color_balance_loc = m_program->uniformLocation("picture_color_balance");
+	m_shadow_balance_loc = m_program->uniformLocation("shadow_balance");
+	m_picture_shadow_balance_loc = m_program->uniformLocation("picture_shadow_balance");
+	m_picture_tone_controls_loc = m_program->uniformLocation("picture_tone_controls");
+	m_picture_manipcontrol_loc = m_program->uniformLocation("picture_manip_controls");
+	m_picture_neg_loc = m_program->uniformLocation("picture_negative");
 	m_manipcontrol_loc = m_program->uniformLocation("manip_controls");
 	m_calcontrol_loc = m_program->uniformLocation("cal_controls");
 	m_inputsize_loc = m_program->uniformLocation("inputsize");
@@ -749,6 +789,63 @@ void Frame_Window::update_parameters()
 			red_balance,
 			green_balance,
 			blue_balance);
+	if(m_shadow_balance_loc >= 0)
+	{
+		m_program->setUniformValue(
+				m_shadow_balance_loc,
+				shadow_red,
+				shadow_green,
+				shadow_blue);
+	}
+	if(m_tone_controls_loc >= 0)
+	{
+		m_program->setUniformValue(
+				m_tone_controls_loc,
+				tone_brightness,
+				tone_contrast);
+	}
+	if(m_picture_colorcontrol_loc >= 0)
+	{
+		m_program->setUniformValue(
+				m_picture_colorcontrol_loc,
+				picture_lift,
+				picture_gamma,
+				picture_gain,
+				float(!picture_desaturate));
+	}
+	if(m_picture_color_balance_loc >= 0)
+	{
+		m_program->setUniformValue(
+				m_picture_color_balance_loc,
+				picture_red_balance,
+				picture_green_balance,
+				picture_blue_balance);
+	}
+	if(m_picture_shadow_balance_loc >= 0)
+	{
+		m_program->setUniformValue(
+				m_picture_shadow_balance_loc,
+				picture_shadow_red,
+				picture_shadow_green,
+				picture_shadow_blue);
+	}
+	if(m_picture_tone_controls_loc >= 0)
+	{
+		m_program->setUniformValue(
+				m_picture_tone_controls_loc,
+				picture_tone_brightness,
+				picture_tone_contrast);
+	}
+	if(m_picture_manipcontrol_loc >= 0)
+	{
+		m_program->setUniformValue(
+				m_picture_manipcontrol_loc,
+				float(picture_thresh),
+				picture_threshold,
+				picture_blur);
+	}
+	if(m_picture_neg_loc >= 0)
+		m_program->setUniformValue(m_picture_neg_loc, float(picture_negative));
 	m_program->setUniformValue(m_manipcontrol_loc, float(thresh),threshold,
 			blur);
 	m_program->setUniformValue(m_bounds_loc,
@@ -1600,6 +1697,18 @@ void Frame_Window::mouseEvent(QMouseEvent *mouse)
 	if(y > 1.0) return;
 
 	ny = 1.0 - y;
+
+	if(colorPickMode != 0)
+	{
+		this->setCursor(Qt::CrossCursor);
+		if(mouse->button() == Qt::LeftButton &&
+				(mouse->buttons() & Qt::LeftButton) &&
+				colorPickCB)
+		{
+			(*colorPickCB)(colorPickMode, x, y, colorPickUserData);
+		}
+		return;
+	}
 
 	// button release?
 	if(mouse->button() == Qt::LeftButton &&

@@ -36,6 +36,7 @@
 #include <QTimer>
 #include <QDate>
 #include <QProgressDialog>
+#include <QSettings>
 #include <vector>
 #include <queue>
 #include "frame_view_gl.h"
@@ -55,6 +56,9 @@ class MainWindow;
 class QLabel;
 class QPushButton;
 class QGroupBox;
+class QSlider;
+class QComboBox;
+class QCheckBox;
 
 #define FPS_NTSC 0
 #define FPS_24 1
@@ -175,6 +179,10 @@ public:
 	void GUI_Params_Update();
 	static void GUI_Params_Update_Static(void *userData)
 	{ static_cast<MainWindow *>(userData)->GUI_Params_Update(); }
+	static void ColorPickCallback(int mode, float xNorm, float yFromTop, void *userData)
+	{ static_cast<MainWindow *>(userData)->ApplyColorPick(mode, xNorm, yFromTop); }
+	void ApplyColorPick(int mode, float xNorm, float yFromTop);
+	void SetColorPickMode(int mode);
 
 	ExtractedSound ExtractionParamsFromGUI();
 	void ExtractionParametersToGUI(const ExtractedSound &params);
@@ -398,6 +406,46 @@ private:
 	QPointer<QLabel> previewBetaBadgeLabel;
 	QPointer<QLabel> layoutProfileStatusLabel;
 	QPointer<QGroupBox> extractViewOptionsGroupBox;
+	QPointer<QGroupBox> imageToneGroupBox;
+	QPointer<QGroupBox> imagePresetGroupBox;
+	QPointer<QSlider> imageBrightnessSlider;
+	QPointer<QSlider> imageContrastSlider;
+	QPointer<QLabel> imageBrightnessValueLabel;
+	QPointer<QLabel> imageContrastValueLabel;
+	QPointer<QComboBox> imagePresetComboBox;
+	QPointer<QComboBox> imageProcTargetCombo;
+	QPointer<QPushButton> imageWhitePickButton;
+	QPointer<QPushButton> imageShadowPickButton;
+	QPointer<QLabel> imageColorPickStatusLabel;
+	QPointer<QWidget> imageColorPickRow;
+	QPointer<QCheckBox> autoOptimizeContrastCheckBox;
+	QPointer<QSlider> autoContrastLevelSlider;
+	QPointer<QSlider> autoColorLevelSlider;
+	struct ImageProcTargetValues
+	{
+		int lift = 0;
+		int gamma = 100;
+		int gain = 100;
+		int threshold = 300;
+		int blur = 0;
+		int red = 100;
+		int green = 100;
+		int blue = 100;
+		int brightness = 0;
+		int contrast = 100;
+		int shadowRed = 100;
+		int shadowGreen = 100;
+		int shadowBlue = 100;
+		bool negative = false;
+		bool desaturate = false;
+		bool thresholdOn = false;
+	};
+	bool imagePresetRefreshLock = false;
+	bool imageProcTargetSwitchLock = false;
+	bool imageProcTargetsLoaded = false;
+	int imageProcTargetMode = 0;
+	ImageProcTargetValues imageProcOptical;
+	ImageProcTargetValues imageProcPicture;
 	QTextStream log;
 	QTimer *sessionAutosaveTimer = NULL;
 	bool sessionRecoveryPending = false;
@@ -459,7 +507,10 @@ private:
 	bool autoOptimizeFramesEnabled;
 	bool autoOptimizeVideoEnabled;
 	bool autoOptimizeColorEnabled;
+	bool autoOptimizeContrastEnabled;
 	int autoOptimizeProfileMode;
+	int autoContrastLevel;
+	int autoColorLevel;
 	bool compactModeEnabled;
 	bool autoOptimizeFrameApplyLock;
 	bool suppressFrameAutoOptimizeDuringExtraction;
@@ -508,7 +559,9 @@ private:
 	bool CheckExportIntegrity(const QString &audioPath, const QString &videoPath,
 			long numFrames, QString *detailsOut = nullptr) const;
 	bool AnalyzeCurrentFrameAutoStats(double &meanLuma, double &lumaLow,
-			double &lumaHigh, double &channelSpread) const;
+			double &lumaHigh, double &channelSpread,
+			double *meanR = nullptr, double *meanG = nullptr,
+			double *meanB = nullptr) const;
 	void ApplyAutoOptimizationToFrameControls(bool forceApply);
 	bool ComputeAutoVideoEqSettings(double &brightness, double &contrast,
 			double &saturation, QString *summary = nullptr) const;
@@ -525,7 +578,23 @@ private:
 	QString BuildOutputNameFromTemplate(const QString &ext) const;
 	void CaptureUiScaleBaseGeometry();
 	void UpdateAdaptiveUiScale();
+	void ApplyGuideLineSliderColors();
 	void PositionExtractTabAuxSections();
+	void PositionTransportBarBelowTabs();
+	void SetupImageProcExtras();
+	void CaptureImageProcTargetFromControls(ImageProcTargetValues &values) const;
+	void ApplyImageProcTargetToControls(const ImageProcTargetValues &values);
+	ImageProcTargetValues &ActiveImageProcTarget();
+	void SaveImageProcTargets() const;
+	void LoadImageProcTargets(bool captureCurrentIfMissing);
+	static void WriteImageProcTargetGroup(QSettings &settings, const QString &group, const ImageProcTargetValues &values);
+	static bool ReadImageProcTargetGroup(QSettings &settings, const QString &group, ImageProcTargetValues &values);
+	static ImageProcTargetValues FactoryImageProcTarget();
+	void RefreshImagePresetCombo();
+	void ApplyNamedImagePreset(const QString &presetKey);
+	void SavePersonalImagePreset();
+	void DeletePersonalImagePreset();
+	void ArrangeQueueActionBar();
 	void RestoreUiWindowSettings();
 	void SaveUiWindowSettings() const;
 	QString SerializeCurrentSettings();
