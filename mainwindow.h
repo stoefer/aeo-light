@@ -55,6 +55,9 @@ class MainWindow;
 class QLabel;
 class QPushButton;
 class QGroupBox;
+class QSlider;
+class QComboBox;
+class QCheckBox;
 
 #define FPS_NTSC 0
 #define FPS_24 1
@@ -398,6 +401,17 @@ private:
 	QPointer<QLabel> previewBetaBadgeLabel;
 	QPointer<QLabel> layoutProfileStatusLabel;
 	QPointer<QGroupBox> extractViewOptionsGroupBox;
+	QPointer<QGroupBox> imageToneGroupBox;
+	QPointer<QGroupBox> imagePresetGroupBox;
+	QPointer<QSlider> imageBrightnessSlider;
+	QPointer<QSlider> imageContrastSlider;
+	QPointer<QLabel> imageBrightnessValueLabel;
+	QPointer<QLabel> imageContrastValueLabel;
+	QPointer<QComboBox> imagePresetComboBox;
+	QPointer<QCheckBox> autoOptimizeContrastCheckBox;
+	QPointer<QSlider> autoContrastLevelSlider;
+	QPointer<QSlider> autoColorLevelSlider;
+	bool imagePresetRefreshLock = false;
 	QTextStream log;
 	QTimer *sessionAutosaveTimer = NULL;
 	bool sessionRecoveryPending = false;
@@ -459,7 +473,10 @@ private:
 	bool autoOptimizeFramesEnabled;
 	bool autoOptimizeVideoEnabled;
 	bool autoOptimizeColorEnabled;
+	bool autoOptimizeContrastEnabled;
 	int autoOptimizeProfileMode;
+	int autoContrastLevel;
+	int autoColorLevel;
 	bool compactModeEnabled;
 	bool autoOptimizeFrameApplyLock;
 	bool suppressFrameAutoOptimizeDuringExtraction;
@@ -508,7 +525,9 @@ private:
 	bool CheckExportIntegrity(const QString &audioPath, const QString &videoPath,
 			long numFrames, QString *detailsOut = nullptr) const;
 	bool AnalyzeCurrentFrameAutoStats(double &meanLuma, double &lumaLow,
-			double &lumaHigh, double &channelSpread) const;
+			double &lumaHigh, double &channelSpread,
+			double *meanR = nullptr, double *meanG = nullptr,
+			double *meanB = nullptr) const;
 	void ApplyAutoOptimizationToFrameControls(bool forceApply);
 	bool ComputeAutoVideoEqSettings(double &brightness, double &contrast,
 			double &saturation, QString *summary = nullptr) const;
@@ -526,6 +545,13 @@ private:
 	void CaptureUiScaleBaseGeometry();
 	void UpdateAdaptiveUiScale();
 	void PositionExtractTabAuxSections();
+	void PositionTransportBarBelowTabs();
+	void SetupImageProcExtras();
+	void RefreshImagePresetCombo();
+	void ApplyNamedImagePreset(const QString &presetKey);
+	void SavePersonalImagePreset();
+	void DeletePersonalImagePreset();
+	void ArrangeQueueActionBar();
 	void RestoreUiWindowSettings();
 	void SaveUiWindowSettings() const;
 	QString SerializeCurrentSettings();
