@@ -1,16 +1,21 @@
-# AEO-Light 3.1.66 (fork release)
+# AEO-Light 3.1.67 (fork release)
 
-Deze 3.1.66 patchrelease zet kleurcorrectie, presets en helderheid/contrast op de tab **Image Proc**.
+Deze 3.1.67 patchrelease haalt de lege ruimte uit **Image Proc** en zet de knoppen onderaan.
 
-## Nieuw in 3.1.66
-- **Helderheid** en **Contrast** zijn eigen sliders. Ze werken in de preview en in de gerenderde exportframes.
+## Nieuw in 3.1.67
+- **Helderheid** en **Contrast** staan direct onder B balance, in dezelfde sliderlijst, zonder apart vak.
+- Negative, Desaturate en Calibrate sluiten direct aan op die lijst.
+- **Set as Default**, **Reset Section** en **Factory Reset** staan helemaal onderaan Image Proc.
+
+## Eerder toegevoegd in 3.1.66
+- **Helderheid** en **Contrast** werken in de preview en in de gerenderde exportframes.
 - **Image Proc presets**: vaste correcties voor rode, gele, groene en blauwe zweem, plus helderder, donkerder en meer of minder contrast. **Opslaan** bewaart de huidige Image Proc-waarden als persoonlijke preset.
-- **Automatische kleur/contrast/helderheid** staat onderaan Image Proc.
+- **Automatische kleur/contrast/helderheid** staat onderaan Image Proc, boven de drie knoppen.
 - Auto kleur en auto contrast zijn apart aan of uit te zetten.
 - **Kleurniveau** en **Contrastniveau** (0-100%) bepalen hoe sterk het gekozen profiel ingrijpt. 100% is de volle sterkte van Conservatief, Standaard of Sterk.
 
 ## Eerder toegevoegd in 3.1.65
-- Scan Frame, de afspeelslider, Set In/Out en Rotate staan op **Image Proc**, direct onder Set as Default en Reset. Daaronder volgen nu helderheid, presets en auto-correctie.
+- Scan Frame, de afspeelslider, Set In/Out en Rotate staan op **Image Proc**.
 
 ## Eerder toegevoegd in 3.1.64
 - Het voltooiingsvenster na extractie blijft boven het hoofdvenster en de preview.
@@ -404,28 +409,28 @@ Deze 3.1.66 patchrelease zet kleurcorrectie, presets en helderheid/contrast op d
 4. Als SmartScreen waarschuwt: klik **Meer informatie** → **Toch uitvoeren**.
 
 ## Ultra-korte package checklist (5 punten)
-- [ ] Release-tag = `v3.1.66`.
+- [ ] Release-tag = `v3.1.67`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` staat op de release.
 - [ ] ZIP uitgepakt naar een lokale map.
-- [ ] `AEO-Light.exe` start en toont versie **3.1.66**.
+- [ ] `AEO-Light.exe` start en toont versie **3.1.67**.
 - [ ] Korte **Test Run** slaagt en maakt output aan.
 
-## Package checklist (v3.1.66, Windows x64)
-- [ ] Release-tag is `v3.1.66`.
+## Package checklist (v3.1.67, Windows x64)
+- [ ] Release-tag is `v3.1.67`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` is aanwezig op de releasepagina.
 - [ ] ZIP uitgepakt naar een lokale map (niet rechtstreeks uit de ZIP starten).
 - [ ] In de uitgepakte map staan minimaal:
   - `AEO-Light.exe`
   - `LICENSE.txt`
   - `ffmpeg.exe`
-- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.66**.
+- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.67**.
 - [ ] Snelle rooktest:
   - bron laden
   - korte **Test Run** uitvoeren
   - outputbestand wordt aangemaakt
 - [ ] (Optioneel) checksumcontrole van download:
   - `certutil -hashfile AEO-Light-Windows-x64.zip SHA256`
-  - verwacht: waarde op de `v3.1.66` releasepagina
+  - verwacht: waarde op de `v3.1.67` releasepagina
 
 ## Snelle start (aanbevolen)
 - Container: **MP4**

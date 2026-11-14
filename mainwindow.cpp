@@ -1994,35 +1994,48 @@ QVariantMap FixedImagePresetValues(int index)
 
 void MainWindow::SetupImageProcExtras()
 {
-	if(!ui || !ui->tab_2 || imageToneGroupBox)
+	if(!ui || !ui->tab_2 || imageBrightnessSlider)
 		return;
 
-	imageToneGroupBox = new QGroupBox(tr("Helderheid en contrast"), ui->tab_2);
-	QGridLayout *toneLayout = new QGridLayout(imageToneGroupBox);
-	toneLayout->setContentsMargins(8, 8, 8, 8);
-	toneLayout->setHorizontalSpacing(8);
-	QLabel *brightnessCaption = new QLabel(tr("Helderheid"), imageToneGroupBox);
-	imageBrightnessSlider = new QSlider(Qt::Horizontal, imageToneGroupBox);
+	QWidget *sliderParent = ui->gridLayoutWidget_2 ? ui->gridLayoutWidget_2 : ui->tab_2;
+	auto alignValue = [](QLabel *label)
+	{
+		label->setAlignment(Qt::AlignRight | Qt::AlignTrailing | Qt::AlignVCenter);
+		label->setMinimumWidth(42);
+	};
+	QLabel *brightnessCaption = new QLabel(tr("Helderheid"), sliderParent);
+	brightnessCaption->setAlignment(Qt::AlignRight | Qt::AlignTrailing | Qt::AlignVCenter);
+	imageBrightnessSlider = new QSlider(Qt::Horizontal, sliderParent);
 	imageBrightnessSlider->setRange(-100, 100);
 	imageBrightnessSlider->setValue(0);
+	imageBrightnessSlider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 	imageBrightnessSlider->setToolTip(
 			tr("Verschuift het beeld lichter of donkerder. 0 is neutraal."));
-	imageBrightnessValueLabel = new QLabel(tr("0.00"), imageToneGroupBox);
-	imageBrightnessValueLabel->setMinimumWidth(42);
-	QLabel *contrastCaption = new QLabel(tr("Contrast"), imageToneGroupBox);
-	imageContrastSlider = new QSlider(Qt::Horizontal, imageToneGroupBox);
+	imageBrightnessValueLabel = new QLabel(tr("0.00"), sliderParent);
+	alignValue(imageBrightnessValueLabel);
+	QLabel *contrastCaption = new QLabel(tr("Contrast"), sliderParent);
+	contrastCaption->setAlignment(Qt::AlignRight | Qt::AlignTrailing | Qt::AlignVCenter);
+	imageContrastSlider = new QSlider(Qt::Horizontal, sliderParent);
 	imageContrastSlider->setRange(25, 200);
 	imageContrastSlider->setValue(100);
+	imageContrastSlider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 	imageContrastSlider->setToolTip(
 			tr("1.00 is neutraal. Lager maakt het vlakker, hoger maakt het harder."));
-	imageContrastValueLabel = new QLabel(tr("1.00"), imageToneGroupBox);
-	imageContrastValueLabel->setMinimumWidth(42);
-	toneLayout->addWidget(brightnessCaption, 0, 0);
-	toneLayout->addWidget(imageBrightnessSlider, 0, 1);
-	toneLayout->addWidget(imageBrightnessValueLabel, 0, 2);
-	toneLayout->addWidget(contrastCaption, 1, 0);
-	toneLayout->addWidget(imageContrastSlider, 1, 1);
-	toneLayout->addWidget(imageContrastValueLabel, 1, 2);
+	imageContrastValueLabel = new QLabel(tr("1.00"), sliderParent);
+	alignValue(imageContrastValueLabel);
+	if(ui->gridLayout)
+	{
+		if(ui->colorBalanceTipLabel)
+			ui->gridLayout->removeWidget(ui->colorBalanceTipLabel);
+		ui->gridLayout->addWidget(brightnessCaption, 9, 1);
+		ui->gridLayout->addWidget(imageBrightnessValueLabel, 9, 2);
+		ui->gridLayout->addWidget(imageBrightnessSlider, 9, 3);
+		ui->gridLayout->addWidget(contrastCaption, 10, 1);
+		ui->gridLayout->addWidget(imageContrastValueLabel, 10, 2);
+		ui->gridLayout->addWidget(imageContrastSlider, 10, 3);
+		if(ui->colorBalanceTipLabel)
+			ui->gridLayout->addWidget(ui->colorBalanceTipLabel, 11, 0, 1, 5);
+	}
 	connect(imageBrightnessSlider.data(), &QSlider::valueChanged, this, [this](int value)
 	{
 		if(imageBrightnessValueLabel)
@@ -2367,6 +2380,48 @@ void MainWindow::PositionTransportBarBelowTabs()
 	else if(bar->height() >= 90)
 		barHeight = bar->height();
 
+	const int margin = 10;
+	const int gap = 8;
+	const int tabWidth = std::max(280, ui->tab_2->width() - (2 * margin));
+
+	if(ui->gridLayoutWidget_2 && ui->gridLayout)
+	{
+		ui->gridLayout->activate();
+		int gridHeight = std::max(
+				ui->gridLayout->sizeHint().height(),
+				ui->gridLayoutWidget_2->minimumSizeHint().height());
+		if(imageBrightnessSlider)
+			gridHeight = std::max(gridHeight, 372);
+		if(ui->colorBalanceTipLabel)
+			gridHeight = std::max(gridHeight, ui->colorBalanceTipLabel->geometry().bottom() + 8);
+		if(gridHeight > 0)
+		{
+			QRect gridRect = ui->gridLayoutWidget_2->geometry();
+			gridRect.setHeight(gridHeight);
+			ui->gridLayoutWidget_2->setMinimumHeight(gridHeight);
+			ui->gridLayoutWidget_2->setGeometry(gridRect);
+		}
+	}
+	if(ui->horizontalLayoutWidget && ui->gridLayoutWidget_2)
+	{
+		QRect rowRect = ui->horizontalLayoutWidget->geometry();
+		rowRect.moveTop(ui->gridLayoutWidget_2->geometry().bottom() + 4);
+		if(rowRect.height() < 32)
+			rowRect.setHeight(32);
+		ui->horizontalLayoutWidget->setGeometry(rowRect);
+	}
+
+	QPushButton *imageFactoryResetButton = nullptr;
+	const QList<QPushButton*> imageButtons = ui->tab_2->findChildren<QPushButton*>(
+			QString(), Qt::FindDirectChildrenOnly);
+	for(QPushButton *button : imageButtons)
+	{
+		if(!button || button == ui->imageDefaultsButton || button == ui->imageResetButton)
+			continue;
+		if(button->text().contains("Factory", Qt::CaseInsensitive))
+			imageFactoryResetButton = button;
+	}
+
 	int contentBottom = 0;
 	const QList<QWidget*> siblings = ui->tab_2->findChildren<QWidget*>(
 			QString(), Qt::FindDirectChildrenOnly);
@@ -2374,14 +2429,14 @@ void MainWindow::PositionTransportBarBelowTabs()
 	{
 		if(!sibling || sibling == bar || sibling->isHidden()) continue;
 		if(sibling == imageToneGroupBox || sibling == imagePresetGroupBox ||
-				sibling == ui->autoOptimizeGroupBox)
+				sibling == ui->autoOptimizeGroupBox ||
+				sibling == ui->imageDefaultsButton ||
+				sibling == ui->imageResetButton ||
+				sibling == imageFactoryResetButton)
 			continue;
 		contentBottom = std::max(contentBottom, sibling->geometry().bottom());
 	}
 
-	const int margin = 10;
-	const int gap = 12;
-	const int tabWidth = std::max(280, ui->tab_2->width() - (2 * margin));
 	const int barY = contentBottom + gap;
 	bar->setGeometry(margin, barY, tabWidth, barHeight);
 
@@ -2413,11 +2468,36 @@ void MainWindow::PositionTransportBarBelowTabs()
 		widget->raise();
 		footerY += height + gap;
 	};
-	placeFooter(imageToneGroupBox, sectionHeight(imageToneGroupBox, tabWidth, 108));
 	placeFooter(imagePresetGroupBox, sectionHeight(imagePresetGroupBox, tabWidth, 150));
 	placeFooter(
 			ui->autoOptimizeGroupBox,
 			std::min(480, sectionHeight(ui->autoOptimizeGroupBox, tabWidth, 300)));
+
+	const int buttonTop = footerY;
+	auto placeImageButton = [&](QWidget *button)
+	{
+		if(!button) return;
+		QRect rect = button->geometry();
+		if(rect.width() < 40)
+			rect.setWidth(127);
+		if(rect.height() < 24)
+			rect.setHeight(32);
+		rect.moveTop(buttonTop);
+		button->setGeometry(rect);
+		button->show();
+		button->raise();
+	};
+	placeImageButton(ui->imageDefaultsButton);
+	placeImageButton(ui->imageResetButton);
+	placeImageButton(imageFactoryResetButton);
+	int buttonBottom = buttonTop;
+	if(ui->imageDefaultsButton)
+		buttonBottom = std::max(buttonBottom, ui->imageDefaultsButton->geometry().bottom());
+	if(ui->imageResetButton)
+		buttonBottom = std::max(buttonBottom, ui->imageResetButton->geometry().bottom());
+	if(imageFactoryResetButton)
+		buttonBottom = std::max(buttonBottom, imageFactoryResetButton->geometry().bottom());
+	footerY = buttonBottom + gap;
 
 	if(ui->playSlider)
 	{
