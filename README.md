@@ -1,8 +1,13 @@
-# AEO-Light 3.1.68 (fork release)
+# AEO-Light 3.1.69 (fork release)
 
-Deze 3.1.68 patchrelease geeft Image Proc twee aparte standen: optisch geluid en het afgebakende beeld.
+Deze 3.1.69 patchrelease haalt een paarse schaduwzweem en een cyaan hooglichtzweem apart weg, met een klik in het beeld.
 
-## Nieuw in 3.1.68
+## Nieuw in 3.1.69
+- **Wit aanwijzen** zet de kleurbalans op een lichte plek die wit of grijs hoort te zijn.
+- **Schaduw aanwijzen** haalt paars (of een andere zweem) uit de donkere delen, zonder de lichte delen opnieuw te kleuren.
+- De kleurbalans-sliders lopen nu van 0.25 tot 4.00, zodat een sterke zweem niet meer op 2.00 blijft hangen.
+
+## Eerder toegevoegd in 3.1.68
 - **Regeling voor** staat bovenaan Image Proc: **Optisch geluid** of **Beeld**.
 - Optisch geluid blijft het geluidsspoor regelen. Beeld regelt het gebied tussen de Picture Strip-lijnen.
 - Bij het omschakelen worden de sliders van de huidige stand bewaard en daarna de andere stand geladen.
@@ -414,28 +419,28 @@ Deze 3.1.68 patchrelease geeft Image Proc twee aparte standen: optisch geluid en
 4. Als SmartScreen waarschuwt: klik **Meer informatie** → **Toch uitvoeren**.
 
 ## Ultra-korte package checklist (5 punten)
-- [ ] Release-tag = `v3.1.68`.
+- [ ] Release-tag = `v3.1.69`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` staat op de release.
 - [ ] ZIP uitgepakt naar een lokale map.
-- [ ] `AEO-Light.exe` start en toont versie **3.1.68**.
+- [ ] `AEO-Light.exe` start en toont versie **3.1.69**.
 - [ ] Korte **Test Run** slaagt en maakt output aan.
 
-## Package checklist (v3.1.68, Windows x64)
-- [ ] Release-tag is `v3.1.68`.
+## Package checklist (v3.1.69, Windows x64)
+- [ ] Release-tag is `v3.1.69`.
 - [ ] Asset `AEO-Light-Windows-x64.zip` is aanwezig op de releasepagina.
 - [ ] ZIP uitgepakt naar een lokale map (niet rechtstreeks uit de ZIP starten).
 - [ ] In de uitgepakte map staan minimaal:
   - `AEO-Light.exe`
   - `LICENSE.txt`
   - `ffmpeg.exe`
-- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.68**.
+- [ ] App start zonder crash en toont in de titel/over dialoog versie **3.1.69**.
 - [ ] Snelle rooktest:
   - bron laden
   - korte **Test Run** uitvoeren
   - outputbestand wordt aangemaakt
 - [ ] (Optioneel) checksumcontrole van download:
   - `certutil -hashfile AEO-Light-Windows-x64.zip SHA256`
-  - verwacht: waarde op de `v3.1.68` releasepagina
+  - verwacht: waarde op de `v3.1.69` releasepagina
 
 ## Snelle start (aanbevolen)
 - Container: **MP4**

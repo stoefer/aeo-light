@@ -1988,6 +1988,12 @@ QVariantMap FixedImagePresetValues(int index)
 	PutFixedPresetValue(values, "blue", preset.blue);
 	PutFixedPresetValue(values, "brightness", preset.brightness);
 	PutFixedPresetValue(values, "contrast", preset.contrast);
+	if(index == 0)
+	{
+		values.insert("shadow-red", 100);
+		values.insert("shadow-green", 100);
+		values.insert("shadow-blue", 100);
+	}
 	return values;
 }
 
@@ -2074,6 +2080,9 @@ void MainWindow::WriteImageProcTargetGroup(
 	settings.setValue("blue", values.blue);
 	settings.setValue("brightness", values.brightness);
 	settings.setValue("contrast", values.contrast);
+	settings.setValue("shadow-red", values.shadowRed);
+	settings.setValue("shadow-green", values.shadowGreen);
+	settings.setValue("shadow-blue", values.shadowBlue);
 	settings.setValue("negative", values.negative);
 	settings.setValue("desaturate", values.desaturate);
 	settings.setValue("threshold-on", values.thresholdOn);
@@ -2099,6 +2108,9 @@ bool MainWindow::ReadImageProcTargetGroup(
 		values.blue = settings.value("blue", values.blue).toInt();
 		values.brightness = settings.value("brightness", values.brightness).toInt();
 		values.contrast = settings.value("contrast", values.contrast).toInt();
+		values.shadowRed = settings.value("shadow-red", values.shadowRed).toInt();
+		values.shadowGreen = settings.value("shadow-green", values.shadowGreen).toInt();
+		values.shadowBlue = settings.value("shadow-blue", values.shadowBlue).toInt();
 		values.negative = settings.value("negative", values.negative).toBool();
 		values.desaturate = settings.value("desaturate", values.desaturate).toBool();
 		values.thresholdOn = settings.value("threshold-on", values.thresholdOn).toBool();
@@ -2157,6 +2169,291 @@ void MainWindow::LoadImageProcTargets(bool captureCurrentIfMissing)
 	if(imageProcTargetCombo)
 		imageProcTargetCombo->setCurrentIndex(imageProcTargetMode);
 	imageProcTargetSwitchLock = false;
+}
+
+static double ColorPickSmoothStep(double edge0, double edge1, double x)
+{
+	if(edge1 <= edge0)
+		return x < edge0 ? 0.0 : 1.0;
+	const double t = std::max(0.0, std::min(1.0, (x - edge0) / (edge1 - edge0)));
+	return t * t * (3.0 - 2.0 * t);
+}
+
+static bool ReadFramePixelRgb(const FrameTexture *frame, int x, int y,
+		double &r, double &g, double &b)
+{
+	if(!frame || !frame->buf || frame->width <= 0 || frame->height <= 0)
+		return false;
+	if(x < 0 || y < 0 || x >= frame->width || y >= frame->height)
+		return false;
+	const int comps = std::max(1, frame->nComponents);
+	if(frame->format == GL_UNSIGNED_BYTE)
+	{
+		const uint8_t *src = reinterpret_cast<const uint8_t *>(frame->buf);
+		const int idx = (y * frame->width + x) * comps;
+		if(comps >= 3)
+		{
+			r = src[idx] / 255.0;
+			g = src[idx + 1] / 255.0;
+			b = src[idx + 2] / 255.0;
+		}
+		else
+		{
+			r = g = b = src[idx] / 255.0;
+		}
+		return true;
+	}
+	if(frame->format == GL_UNSIGNED_SHORT)
+	{
+		const uint16_t *src = reinterpret_cast<const uint16_t *>(frame->buf);
+		const int idx = (y * frame->width + x) * comps;
+		auto norm = [&](uint16_t value) -> double
+		{
+			if(frame->isNonNativeEndianess)
+				value = uint16_t((value >> 8) | (value << 8));
+			return double(value) / 65535.0;
+		};
+		if(comps >= 3)
+		{
+			r = norm(src[idx]);
+			g = norm(src[idx + 1]);
+			b = norm(src[idx + 2]);
+		}
+		else
+		{
+			r = g = b = norm(src[idx]);
+		}
+		return true;
+	}
+	if(frame->format == GL_UNSIGNED_INT_10_10_10_2)
+	{
+		const uint32_t *src = reinterpret_cast<const uint32_t *>(frame->buf);
+		uint32_t px = src[y * frame->width + x];
+		if(frame->isNonNativeEndianess)
+		{
+			px = ((px & 0x000000FFu) << 24) | ((px & 0x0000FF00u) << 8) |
+					((px & 0x00FF0000u) >> 8) | ((px & 0xFF000000u) >> 24);
+		}
+		r = double(px & 0x3FFu) / 1023.0;
+		g = double((px >> 10) & 0x3FFu) / 1023.0;
+		b = double((px >> 20) & 0x3FFu) / 1023.0;
+		return true;
+	}
+	return false;
+}
+
+void MainWindow::SetColorPickMode(int mode)
+{
+	mode = ClampRangeInt(mode, 0, 2);
+	if(frame_window)
+	{
+		frame_window->colorPickMode = mode;
+		frame_window->setCursor(mode == 0 ? Qt::ArrowCursor : Qt::CrossCursor);
+	}
+	if(!imageColorPickStatusLabel)
+		return;
+	if(mode == 1)
+	{
+		imageColorPickStatusLabel->setText(
+				tr("Klik in het voorbeeld op een lichte plek die wit of grijs hoort te zijn."));
+	}
+	else if(mode == 2)
+	{
+		imageColorPickStatusLabel->setText(
+				tr("Klik in het voorbeeld op een donkere plek die grijs of zwart hoort te zijn."));
+	}
+	else
+	{
+		imageColorPickStatusLabel->setText(
+				tr("Wit voor de lichte delen, schaduw voor het paars in het donker."));
+	}
+}
+
+void MainWindow::ApplyColorPick(int mode, float xNorm, float yFromTop)
+{
+	auto setStatus = [this](const QString &text)
+	{
+		if(imageColorPickStatusLabel)
+			imageColorPickStatusLabel->setText(text);
+	};
+	if(!ui || !frame_window || !currentFrameTexture)
+	{
+		setStatus(tr("Open eerst een frame."));
+		return;
+	}
+	const FrameTexture *frame = currentFrameTexture;
+	float regionLeft = imageProcTargetMode == 0 ?
+			frame_window->bounds[0] : frame_window->pixbounds[0];
+	float regionRight = imageProcTargetMode == 0 ?
+			frame_window->bounds[1] : frame_window->pixbounds[1];
+	if(regionRight < regionLeft)
+		std::swap(regionLeft, regionRight);
+	if((regionRight - regionLeft) > 0.002f &&
+			(xNorm < regionLeft || xNorm > regionRight))
+	{
+		setStatus(imageProcTargetMode == 0 ?
+				tr("Klik binnen het optische geluidsspoor.") :
+				tr("Klik binnen de gele Picture Strip-lijnen."));
+		return;
+	}
+
+	const double angle = double(frame_window->rot_angle) * 3.14159265358979323846 / 180.0;
+	const double c = std::cos(angle);
+	const double s = std::sin(angle);
+	const double dx = double(xNorm) - 0.5;
+	const double dy = double(yFromTop) - 0.5;
+	const double sourceX = std::max(0.0, std::min(1.0,
+			c * dx - s * dy + 0.5 + double(frame_window->horizontal_stabilize_shift)));
+	const double sourceY = std::max(0.0, std::min(1.0,
+			s * dx + c * dy + 0.5 + double(frame_window->vertical_stabilize_shift)));
+	const int centerX = ClampRangeInt(
+			int(std::lround(sourceX * (frame->width - 1))), 0, frame->width - 1);
+	const int centerY = ClampRangeInt(
+			int(std::lround(sourceY * (frame->height - 1))), 0, frame->height - 1);
+
+	double sumR = 0.0;
+	double sumG = 0.0;
+	double sumB = 0.0;
+	int samples = 0;
+	for(int y = centerY - 2; y <= centerY + 2; ++y)
+	{
+		for(int x = centerX - 2; x <= centerX + 2; ++x)
+		{
+			double r = 0.0;
+			double g = 0.0;
+			double b = 0.0;
+			if(!ReadFramePixelRgb(frame, x, y, r, g, b))
+				continue;
+			sumR += r;
+			sumG += g;
+			sumB += b;
+			++samples;
+		}
+	}
+	if(samples < 4)
+	{
+		setStatus(tr("Die plek kan niet worden gelezen."));
+		return;
+	}
+	double r = sumR / samples;
+	double g = sumG / samples;
+	double b = sumB / samples;
+
+	const bool negative = ui->negBox->isChecked();
+	const double lift = ui->liftSlider->value() / 100.0;
+	const double gamma = std::max(0.05, ui->gammaSlider->value() / 100.0);
+	const double gain = ui->gainSlider->value() / 100.0;
+	auto graded = [&](double channel) -> double
+	{
+		double value = negative ? 1.0 - channel : channel;
+		value = std::max(0.0, std::min(1.0, value + lift));
+		value = std::pow(value, gamma);
+		value *= std::max(0.0, gain);
+		return value;
+	};
+	double pr = std::max(1e-4, graded(r));
+	double pg = std::max(1e-4, graded(g));
+	double pb = std::max(1e-4, graded(b));
+	const double luma = 0.2126 * pr + 0.7152 * pg + 0.0722 * pb;
+
+	auto toSlider = [](double factor) -> int
+	{
+		return ClampRangeInt(int(std::lround(factor * 100.0)), 25, 400);
+	};
+	auto limited = [](double factor) -> bool
+	{
+		return factor < 0.25 || factor > 4.0;
+	};
+
+	QString status;
+	bool hitLimit = false;
+	if(mode == 2)
+	{
+		pr *= ui->redBalanceSlider->value() / 100.0;
+		pg *= ui->greenBalanceSlider->value() / 100.0;
+		pb *= ui->blueBalanceSlider->value() / 100.0;
+		const double shownLuma = 0.2126 * pr + 0.7152 * pg + 0.0722 * pb;
+		const double shadowWeight = 1.0 - ColorPickSmoothStep(0.05, 0.50, shownLuma);
+		if(shadowWeight < 0.35)
+		{
+			setStatus(tr("Die plek is te licht. Kies een donkere plek voor de schaduw."));
+			return;
+		}
+		const double peak = std::max(pr, std::max(pg, pb));
+		auto shadowFactor = [&](double shown) -> double
+		{
+			shown = std::max(1e-4, shown);
+			return (peak / shown - (1.0 - shadowWeight)) / shadowWeight;
+		};
+		const double wantR = shadowFactor(pr);
+		const double wantG = shadowFactor(pg);
+		const double wantB = shadowFactor(pb);
+		hitLimit = limited(wantR) || limited(wantG) || limited(wantB);
+		ImageProcTargetValues &active = ActiveImageProcTarget();
+		active.shadowRed = toSlider(wantR);
+		active.shadowGreen = toSlider(wantG);
+		active.shadowBlue = toSlider(wantB);
+		status = tr("Schaduw: R %1  G %2  B %3.")
+				.arg(active.shadowRed / 100.0, 0, 'f', 2)
+				.arg(active.shadowGreen / 100.0, 0, 'f', 2)
+				.arg(active.shadowBlue / 100.0, 0, 'f', 2);
+	}
+	else
+	{
+		if(luma < 0.20)
+		{
+			setStatus(tr("Die plek is te donker. Kies een lichte plek voor de witbalans."));
+			return;
+		}
+		const double peak = std::max(pr, std::max(pg, pb));
+		const double wantR = peak / pr;
+		const double wantG = peak / pg;
+		const double wantB = peak / pb;
+		hitLimit = limited(wantR) || limited(wantG) || limited(wantB);
+		const int red = toSlider(wantR);
+		const int green = toSlider(wantG);
+		const int blue = toSlider(wantB);
+		{
+			QSignalBlocker lockRed(ui->redBalanceSlider);
+			QSignalBlocker lockGreen(ui->greenBalanceSlider);
+			QSignalBlocker lockBlue(ui->blueBalanceSlider);
+			ui->redBalanceSlider->setValue(red);
+			ui->greenBalanceSlider->setValue(green);
+			ui->blueBalanceSlider->setValue(blue);
+		}
+		ui->redBalanceLabel->setText(QString::number(red / 100.f, 'f', 2));
+		ui->greenBalanceLabel->setText(QString::number(green / 100.f, 'f', 2));
+		ui->blueBalanceLabel->setText(QString::number(blue / 100.f, 'f', 2));
+		status = tr("Witbalans: R %1  G %2  B %3.")
+				.arg(red / 100.0, 0, 'f', 2)
+				.arg(green / 100.0, 0, 'f', 2)
+				.arg(blue / 100.0, 0, 'f', 2);
+		const ImageProcTargetValues &active = ActiveImageProcTarget();
+		if(std::abs(active.shadowRed - 100) > 3 ||
+				std::abs(active.shadowGreen - 100) > 3 ||
+				std::abs(active.shadowBlue - 100) > 3)
+		{
+			status += tr(" Wijs de schaduw opnieuw aan.");
+		}
+	}
+	if(hitLimit)
+		status += tr(" De zweem is zo sterk dat een slider op de grens staat.");
+	{
+		QSignalBlocker lockWhite(imageWhitePickButton.data());
+		QSignalBlocker lockShadow(imageShadowPickButton.data());
+		if(imageWhitePickButton)
+			imageWhitePickButton->setChecked(false);
+		if(imageShadowPickButton)
+			imageShadowPickButton->setChecked(false);
+	}
+	if(frame_window)
+	{
+		frame_window->colorPickMode = 0;
+		frame_window->setCursor(Qt::ArrowCursor);
+	}
+	GPU_Params_Update(1);
+	SaveImageProcTargets();
+	setStatus(status);
 }
 
 void MainWindow::SetupImageProcExtras()
@@ -2225,6 +2522,50 @@ void MainWindow::SetupImageProcExtras()
 			imageProcTargetSwitchLock = false;
 			SaveImageProcTargets();
 			GPU_Params_Update(1);
+		});
+		ui->redBalanceSlider->setRange(25, 400);
+		ui->greenBalanceSlider->setRange(25, 400);
+		ui->blueBalanceSlider->setRange(25, 400);
+		if(ui->colorBalanceTipLabel)
+		{
+			ui->colorBalanceTipLabel->setText(
+					tr("Paars in de donkere delen haal je weg met Schaduw aanwijzen. Cyaan of groen in de lichte delen met Wit aanwijzen. Klik op een plek die grijs hoort te zijn, niet op gekleurde letters."));
+		}
+		imageColorPickRow = new QWidget(sliderParent);
+		QHBoxLayout *pickLayout = new QHBoxLayout(imageColorPickRow);
+		pickLayout->setContentsMargins(0, 0, 0, 0);
+		pickLayout->setSpacing(6);
+		QLabel *pickCaption = new QLabel(tr("Witbalans"), imageColorPickRow);
+		pickCaption->setAlignment(Qt::AlignRight | Qt::AlignTrailing | Qt::AlignVCenter);
+		imageWhitePickButton = new QPushButton(tr("Wit aanwijzen"), imageColorPickRow);
+		imageShadowPickButton = new QPushButton(tr("Schaduw aanwijzen"), imageColorPickRow);
+		imageWhitePickButton->setCheckable(true);
+		imageShadowPickButton->setCheckable(true);
+		imageWhitePickButton->setToolTip(
+				tr("Klik daarna in het voorbeeld op een lichte plek die wit of grijs hoort te zijn. De kleurbalans maakt die plek neutraal."));
+		imageShadowPickButton->setToolTip(
+				tr("Klik daarna op een donkere plek die grijs of zwart hoort te zijn. Dat haalt paars uit de schaduwen en laat de lichte delen met rust."));
+		pickLayout->addWidget(pickCaption);
+		pickLayout->addWidget(imageWhitePickButton);
+		pickLayout->addWidget(imageShadowPickButton);
+		pickLayout->addStretch(1);
+		ui->gridLayout->addWidget(imageColorPickRow, 12, 0, 1, 5);
+		imageColorPickStatusLabel = new QLabel(
+				tr("Wit voor de lichte delen, schaduw voor het paars in het donker."),
+				sliderParent);
+		imageColorPickStatusLabel->setWordWrap(true);
+		ui->gridLayout->addWidget(imageColorPickStatusLabel, 13, 0, 1, 5);
+		connect(imageWhitePickButton.data(), &QPushButton::toggled, this, [this](bool checked)
+		{
+			if(checked && imageShadowPickButton)
+				imageShadowPickButton->setChecked(false);
+			SetColorPickMode(checked ? 1 : (imageShadowPickButton && imageShadowPickButton->isChecked() ? 2 : 0));
+		});
+		connect(imageShadowPickButton.data(), &QPushButton::toggled, this, [this](bool checked)
+		{
+			if(checked && imageWhitePickButton)
+				imageWhitePickButton->setChecked(false);
+			SetColorPickMode(checked ? 2 : (imageWhitePickButton && imageWhitePickButton->isChecked() ? 1 : 0));
 		});
 	}
 	LoadImageProcTargets(false);
@@ -2456,6 +2797,16 @@ void MainWindow::ApplyNamedImagePreset(const QString &presetKey)
 		ui->desatBox->setChecked(values.value("desaturate").toBool());
 	if(values.contains("threshold-on"))
 		ui->threshBox->setChecked(values.value("threshold-on").toBool());
+	if(values.contains("shadow-red") || values.contains("shadow-green") || values.contains("shadow-blue"))
+	{
+		ImageProcTargetValues &active = ActiveImageProcTarget();
+		if(values.contains("shadow-red"))
+			active.shadowRed = values.value("shadow-red").toInt();
+		if(values.contains("shadow-green"))
+			active.shadowGreen = values.value("shadow-green").toInt();
+		if(values.contains("shadow-blue"))
+			active.shadowBlue = values.value("shadow-blue").toInt();
+	}
 	GPU_Params_Update(1);
 }
 
@@ -2509,6 +2860,10 @@ void MainWindow::SavePersonalImagePreset()
 		values.insert("brightness", imageBrightnessSlider->value());
 	if(imageContrastSlider)
 		values.insert("contrast", imageContrastSlider->value());
+	CaptureImageProcTargetFromControls(ActiveImageProcTarget());
+	values.insert("shadow-red", ActiveImageProcTarget().shadowRed);
+	values.insert("shadow-green", ActiveImageProcTarget().shadowGreen);
+	values.insert("shadow-blue", ActiveImageProcTarget().shadowBlue);
 	settings.setValue(name, values);
 	settings.endGroup();
 	settings.sync();
@@ -2583,7 +2938,11 @@ void MainWindow::PositionTransportBarBelowTabs()
 				ui->gridLayout->sizeHint().height(),
 				ui->gridLayoutWidget_2->minimumSizeHint().height());
 		if(imageBrightnessSlider)
-			gridHeight = std::max(gridHeight, 410);
+			gridHeight = std::max(gridHeight, 480);
+		if(imageColorPickRow)
+			gridHeight = std::max(gridHeight, imageColorPickRow->geometry().bottom() + 8);
+		if(imageColorPickStatusLabel)
+			gridHeight = std::max(gridHeight, imageColorPickStatusLabel->geometry().bottom() + 8);
 		if(ui->colorBalanceTipLabel)
 			gridHeight = std::max(gridHeight, ui->colorBalanceTipLabel->geometry().bottom() + 8);
 		if(gridHeight > 0)
@@ -3812,6 +4171,9 @@ void MainWindow::SaveDefaultsImage()
 	settings.setValue("desaturate", values.desaturate);
 	settings.setValue("brightness", values.brightness);
 	settings.setValue("contrast", values.contrast);
+	settings.setValue("shadow-red", values.shadowRed);
+	settings.setValue("shadow-green", values.shadowGreen);
+	settings.setValue("shadow-blue", values.shadowBlue);
 	settings.endGroup();
 	SaveImageProcTargets();
 	settings.sync();
@@ -4410,6 +4772,7 @@ void MainWindow::GPU_Params_Update(bool renderyes)
 				float &lift, float &gamma, float &gain,
 				float &toneBrightness, float &toneContrast,
 				float &red, float &green, float &blue,
+				float &shadowRed, float &shadowGreen, float &shadowBlue,
 				float &blur, float &threshold,
 				bool &threshOn, bool &negativeOn, bool &desaturateOn)
 		{
@@ -4421,6 +4784,9 @@ void MainWindow::GPU_Params_Update(bool renderyes)
 			red = values.red / 100.0f;
 			green = values.green / 100.0f;
 			blue = values.blue / 100.0f;
+			shadowRed = values.shadowRed / 100.0f;
+			shadowGreen = values.shadowGreen / 100.0f;
+			shadowBlue = values.shadowBlue / 100.0f;
 			blur = values.blur / 100.0f;
 			threshold = values.threshold / 100.0f;
 			threshOn = values.thresholdOn;
@@ -4432,6 +4798,8 @@ void MainWindow::GPU_Params_Update(bool renderyes)
 				frame_window->tone_brightness, frame_window->tone_contrast,
 				frame_window->red_balance, frame_window->green_balance,
 				frame_window->blue_balance,
+				frame_window->shadow_red, frame_window->shadow_green,
+				frame_window->shadow_blue,
 				frame_window->blur, frame_window->threshold,
 				frame_window->thresh, frame_window->negative,
 				frame_window->desaturate);
@@ -4443,6 +4811,9 @@ void MainWindow::GPU_Params_Update(bool renderyes)
 				frame_window->picture_red_balance,
 				frame_window->picture_green_balance,
 				frame_window->picture_blue_balance,
+				frame_window->picture_shadow_red,
+				frame_window->picture_shadow_green,
+				frame_window->picture_shadow_blue,
 				frame_window->picture_blur, frame_window->picture_threshold,
 				frame_window->picture_thresh, frame_window->picture_negative,
 				frame_window->picture_desaturate);
@@ -4682,6 +5053,13 @@ bool MainWindow::NewSource(QString filename, SourceFormat ft)
 			frame_window->currentOperation = &traceSubroutineOperation;
 			frame_window->setTitle(filename);
 			frame_window->ParamUpdateCallback(&(this->GUI_Params_Update_Static),this);
+			frame_window->colorPickCB = &MainWindow::ColorPickCallback;
+			frame_window->colorPickUserData = this;
+			frame_window->colorPickMode = 0;
+			if(imageWhitePickButton)
+				imageWhitePickButton->setChecked(false);
+			if(imageShadowPickButton)
+				imageShadowPickButton->setChecked(false);
 
 			Log() << "New frame window\n";
 			frame_window->logger = &Log();
@@ -12725,6 +13103,9 @@ void MainWindow::on_imageResetButton_clicked()
 	values.desaturate = settings.value("desaturate", values.desaturate).toBool();
 	values.brightness = settings.value("brightness", values.brightness).toInt();
 	values.contrast = settings.value("contrast", values.contrast).toInt();
+	values.shadowRed = settings.value("shadow-red", values.shadowRed).toInt();
+	values.shadowGreen = settings.value("shadow-green", values.shadowGreen).toInt();
+	values.shadowBlue = settings.value("shadow-blue", values.shadowBlue).toInt();
 	settings.endGroup();
 	ActiveImageProcTarget() = values;
 	ApplyImageProcTargetToControls(values);

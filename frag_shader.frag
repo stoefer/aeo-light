@@ -23,9 +23,11 @@ uniform vec2 pix_boundry;
 uniform vec4 bounds; //x1,x2,y1,y2
 uniform vec4 color_controls; //lift, gamma, gain,sat;
 uniform vec3 color_balance; // per-channel gain for cast correction (R,G,B)
+uniform vec3 shadow_balance; // extra gain that fades out above the shadows
 uniform vec2 tone_controls; // x = brightness offset, y = contrast scale
 uniform vec4 picture_color_controls; // lift, gamma, gain, sat for the picture strip
 uniform vec3 picture_color_balance;
+uniform vec3 picture_shadow_balance;
 uniform vec2 picture_tone_controls;
 uniform vec3 picture_manip_controls;
 uniform float picture_negative;
@@ -334,6 +336,10 @@ vTexRotated = vTexRotated +vec2(0.5,0.5);
                 texel=pow(texel,vec4(active_color.y)); //gamma
                 texel*=vec4(active_color.z);           //gain
                 texel.rgb*=active_balance;                //per-channel cast correction
+                float shadowLuma = dot(max(texel.rgb, vec3(0.0)), vec3(0.2126, 0.7152, 0.0722));
+                float shadowMix = 1.0 - smoothstep(0.05, 0.50, shadowLuma);
+                vec3 active_shadow = inOptical ? shadow_balance : picture_shadow_balance;
+                texel.rgb *= mix(vec3(1.0), active_shadow, shadowMix);
                 texel.rgb = (texel.rgb - vec3(0.5)) * active_tone.y
                         + vec3(0.5) + vec3(active_tone.x);
                 texel=clamp(texel,vec4(0),vec4(1.0));

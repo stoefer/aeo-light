@@ -179,6 +179,10 @@ public:
 	void GUI_Params_Update();
 	static void GUI_Params_Update_Static(void *userData)
 	{ static_cast<MainWindow *>(userData)->GUI_Params_Update(); }
+	static void ColorPickCallback(int mode, float xNorm, float yFromTop, void *userData)
+	{ static_cast<MainWindow *>(userData)->ApplyColorPick(mode, xNorm, yFromTop); }
+	void ApplyColorPick(int mode, float xNorm, float yFromTop);
+	void SetColorPickMode(int mode);
 
 	ExtractedSound ExtractionParamsFromGUI();
 	void ExtractionParametersToGUI(const ExtractedSound &params);
@@ -410,6 +414,10 @@ private:
 	QPointer<QLabel> imageContrastValueLabel;
 	QPointer<QComboBox> imagePresetComboBox;
 	QPointer<QComboBox> imageProcTargetCombo;
+	QPointer<QPushButton> imageWhitePickButton;
+	QPointer<QPushButton> imageShadowPickButton;
+	QPointer<QLabel> imageColorPickStatusLabel;
+	QPointer<QWidget> imageColorPickRow;
 	QPointer<QCheckBox> autoOptimizeContrastCheckBox;
 	QPointer<QSlider> autoContrastLevelSlider;
 	QPointer<QSlider> autoColorLevelSlider;
@@ -425,6 +433,9 @@ private:
 		int blue = 100;
 		int brightness = 0;
 		int contrast = 100;
+		int shadowRed = 100;
+		int shadowGreen = 100;
+		int shadowBlue = 100;
 		bool negative = false;
 		bool desaturate = false;
 		bool thresholdOn = false;
