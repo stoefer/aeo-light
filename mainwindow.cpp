@@ -3551,6 +3551,54 @@ void MainWindow::UpdateAdaptiveUiScale()
 			(profile == RES_PROFILE_HD) ? 95 :
 			(profile == RES_PROFILE_UHD) ? 108 : 100;
 	uiScaleLayoutActive = (profile != RES_PROFILE_FHD);
+	ApplyGuideLineSliderColors();
+}
+
+void MainWindow::ApplyGuideLineSliderColors()
+{
+	if(!ui)
+		return;
+	auto paint = [](QSlider *slider, const char *groove, const char *edge,
+			const char *handle, const QString &tip)
+	{
+		if(!slider)
+			return;
+		slider->setStyleSheet(QString(
+				"QSlider::groove:horizontal {"
+				" background: %1; height: 6px;"
+				" border: 1px solid %2; border-radius: 2px; }"
+				"QSlider::sub-page:horizontal { background: %1; border-radius: 2px; }"
+				"QSlider::add-page:horizontal { background: %1; border-radius: 2px; }"
+				"QSlider::handle:horizontal {"
+				" background: %3; border: 2px solid %2;"
+				" width: 12px; margin: -6px 0; border-radius: 7px; }")
+				.arg(QString::fromLatin1(groove),
+						QString::fromLatin1(edge),
+						QString::fromLatin1(handle)));
+		if(!tip.isEmpty())
+			slider->setToolTip(tip);
+	};
+	const char *lightHandle = "#f7f7f7";
+	paint(ui->leftSlider, "#FF00FF", "#FF00FF", lightHandle,
+			tr("Magenta lijn: linkerkant van het optische geluidsspoor."));
+	paint(ui->rightSlider, "#FF0000", "#FF0000", lightHandle,
+			tr("Rode lijn: rechterkant van het optische geluidsspoor."));
+	paint(ui->leftPixSlider, "#FFFF00", "#C6C600", lightHandle,
+			tr("Gele lijn: linkerkant van de Picture Strip."));
+	paint(ui->rightPixSlider, "#FFFF00", "#C6C600", lightHandle,
+			tr("Gele lijn: rechterkant van de Picture Strip."));
+	paint(ui->leftPixSearchSlider, "#33B8FF", "#33B8FF", lightHandle,
+			tr("Lichtblauwe zone: zoekgebied rond de linker Picture Strip-lijn."));
+	paint(ui->framepitchstartSlider, "#F2F2F2", "#6E6E6E", "#3C3C3C",
+			tr("Witte lijn: Frame Pitch Start."));
+	paint(ui->FramePitchendSlider, "#FF00FF", "#FF00FF", lightHandle,
+			tr("Paarse lijn: Frame Pitch End."));
+	paint(ui->overlapSlider, "#C46AD6", "#C46AD6", lightHandle,
+			tr("Breedte van de paarse Frame Pitch-band."));
+	paint(ui->videoFrameTopSlider, "#00FFFF", "#00A8A8", lightHandle,
+			tr("Cyaan lijn: bovenkant van het videokader."));
+	paint(ui->videoFrameBottomSlider, "#FF9900", "#FF9900", lightHandle,
+			tr("Oranje lijn: onderkant van het videokader."));
 }
 
 void MainWindow::UpdateLayoutProfileStatusBadge(

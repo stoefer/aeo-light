@@ -578,6 +578,7 @@ private:
 	QString BuildOutputNameFromTemplate(const QString &ext) const;
 	void CaptureUiScaleBaseGeometry();
 	void UpdateAdaptiveUiScale();
+	void ApplyGuideLineSliderColors();
 	void PositionExtractTabAuxSections();
 	void PositionTransportBarBelowTabs();
 	void SetupImageProcExtras();
